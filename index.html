@@ -3,333 +3,83 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ورشتي | نظام إدارة محل الإطارات</title>
+<title>ورشتي - نظام إدارة الإطارات</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { 
-  font-family: 'Cairo', sans-serif;
-  background: #f5f5f5;
-  color: #333;
-}
+body { font-family: 'Cairo', sans-serif; background: #f5f5f5; color: #333; }
 
-.container {
-  display: flex;
-  min-height: 100vh;
-}
+.container { display: flex; min-height: 100vh; }
 
-.sidebar {
-  width: 240px;
-  background: #1a1a1a;
-  color: white;
-  padding: 20px 0;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-}
+.sidebar { width: 240px; background: #1a1a1a; color: white; padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 
-.logo {
-  padding: 0 20px 30px;
-  border-bottom: 1px solid #333;
-  text-align: center;
-  font-size: 32px;
-}
+.logo { padding: 0 20px 30px; border-bottom: 1px solid #333; text-align: center; font-size: 32px; }
 
-.nav-btn {
-  display: block;
-  width: 100%;
-  padding: 15px 20px;
-  background: none;
-  border: none;
-  color: #aaa;
-  text-align: right;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-family: 'Cairo', sans-serif;
-}
+.nav-btn { display: block; width: 100%; padding: 15px 20px; background: none; border: none; color: #aaa; text-align: right; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: 'Cairo', sans-serif; }
 
-.nav-btn:hover {
-  background: #222;
-  color: #fff;
-}
+.nav-btn:hover { background: #222; color: #fff; }
 
-.nav-btn.active {
-  background: #f59e0b;
-  color: white;
-  border-right: 4px solid #d97706;
-}
+.nav-btn.active { background: #f59e0b; color: white; border-right: 4px solid #d97706; }
 
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
+.main-content { flex: 1; display: flex; flex-direction: column; }
 
-.header {
-  background: white;
-  padding: 20px 30px;
-  border-bottom: 1px solid #ddd;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
+.header { background: white; padding: 20px 30px; border-bottom: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-.header h1 {
-  font-size: 24px;
-  margin-bottom: 5px;
-}
+.header h1 { font-size: 24px; margin-bottom: 5px; }
 
-.header p {
-  color: #666;
-  font-size: 13px;
-}
+.header p { color: #666; font-size: 13px; }
 
-.content {
-  flex: 1;
-  padding: 30px;
-  overflow-y: auto;
-}
+.content { flex: 1; padding: 30px; overflow-y: auto; }
 
-.page {
-  display: none;
-}
+.page { display: none; }
 
-.page.active {
-  display: block;
-}
+.page.active { display: block; }
 
-.card {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
+.card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 
-.card h2 {
-  font-size: 18px;
-  margin: 0;
-}
+.card h2 { font-size: 18px; margin: 0; }
 
-.btn {
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  font-family: 'Cairo', sans-serif;
-}
+.btn { padding: 10px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Cairo', sans-serif; background: #f59e0b; color: white; }
 
-.btn-primary {
-  background: #f59e0b;
-  color: white;
-}
+.btn:hover { background: #d97706; }
 
-.btn-primary:hover {
-  background: #d97706;
-}
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px; }
 
-.btn-secondary {
-  background: #e5e7eb;
-  color: #333;
-}
+.stat-box { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #f59e0b; }
 
-.btn-secondary:hover {
-  background: #d1d5db;
-}
+.stat-box h3 { color: #666; font-size: 12px; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 15px;
-  margin-bottom: 20px;
-}
+.stat-box .value { font-size: 28px; font-weight: 800; color: #1a1a1a; }
 
-.stat-box {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  border-left: 4px solid #f59e0b;
-}
+table { width: 100%; border-collapse: collapse; }
 
-.stat-box h3 {
-  color: #666;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
+thead { background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
 
-.stat-box .value {
-  font-size: 28px;
-  font-weight: 800;
-  color: #1a1a1a;
-}
+th { padding: 12px; text-align: right; font-weight: 600; font-size: 12px; color: #666; }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+td { padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
 
-thead {
-  background: #f9fafb;
-  border-bottom: 2px solid #e5e7eb;
-}
+tbody tr:hover { background: #f9fafb; }
 
-th {
-  padding: 12px;
-  text-align: right;
-  font-weight: 600;
-  font-size: 12px;
-  color: #666;
-}
-
-td {
-  padding: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 13px;
-}
-
-tbody tr:hover {
-  background: #f9fafb;
-}
-
-.empty {
-  text-align: center;
-  padding: 40px 20px;
-  color: #999;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-
-.form-group input,
-.form-group select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-family: 'Cairo', sans-serif;
-  font-size: 13px;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
-}
-
-.modal {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal.active {
-  display: flex;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 8px;
-  padding: 30px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.modal-header h2 {
-  font-size: 18px;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 28px;
-  cursor: pointer;
-  color: #999;
-}
-
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #10b981;
-  color: white;
-  padding: 15px 20px;
-  border-radius: 6px;
-  z-index: 2000;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from { transform: translateX(400px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
+.empty { text-align: center; padding: 40px 20px; color: #999; }
 </style>
 </head>
 <body>
 <div class="container">
-  <!-- Sidebar -->
   <div class="sidebar">
     <div class="logo">🛞</div>
-    <button class="nav-btn active" data-page="dashboard" onclick="switchPage('dashboard')">
-      📊 لوحة التحكم
-    </button>
-    <button class="nav-btn" data-page="sales" onclick="switchPage('sales')">
-      💰 المبيعات
-    </button>
-    <button class="nav-btn" data-page="inventory" onclick="switchPage('inventory')">
-      📦 المخزون
-    </button>
-    <button class="nav-btn" data-page="customers" onclick="switchPage('customers')">
-      👥 العملاء
-    </button>
-    <button class="nav-btn" data-page="services" onclick="switchPage('services')">
-      🔧 الخدمات
-    </button>
-    <button class="nav-btn" data-page="reports" onclick="switchPage('reports')">
-      📈 التقارير
-    </button>
+    <button class="nav-btn active" onclick="switchPage('dashboard')">📊 لوحة التحكم</button>
+    <button class="nav-btn" onclick="switchPage('sales')">💰 المبيعات</button>
+    <button class="nav-btn" onclick="switchPage('inventory')">📦 المخزون</button>
+    <button class="nav-btn" onclick="switchPage('customers')">👥 العملاء</button>
+    <button class="nav-btn" onclick="switchPage('services')">🔧 الخدمات</button>
+    <button class="nav-btn" onclick="switchPage('reports')">📈 التقارير</button>
   </div>
 
-  <!-- Main Content -->
   <div class="main-content">
     <div class="header">
       <h1 id="pageTitle">لوحة التحكم</h1>
@@ -338,100 +88,69 @@ tbody tr:hover {
 
     <div class="content">
       <!-- Dashboard -->
-      <div class="page active" id="page-dashboard">
+      <div class="page active" id="dashboard">
         <div class="grid">
-          <div class="stat-box">
-            <h3>إجمالي الإطارات</h3>
-            <div class="value" id="totalTires">0</div>
-          </div>
-          <div class="stat-box" style="border-left-color: #ef4444;">
-            <h3>إطارات منقطعة</h3>
-            <div class="value" id="outOfStock">0</div>
-          </div>
-          <div class="stat-box" style="border-left-color: #f59e0b;">
-            <h3>إطارات منخفضة</h3>
-            <div class="value" id="lowStock">0</div>
-          </div>
-          <div class="stat-box" style="border-left-color: #10b981;">
-            <h3>عدد العملاء</h3>
-            <div class="value" id="totalCustomers">0</div>
-          </div>
+          <div class="stat-box"><h3>إجمالي الإطارات</h3><div class="value">0</div></div>
+          <div class="stat-box"><h3>إطارات منقطعة</h3><div class="value">0</div></div>
+          <div class="stat-box"><h3>إطارات منخفضة</h3><div class="value">0</div></div>
+          <div class="stat-box"><h3>عدد العملاء</h3><div class="value">0</div></div>
         </div>
         <div class="card">
           <h2>مرحباً بك في نظام ورشتي</h2>
-          <p style="margin-top: 10px; color: #666;">استخدم القائمة الجانبية للتنقل بين جميع الخانات. اختر ما تحتاج إليه لإدارة متجرك.</p>
+          <p style="margin-top: 10px; color: #666;">استخدم القائمة الجانبية للتنقل بين جميع الخانات.</p>
         </div>
       </div>
 
       <!-- Sales -->
-      <div class="page" id="page-sales">
+      <div class="page" id="sales">
         <div class="card">
           <div class="card-header">
             <h2>الفواتير والمبيعات</h2>
-            <button class="btn btn-primary" onclick="openModal('sale')">+ فاتورة جديدة</button>
+            <button class="btn" onclick="alert('إضافة فاتورة جديدة')">+ فاتورة جديدة</button>
           </div>
-          <div id="salesTable">
-            <div class="empty">لا توجد فواتير بعد</div>
-          </div>
+          <div class="empty">لا توجد فواتير بعد</div>
         </div>
       </div>
 
       <!-- Inventory -->
-      <div class="page" id="page-inventory">
+      <div class="page" id="inventory">
         <div class="card">
           <div class="card-header">
             <h2>الإطارات</h2>
-            <div>
-              <button class="btn btn-primary" onclick="openModal('tire')">+ إطار جديد</button>
-            </div>
+            <button class="btn" onclick="alert('إضافة إطار جديد')">+ إطار جديد</button>
           </div>
-          <div id="inventoryTable">
-            <div class="empty">لا توجد إطارات بعد</div>
-          </div>
+          <div class="empty">لا توجد إطارات بعد</div>
         </div>
       </div>
 
       <!-- Customers -->
-      <div class="page" id="page-customers">
+      <div class="page" id="customers">
         <div class="card">
           <div class="card-header">
             <h2>قائمة العملاء</h2>
-            <button class="btn btn-primary" onclick="openModal('customer')">+ عميل جديد</button>
+            <button class="btn" onclick="alert('إضافة عميل جديد')">+ عميل جديد</button>
           </div>
-          <div id="customersTable">
-            <div class="empty">لا توجد عملاء بعد</div>
-          </div>
+          <div class="empty">لا توجد عملاء بعد</div>
         </div>
       </div>
 
       <!-- Services -->
-      <div class="page" id="page-services">
+      <div class="page" id="services">
         <div class="card">
           <div class="card-header">
             <h2>الخدمات والصيانة</h2>
-            <button class="btn btn-primary" onclick="openModal('service')">+ خدمة جديدة</button>
+            <button class="btn" onclick="alert('إضافة خدمة جديدة')">+ خدمة جديدة</button>
           </div>
-          <div id="servicesTable">
-            <div class="empty">لا توجد خدمات بعد</div>
-          </div>
+          <div class="empty">لا توجد خدمات بعد</div>
         </div>
       </div>
 
       <!-- Reports -->
-      <div class="page" id="page-reports">
+      <div class="page" id="reports">
         <div class="grid">
-          <div class="stat-box">
-            <h3>إجمالي الإيرادات</h3>
-            <div class="value">0 ر.ع</div>
-          </div>
-          <div class="stat-box" style="border-left-color: #3b82f6;">
-            <h3>عدد الفواتير</h3>
-            <div class="value">0</div>
-          </div>
-          <div class="stat-box" style="border-left-color: #8b5cf6;">
-            <h3>قيمة المخزون</h3>
-            <div class="value">0 ر.ع</div>
-          </div>
+          <div class="stat-box"><h3>إجمالي الإيرادات</h3><div class="value">0 ر.ع</div></div>
+          <div class="stat-box"><h3>عدد الفواتير</h3><div class="value">0</div></div>
+          <div class="stat-box"><h3>قيمة المخزون</h3><div class="value">0 ر.ع</div></div>
         </div>
         <div class="card">
           <h2>التقارير والإحصائيات</h2>
@@ -442,54 +161,22 @@ tbody tr:hover {
   </div>
 </div>
 
-<!-- Modal -->
-<div class="modal" id="formModal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2 id="modalTitle">إضافة جديد</h2>
-      <button class="close-btn" onclick="closeModal()">×</button>
-    </div>
-    <form id="mainForm" onsubmit="handleSubmit(event)">
-      <div id="formFields"></div>
-      <div style="display: flex; gap: 10px; margin-top: 20px;">
-        <button type="submit" class="btn btn-primary">حفظ</button>
-        <button type="button" class="btn btn-secondary" onclick="closeModal()">إلغاء</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script>
-// Supabase
-const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_l7OcFBdVgEiCo58cbbNptw_EdMuY059';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-let currentPage = 'dashboard';
-let currentModalType = '';
-
-// Page Switch
 function switchPage(page) {
-  console.log('Switching to page:', page);
-  
-  // Hide all pages
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  
-  // Show selected page
-  const pageEl = document.getElementById(`page-${page}`);
-  if (pageEl) {
-    pageEl.classList.add('active');
+  // إخفاء جميع الصفحات
+  var allPages = document.querySelectorAll('.page');
+  for (var i = 0; i < allPages.length; i++) {
+    allPages[i].classList.remove('active');
   }
   
-  // Update sidebar
-  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-  const navBtn = document.querySelector(`[data-page="${page}"]`);
-  if (navBtn) {
-    navBtn.classList.add('active');
+  // إظهار الصفحة المختارة
+  var selectedPage = document.getElementById(page);
+  if (selectedPage) {
+    selectedPage.classList.add('active');
   }
   
-  // Update header
-  const titles = {
+  // تحديث العنوان
+  var titles = {
     dashboard: 'لوحة التحكم',
     sales: 'المبيعات',
     inventory: 'المخزون',
@@ -498,161 +185,16 @@ function switchPage(page) {
     reports: 'التقارير'
   };
   
-  document.getElementById('pageTitle').textContent = titles[page] || 'ورشتي';
-  document.getElementById('pageSubtitle').textContent = page === 'dashboard' ? 'ملخص النظام' : `إدارة ${titles[page]}`;
+  document.getElementById('pageTitle').textContent = titles[page];
+  document.getElementById('pageSubtitle').textContent = page === 'dashboard' ? 'ملخص النظام' : 'إدارة ' + titles[page];
   
-  currentPage = page;
-  
-  // Load data for this page
-  if (page === 'inventory') loadTires();
-  if (page === 'sales') loadSales();
-  if (page === 'customers') loadCustomers();
-  if (page === 'services') loadServices();
-}
-
-// Modal
-function openModal(type) {
-  currentModalType = type;
-  const titles = { tire: 'إطار جديد', sale: 'فاتورة جديدة', customer: 'عميل جديد', service: 'خدمة جديدة' };
-  document.getElementById('modalTitle').textContent = titles[type];
-  
-  let html = '';
-  if (type === 'tire') {
-    html = `
-      <div class="form-group"><label>الحجم</label><input type="text" id="size" required></div>
-      <div class="form-group"><label>الماركة</label><input type="text" id="brand" required></div>
-      <div class="form-group"><label>الموديل</label><input type="number" id="model" value="2026"></div>
-      <div class="form-group"><label>الكمية</label><input type="number" id="qty" required></div>
-      <div class="form-group"><label>السعر</label><input type="number" id="price" step="0.01" required></div>
-    `;
-  } else if (type === 'sale') {
-    html = `
-      <div class="form-group"><label>رقم الفاتورة</label><input type="text" id="invoiceNumber" required></div>
-      <div class="form-group"><label>العميل</label><input type="text" id="customerName" required></div>
-      <div class="form-group"><label>الإجمالي</label><input type="number" id="total" step="0.01" required></div>
-      <div class="form-group"><label>التاريخ</label><input type="date" id="date" required></div>
-    `;
-  } else if (type === 'customer') {
-    html = `
-      <div class="form-group"><label>الاسم</label><input type="text" id="name" required></div>
-      <div class="form-group"><label>الهاتف</label><input type="tel" id="phone"></div>
-      <div class="form-group"><label>البريد</label><input type="email" id="email"></div>
-    `;
-  } else if (type === 'service') {
-    html = `
-      <div class="form-group"><label>الخدمة</label><input type="text" id="sName" required></div>
-      <div class="form-group"><label>الوصف</label><input type="text" id="sDesc"></div>
-      <div class="form-group"><label>السعر</label><input type="number" id="sPrice" step="0.01" required></div>
-    `;
+  // تحديث الأزرار
+  var buttons = document.querySelectorAll('.nav-btn');
+  for (var j = 0; j < buttons.length; j++) {
+    buttons[j].classList.remove('active');
   }
-  
-  document.getElementById('formFields').innerHTML = html;
-  document.getElementById('formModal').classList.add('active');
+  event.target.classList.add('active');
 }
-
-function closeModal() {
-  document.getElementById('formModal').classList.remove('active');
-}
-
-async function handleSubmit(e) {
-  e.preventDefault();
-  
-  try {
-    if (currentModalType === 'tire') {
-      await supabase.from('tires').insert([{
-        size: document.getElementById('size').value,
-        brand: document.getElementById('brand').value,
-        model: parseInt(document.getElementById('model').value),
-        stock: parseInt(document.getElementById('qty').value),
-        price: parseFloat(document.getElementById('price').value)
-      }]);
-      showToast('تم إضافة الإطار بنجاح');
-      loadTires();
-    }
-    closeModal();
-  } catch (err) {
-    console.error(err);
-    showToast('حدث خطأ');
-  }
-}
-
-function showToast(msg) {
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-}
-
-// Load data
-async function loadTires() {
-  const { data } = await supabase.from('tires').select('*');
-  if (!data || data.length === 0) {
-    document.getElementById('inventoryTable').innerHTML = '<div class="empty">لا توجد إطارات</div>';
-    return;
-  }
-  
-  let html = '<table><thead><tr><th>الحجم</th><th>الماركة</th><th>الموديل</th><th>الكمية</th><th>السعر</th></tr></thead><tbody>';
-  data.forEach(t => {
-    html += `<tr><td>${t.size}</td><td>${t.brand}</td><td>${t.model}</td><td>${t.stock}</td><td>${t.price}</td></tr>`;
-  });
-  html += '</tbody></table>';
-  document.getElementById('inventoryTable').innerHTML = html;
-  
-  const total = data.reduce((s, t) => s + (t.stock || 0), 0);
-  document.getElementById('totalTires').textContent = total;
-}
-
-async function loadSales() {
-  const { data } = await supabase.from('sales').select('*');
-  if (!data || data.length === 0) {
-    document.getElementById('salesTable').innerHTML = '<div class="empty">لا توجد فواتير</div>';
-    return;
-  }
-  
-  let html = '<table><thead><tr><th>الفاتورة</th><th>العميل</th><th>الإجمالي</th><th>التاريخ</th></tr></thead><tbody>';
-  data.forEach(s => {
-    html += `<tr><td>${s.invoiceNumber}</td><td>${s.customerName}</td><td>${s.total}</td><td>${s.date}</td></tr>`;
-  });
-  html += '</tbody></table>';
-  document.getElementById('salesTable').innerHTML = html;
-}
-
-async function loadCustomers() {
-  const { data } = await supabase.from('customers').select('*');
-  if (!data || data.length === 0) {
-    document.getElementById('customersTable').innerHTML = '<div class="empty">لا توجد عملاء</div>';
-    return;
-  }
-  
-  let html = '<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th></tr></thead><tbody>';
-  data.forEach(c => {
-    html += `<tr><td>${c.name}</td><td>${c.phone || '-'}</td><td>${c.email || '-'}</td></tr>`;
-  });
-  html += '</tbody></table>';
-  document.getElementById('customersTable').innerHTML = html;
-  
-  document.getElementById('totalCustomers').textContent = data.length;
-}
-
-async function loadServices() {
-  const { data } = await supabase.from('services').select('*');
-  if (!data || data.length === 0) {
-    document.getElementById('servicesTable').innerHTML = '<div class="empty">لا توجد خدمات</div>';
-    return;
-  }
-  
-  let html = '<table><thead><tr><th>الخدمة</th><th>الوصف</th><th>السعر</th></tr></thead><tbody>';
-  data.forEach(s => {
-    html += `<tr><td>${s.name}</td><td>${s.description || '-'}</td><td>${s.price}</td></tr>`;
-  });
-  html += '</tbody></table>';
-  document.getElementById('servicesTable').innerHTML = html;
-}
-
-// Initialize
-loadTires();
-loadCustomers();
 </script>
 </body>
 </html>
