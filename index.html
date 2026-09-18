@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -61,6 +61,8 @@ input,select,textarea{font-family:inherit;}
 .logout-btn{display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border-radius:5px; background:rgba(255,255,255,.06); color:#d8d3c6; font-size:13px; font-weight:600; border:none;}
 .logout-btn:hover{background:rgba(255,255,255,.12); color:#fff;}
 .logout-btn svg{width:15px; height:15px;}
+.lang-btn{display:flex; align-items:center; justify-content:center; width:100%; padding:8px 10px; border-radius:5px; background:rgba(255,255,255,.08); color:#f2a71b; font-size:13px; font-weight:700; border:1px solid rgba(255,255,255,.12); cursor:pointer; margin-bottom:8px; transition:all .15s;}
+.lang-btn:hover{background:rgba(255,255,255,.15); color:#fff; border-color:rgba(255,255,255,.2);}
 
 .main{flex:1; min-width:0; display:flex; flex-direction:column;}
 .topbar{
@@ -273,8 +275,143 @@ const SHOP_NAME = 'الآفاق المستقبلية المتميزة';
 const COMMERCIAL_REGISTER = '1554396';
 const SHOP_CR_NUMBER = '1554396'; // رقم السجل التجاري
 
-const WARRANTY_LABELS = { none:'لا يوجد', '1y':'سنة واحدة', '2y':'سنتان', '3y':'3 سنوات', '5y':'5 سنوات' };
-const PAYMENT_LABELS = { cash:'كاش', visa:'فيزا', transfer:'تحويل بنكي' };
+// Multi-language support
+let currentLang = localStorage.getItem('tireshop_lang') || 'ar';
+const i18n = {
+  ar: {
+    appTitle: 'ورشتي - نظام إدارة محل الإطارات',
+    dashboard: 'لوحة التحكم',
+    sales: 'المبيعات والفواتير',
+    tires: 'إدارة المخزون',
+    services: 'إدارة الخدمات',
+    customers: 'العملاء',
+    appointments: 'المواعيد',
+    reports: 'التقارير',
+    addNewTire: 'إضافة إطار جديد',
+    brand: 'العلامة التجارية',
+    model: 'الموديل',
+    size: 'الحجم',
+    stock: 'المخزون',
+    costPrice: 'سعر الكلفة (ر.ع)',
+    sellingPrice: 'سعر البيع (ر.ع)',
+    add: 'إضافة',
+    edit: 'تعديل',
+    delete: 'حذف',
+    save: 'حفظ',
+    cancel: 'إلغاء',
+    search: 'ابحث...',
+    exportCSV: 'تصدير CSV',
+    tiresList: 'قائمة الإطارات',
+    newInvoice: 'فاتورة جديدة',
+    customer: 'العميل',
+    addItem: 'إضافة صنف',
+    services: 'خدمات',
+    warranty: 'الضمان',
+    paymentMethod: 'طريقة الدفع',
+    warranty: 'الضمان',
+    none: 'لا يوجد',
+    oneYear: 'سنة واحدة',
+    twoYears: 'سنتان',
+    threeYears: '3 سنوات',
+    fiveYears: '5 سنوات',
+    cash: 'كاش',
+    visa: 'فيزا',
+    transfer: 'تحويل بنكي',
+    discountAmount: 'خصم بمبلغ (ر.ع)',
+    discountPercent: 'خصم بنسبة (%)',
+    total: 'الإجمالي',
+    registerInvoice: 'تسجيل الفاتورة',
+    invoiceHistory: 'سجل الفواتير',
+    today: 'اليوم',
+    yesterday: 'أمس',
+    week: 'آخر 7 أيام',
+    month: 'هذا الشهر',
+    year: 'هذه السنة',
+    all: 'الكل',
+    invoiceNumber: 'رقم الفاتورة',
+    items: 'الأصناف',
+    date: 'التاريخ',
+    viewInvoice: 'عرض الفاتورة',
+    logout: 'تسجيل الخروج',
+    manager: 'مدير',
+    employee: 'موظف',
+    language: 'اللغة',
+    english: 'English',
+    arabic: 'العربية',
+  },
+  en: {
+    appTitle: 'My Workshop - Tire Shop Management System',
+    dashboard: 'Dashboard',
+    sales: 'Sales & Invoices',
+    tires: 'Inventory Management',
+    services: 'Services Management',
+    customers: 'Customers',
+    appointments: 'Appointments',
+    reports: 'Reports',
+    addNewTire: 'Add New Tire',
+    brand: 'Brand',
+    model: 'Model',
+    size: 'Size',
+    stock: 'Stock',
+    costPrice: 'Cost Price (OMR)',
+    sellingPrice: 'Selling Price (OMR)',
+    add: 'Add',
+    edit: 'Edit',
+    delete: 'Delete',
+    save: 'Save',
+    cancel: 'Cancel',
+    search: 'Search...',
+    exportCSV: 'Export CSV',
+    tiresList: 'Tires List',
+    newInvoice: 'New Invoice',
+    customer: 'Customer',
+    addItem: 'Add Item',
+    services: 'Services',
+    warranty: 'Warranty',
+    paymentMethod: 'Payment Method',
+    none: 'None',
+    oneYear: 'One Year',
+    twoYears: 'Two Years',
+    threeYears: '3 Years',
+    fiveYears: '5 Years',
+    cash: 'Cash',
+    visa: 'Visa',
+    transfer: 'Bank Transfer',
+    discountAmount: 'Fixed Discount (OMR)',
+    discountPercent: 'Percentage Discount (%)',
+    total: 'Total',
+    registerInvoice: 'Register Invoice',
+    invoiceHistory: 'Invoice History',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    week: 'Last 7 Days',
+    month: 'This Month',
+    year: 'This Year',
+    all: 'All',
+    invoiceNumber: 'Invoice Number',
+    items: 'Items',
+    date: 'Date',
+    viewInvoice: 'View Invoice',
+    logout: 'Logout',
+    manager: 'Manager',
+    employee: 'Employee',
+    language: 'Language',
+    english: 'English',
+    arabic: 'العربية',
+  }
+};
+
+function t(key) {
+  return i18n[currentLang]?.[key] || i18n['ar']?.[key] || key;
+}
+
+const WARRANTY_LABELS_AR = { none:'لا يوجد', '1y':'سنة واحدة', '2y':'سنتان', '3y':'3 سنوات', '5y':'5 سنوات' };
+const WARRANTY_LABELS_EN = { none:'None', '1y':'One Year', '2y':'Two Years', '3y':'3 Years', '5y':'5 Years' };
+const WARRANTY_LABELS = currentLang === 'en' ? WARRANTY_LABELS_EN : WARRANTY_LABELS_AR;
+
+const PAYMENT_LABELS_AR = { cash:'كاش', visa:'فيزا', transfer:'تحويل بنكي' };
+const PAYMENT_LABELS_EN = { cash:'Cash', visa:'Visa', transfer:'Bank Transfer' };
+const PAYMENT_LABELS = currentLang === 'en' ? PAYMENT_LABELS_EN : PAYMENT_LABELS_AR;
 
 const FIELD_MAP = {
   tires: {},
@@ -479,24 +616,30 @@ class TireShopApp{
   }
 
   renderLogin(){
+    const isAr = currentLang === 'ar';
     return `
     <div class="login-screen">
       <div class="login-box">
         <div class="mark">${icon('wheel')}</div>
         <h1>ورشتي</h1>
-        <p class="tag">نظام إدارة محل الإطارات والخدمات</p>
+        <p class="tag">${isAr?'نظام إدارة محل الإطارات والخدمات':'Tire Shop Management System'}</p>
         <div class="role-toggle" id="roleToggle">
-          <button type="button" data-role="manager" class="active">مدير</button>
-          <button type="button" data-role="employee">موظف</button>
+          <button type="button" data-role="manager" class="active">${isAr?'مدير':'Manager'}</button>
+          <button type="button" data-role="employee">${isAr?'موظف':'Employee'}</button>
+        </div>
+        <div style="text-align:${isAr?'right':'left'};margin-bottom:12px;">
+          <button type="button" class="lang-switch" id="loginLangBtn" style="background:none;border:none;color:var(--amber-500);font-weight:700;font-size:13px;cursor:pointer;">
+            ${currentLang==='ar'?'English':'العربية'}
+          </button>
         </div>
         <form id="loginForm" style="display:flex;flex-direction:column;gap:12px;">
-          <div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" placeholder="admin" required></div>
-          <div class="form-group"><label>كلمة المرور</label><input type="password" id="password" placeholder="••••••••" required></div>
-          <button type="submit" class="btn btn-primary btn-block">${icon('check')} تسجيل الدخول</button>
+          <div class="form-group"><label>${isAr?'اسم المستخدم':'Username'}</label><input type="text" id="username" placeholder="admin" required></div>
+          <div class="form-group"><label>${isAr?'كلمة المرور':'Password'}</label><input type="password" id="password" placeholder="••••••••" required></div>
+          <button type="submit" class="btn btn-primary btn-block">${icon('check')} ${isAr?'تسجيل الدخول':'Sign In'}</button>
         </form>
         <div class="login-note">
-          <strong>حسابات تجريبية</strong><br>
-          مدير: admin / admin123 &nbsp;•&nbsp; موظف: employee / emp123
+          <strong>${isAr?'حسابات تجريبية':'Demo Accounts'}</strong><br>
+          ${isAr?'مدير: admin / admin123 &nbsp;•&nbsp; موظف: employee / emp123':'Manager: admin / admin123 &nbsp;•&nbsp; Employee: employee / emp123'}
         </div>
       </div>
     </div>`;
@@ -504,6 +647,8 @@ class TireShopApp{
 
   attachLoginEvents(){
     let role = 'manager';
+    const loginLangBtn = document.getElementById('loginLangBtn');
+    if(loginLangBtn) loginLangBtn.addEventListener('click', ()=>this.changeLang());
     document.querySelectorAll('#roleToggle button').forEach(b=>{
       b.addEventListener('click', ()=>{
         role = b.dataset.role;
@@ -518,21 +663,22 @@ class TireShopApp{
   }
 
   navItems(){
+    const isAr = currentLang === 'ar';
     const manager = [
-      ['dashboard','لوحة التحكم','dashboard'],
-      ['tires','المخزون','tire'],
-      ['services','الخدمات','wrench'],
-      ['customers','العملاء','users'],
-      ['appointments','المواعيد','calendar'],
-      ['sales','الفواتير','invoice'],
-      ['reports','التقارير','chart'],
+      ['dashboard', isAr?'لوحة التحكم':'Dashboard','dashboard'],
+      ['tires', isAr?'المخزون':'Inventory','tire'],
+      ['services', isAr?'الخدمات':'Services','wrench'],
+      ['customers', isAr?'العملاء':'Customers','users'],
+      ['appointments', isAr?'المواعيد':'Appointments','calendar'],
+      ['sales', isAr?'الفواتير':'Invoices','invoice'],
+      ['reports', isAr?'التقارير':'Reports','chart'],
     ];
     const employee = [
-      ['tires','المخزون','tire'],
-      ['services','الخدمات','wrench'],
-      ['customers','العملاء','users'],
-      ['appointments','المواعيد','calendar'],
-      ['sales','تسجيل بيع','invoice'],
+      ['tires', isAr?'المخزون':'Inventory','tire'],
+      ['services', isAr?'الخدمات':'Services','wrench'],
+      ['customers', isAr?'العملاء':'Customers','users'],
+      ['appointments', isAr?'المواعيد':'Appointments','calendar'],
+      ['sales', isAr?'تسجيل بيع':'Register Sale','invoice'],
     ];
     return this.currentUser.role === 'manager' ? manager : employee;
   }
@@ -553,9 +699,10 @@ class TireShopApp{
         <div class="side-foot">
           <div class="user-chip">
             <div class="user-avatar">${esc(initials)}</div>
-            <div class="user-meta"><p>${esc(this.currentUser.name)}</p><span>${this.currentUser.role==='manager'?'مدير':'موظف'}</span></div>
+            <div class="user-meta"><p>${esc(this.currentUser.name)}</p><span>${this.currentUser.role==='manager'?t('manager'):t('employee')}</span></div>
           </div>
-          <button class="logout-btn" id="logoutBtn">${icon('logout')} تسجيل الخروج</button>
+          <button class="lang-btn" id="langBtn" title="Click to change language">${currentLang==='ar'?'EN':'AR'}</button>
+          <button class="logout-btn" id="logoutBtn">${icon('logout')} ${t('logout')}</button>
         </div>
       </aside>
 
@@ -582,9 +729,16 @@ class TireShopApp{
 
   attachNavEvents(){
     document.getElementById('logoutBtn').addEventListener('click', ()=>this.logout());
+    const langBtn = document.getElementById('langBtn');
+    if(langBtn) langBtn.addEventListener('click', ()=>this.changeLang());
     document.querySelectorAll('#sideNav [data-view], #mobileNav [data-view]').forEach(b=>{
       b.addEventListener('click', ()=>this.switchView(b.dataset.view));
     });
+  }
+  changeLang(){
+    currentLang = currentLang === 'ar' ? 'en' : 'ar';
+    localStorage.setItem('tireshop_lang', currentLang);
+    location.reload();
   }
 
   switchView(view, isInit){
@@ -592,9 +746,12 @@ class TireShopApp{
     document.querySelectorAll('#sideNav [data-view], #mobileNav [data-view]').forEach(b=>{
       b.classList.toggle('active', b.dataset.view === view);
     });
-    const titles = {
+    const titles = currentLang === 'ar' ? {
       dashboard:'لوحة التحكم', tires:'إدارة المخزون', services:'إدارة الخدمات',
       customers:'العملاء', appointments:'المواعيد', sales:'المبيعات والفواتير', reports:'التقارير'
+    } : {
+      dashboard:'Dashboard', tires:'Inventory Management', services:'Services Management',
+      customers:'Customers', appointments:'Appointments', sales:'Sales & Invoices', reports:'Reports'
     };
     const t = document.getElementById('pageTitle'); if(t) t.textContent = titles[view] || '';
     const content = document.getElementById('content');
