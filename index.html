@@ -1024,6 +1024,13 @@ class TireShopApp{
   ============================================================ */
   renderSalesView(){
     if(!this._draftInvoice) this._draftInvoice = { customerId:'', items:[] };
+    if(!this._salesFilter) this._salesFilter = { mode:'all', from:'', to:'' };
+    const filtered = this.getFilteredSales();
+    const filteredTotal = filtered.reduce((s,x)=>s+(x.total||0),0);
+    const pills = [
+      ['today','اليوم'], ['yesterday','أمس'], ['week','آخر 7 أيام'],
+      ['month','هذا الشهر'], ['year','هذه السنة'], ['all','الكل']
+    ];
     return `
       <div class="grid-2">
         <div class="card">
@@ -1056,13 +1063,53 @@ class TireShopApp{
         </div>
 
         <div class="card">
-          <div class="card-head"><h3>سجل الفواتير (${this.sales.length})</h3>
-            <button class="btn btn-ghost btn-sm" id="exportSalesBtn">${icon('download')} تصدير CSV</button>
+          <div class="card-head"><h3>سجل الفواتير</h3>
+            <button class="btn btn-ghost btn-sm" id="exportSalesBtn">${icon('download')} تصدير الفترة CSV</button>
           </div>
-          <div id="salesListArea" style="max-height:560px;overflow-y:auto;">${this.renderSalesTable(this.sales)}</div>
+
+          <div class="status-pill" id="salesFilterPills" style="margin-bottom:12px;">
+            ${pills.map(([m,l])=>`<button type="button" data-mode="${m}" class="${this._salesFilter.mode===m?'active-done':''}">${l}</button>`).join('')}
+          </div>
+          <div class="form-grid" style="margin-bottom:12px;">
+            <div class="form-group"><label>من تاريخ</label><input type="date" id="salesFromDate" value="${esc(this._salesFilter.from)}"></div>
+            <div class="form-group"><label>إلى تاريخ</label><input type="date" id="salesToDate" value="${esc(this._salesFilter.to)}"></div>
+          </div>
+          <div class="grid-4" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">
+            <div class="stat green"><h4>إجمالي الفترة</h4><div class="v num">${fmtMoney(filteredTotal)}</div></div>
+            <div class="stat blue"><h4>عدد الفواتير</h4><div class="v num">${filtered.length}</div></div>
+          </div>
+
+          <div id="salesListArea" style="max-height:400px;overflow-y:auto;">${this.renderSalesTable(filtered)}</div>
         </div>
       </div>
     `;
+  }
+  getDateRange(mode){
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if(mode==='today') return [startToday, new Date(startToday.getTime()+86400000)];
+    if(mode==='yesterday'){ const y=new Date(startToday.getTime()-86400000); return [y, startToday]; }
+    if(mode==='week'){ const w=new Date(startToday.getTime()-6*86400000); return [w, new Date(startToday.getTime()+86400000)]; }
+    if(mode==='month') return [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth()+1, 1)];
+    if(mode==='year') return [new Date(now.getFullYear(),0,1), new Date(now.getFullYear()+1,0,1)];
+    return null; // 'all'
+  }
+  getFilteredSales(){
+    const f = this._salesFilter || {mode:'all', from:'', to:''};
+    let range;
+    if(f.from || f.to){
+      const from = f.from ? new Date(f.from+'T00:00:00') : new Date(0);
+      const to = f.to ? new Date(f.to+'T23:59:59.999') : new Date(8640000000000000);
+      range = [from, to];
+    } else {
+      range = this.getDateRange(f.mode);
+    }
+    if(!range) return this.sales;
+    const [start,end] = range;
+    return this.sales.filter(s=>{
+      const d = new Date(s.createdAt||s.date);
+      return d>=start && d<end;
+    });
   }
   draftTotal(){ return this._draftInvoice.items.reduce((s,i)=>s+i.qty*i.price,0); }
   renderDraftItems(){
@@ -1112,10 +1159,27 @@ class TireShopApp{
     const submitBtn = document.getElementById('submitInvoiceBtn');
     if(submitBtn) submitBtn.addEventListener('click', ()=>this.submitInvoice());
     const exp = document.getElementById('exportSalesBtn');
-    if(exp) exp.addEventListener('click', ()=>this.exportCSV(
-      this.sales.map(s=>({invoice:s.invoiceNumber, customer:s.customerName, total:s.total, date:fmtDate(s.createdAt||s.date), items:(s.items||[]).map(i=>i.name+' x'+i.qty).join(' | ')})),
-      ['invoice','customer','total','date','items'], ['رقم الفاتورة','العميل','الإجمالي','التاريخ','الأصناف'], 'الفواتير.csv'
-    ));
+    if(exp) exp.addEventListener('click', ()=>{
+      const filtered = this.getFilteredSales();
+      this.exportCSV(
+        filtered.map(s=>({invoice:s.invoiceNumber, customer:s.customerName, total:s.total, date:fmtDate(s.createdAt||s.date), items:(s.items||[]).map(i=>i.name+' x'+i.qty).join(' | ')})),
+        ['invoice','customer','total','date','items'], ['رقم الفاتورة','العميل','الإجمالي','التاريخ','الأصناف'], 'الفواتير.csv'
+      );
+    });
+    document.querySelectorAll('#salesFilterPills [data-mode]').forEach(b=>b.addEventListener('click', ()=>{
+      this._salesFilter = { mode:b.dataset.mode, from:'', to:'' };
+      this.switchView('sales');
+    }));
+    const fromDate = document.getElementById('salesFromDate');
+    const toDate = document.getElementById('salesToDate');
+    if(fromDate) fromDate.addEventListener('change', ()=>{
+      this._salesFilter = { mode:'custom', from:fromDate.value, to:(toDate?toDate.value:'') };
+      this.switchView('sales');
+    });
+    if(toDate) toDate.addEventListener('change', ()=>{
+      this._salesFilter = { mode:'custom', from:(fromDate?fromDate.value:''), to:toDate.value };
+      this.switchView('sales');
+    });
     document.querySelectorAll('[data-view-inv]').forEach(b=>b.addEventListener('click', ()=>this.viewInvoice(b.dataset.viewInv)));
     document.querySelectorAll('[data-del-sale]').forEach(b=>b.addEventListener('click', ()=>this.confirmDelete('هل تريد حذف هذه الفاتورة؟', ()=>this.deleteDoc('sales', b.dataset.delSale, this._localFallback.sales).then(ok=>ok&&this.toast('تم الحذف')))));
   }
