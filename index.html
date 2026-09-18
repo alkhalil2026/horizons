@@ -268,12 +268,19 @@ function uid(){ return 'id' + Date.now().toString(36) + Math.random().toString(3
 const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFocm5vcmp6ZXprdXNnaHFxYmZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mzc5NzksImV4cCI6MjEwNTMxMzk3OX0.eFVLGMmapEgiAcueu_mV94KRcr_OcIS59BkTQPJcWbo';
 
+// Shop details printed on every invoice — edit these two lines directly if they change.
+const SHOP_NAME = 'Horizons Tire';
+const SHOP_CR_NUMBER = ''; // رقم السجل التجاري — اكتبه هنا بين القوسين لما يتوفر
+
+const WARRANTY_LABELS = { none:'لا يوجد', '1y':'سنة واحدة', '2y':'سنتان', '3y':'3 سنوات', '5y':'5 سنوات' };
+const PAYMENT_LABELS = { cash:'كاش', visa:'فيزا', transfer:'تحويل بنكي' };
+
 const FIELD_MAP = {
   tires: {},
   services: {},
   customers: { car_model:'carModel', car_plate:'carPlate' },
   appointments: { customer_id:'customerId', customer_name:'customerName', service_name:'serviceName' },
-  sales: { invoice_number:'invoiceNumber', customer_id:'customerId', customer_name:'customerName' },
+  sales: { invoice_number:'invoiceNumber', customer_id:'customerId', customer_name:'customerName', customer_phone:'customerPhone', payment_method:'paymentMethod' },
 };
 function rowFromDb(row, table){
   const map = FIELD_MAP[table] || {};
@@ -1039,7 +1046,7 @@ class TireShopApp{
      SALES / INVOICES
   ============================================================ */
   renderSalesView(){
-    if(!this._draftInvoice) this._draftInvoice = { customerId:'', items:[] };
+    if(!this._draftInvoice) this._draftInvoice = { customerId:'', items:[], warranty:'none', paymentMethod:'cash' };
     if(!this._salesFilter) this._salesFilter = { mode:'all', from:'', to:'' };
     const filtered = this.getFilteredSales();
     const filteredTotal = filtered.reduce((s,x)=>s+(x.total||0),0);
@@ -1068,6 +1075,20 @@ class TireShopApp{
             <div class="pos-grid" id="posGrid">${this.renderPosGrid()}</div>
           </div>
           <div class="invoice-items" id="draftItemsBox">${this.renderDraftItems()}</div>
+          <div class="form-grid" style="margin-bottom:12px;">
+            <div class="form-group">
+              <label>الضمان</label>
+              <select id="invWarranty">
+                ${Object.entries(WARRANTY_LABELS).map(([k,l])=>`<option value="${k}" ${this._draftInvoice.warranty===k?'selected':''}>${l}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>طريقة الدفع</label>
+              <select id="invPayment">
+                ${Object.entries(PAYMENT_LABELS).map(([k,l])=>`<option value="${k}" ${this._draftInvoice.paymentMethod===k?'selected':''}>${l}</option>`).join('')}
+              </select>
+            </div>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
             <span style="font-weight:700;font-size:14px;">الإجمالي</span>
             <span class="num" style="font-size:20px;font-weight:700;" id="draftTotal">${fmtMoney(this.draftTotal())} ر.ع</span>
@@ -1203,6 +1224,10 @@ class TireShopApp{
     this.bindPosGridEvents();
     const custSel = document.getElementById('invCustomer');
     if(custSel) custSel.addEventListener('change', ()=>{ this._draftInvoice.customerId = custSel.value; });
+    const warrSel = document.getElementById('invWarranty');
+    if(warrSel) warrSel.addEventListener('change', ()=>{ this._draftInvoice.warranty = warrSel.value; });
+    const paySel = document.getElementById('invPayment');
+    if(paySel) paySel.addEventListener('change', ()=>{ this._draftInvoice.paymentMethod = paySel.value; });
     this.bindDraftItemEvents();
     const submitBtn = document.getElementById('submitInvoiceBtn');
     if(submitBtn) submitBtn.addEventListener('click', ()=>this.submitInvoice());
@@ -1262,6 +1287,9 @@ class TireShopApp{
       invoiceNumber,
       customerId: cust ? cust.id : null,
       customerName: cust ? cust.name : 'عميل مباشر',
+      customerPhone: cust ? (cust.phone||'') : '',
+      warranty: this._draftInvoice.warranty || 'none',
+      paymentMethod: this._draftInvoice.paymentMethod || 'cash',
       items: items.map(i=>({type:i.type, refId:i.refId, name:i.name, price:i.price, qty:i.qty})),
       total: items.reduce((s,i)=>s+i.qty*i.price,0),
     };
@@ -1274,32 +1302,77 @@ class TireShopApp{
         if(t) await this.updateDoc('tires', t.id, {stock: Math.max(0,(t.stock||0)-it.qty)}, this._localFallback.tires);
       }
     }
-    this._draftInvoice = { customerId:'', items:[] };
+    this._draftInvoice = { customerId:'', items:[], warranty:'none', paymentMethod:'cash' };
     this.toast('تم تسجيل الفاتورة بنجاح');
     this.switchView('sales');
+  }
+  invoiceHeaderHtml(s){
+    return `
+      <div style="text-align:center;margin-bottom:14px;border-bottom:1px dashed var(--line);padding-bottom:12px;">
+        <div style="font-family:'Oswald',sans-serif;font-size:20px;font-weight:700;letter-spacing:.5px;">${esc(SHOP_NAME)}</div>
+        ${SHOP_CR_NUMBER?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">رقم السجل التجاري: ${esc(SHOP_CR_NUMBER)}</div>`:''}
+      </div>
+      <p style="font-size:13px;color:var(--text-600);margin-bottom:4px;"><strong>رقم الفاتورة:</strong> ${esc(s.invoiceNumber||'')}</p>
+      <p style="font-size:13px;color:var(--text-600);margin-bottom:4px;"><strong>التاريخ والوقت:</strong> ${fmtDateTime(s.createdAt||s.date)}</p>
+      <p style="font-size:13px;color:var(--text-600);margin-bottom:4px;"><strong>العميل:</strong> ${esc(s.customerName)||'عميل مباشر'}${s.customerPhone?' — '+esc(s.customerPhone):''}</p>
+      <p style="font-size:13px;color:var(--text-600);margin-bottom:4px;"><strong>طريقة الدفع:</strong> ${esc(PAYMENT_LABELS[s.paymentMethod]||PAYMENT_LABELS.cash)}</p>
+      <p style="font-size:13px;color:var(--text-600);margin-bottom:14px;"><strong>الضمان:</strong> ${esc(WARRANTY_LABELS[s.warranty]||WARRANTY_LABELS.none)}</p>
+    `;
   }
   viewInvoice(id){
     const s = this.sales.find(x=>x.id===id); if(!s) return;
     const rowsHtml = (s.items||[]).map(i=>`<tr><td>${esc(i.name)}</td><td class="num" style="text-align:center;">${i.qty}</td><td class="num" style="text-align:left;">${fmtMoney(i.price)}</td><td class="num" style="text-align:left;">${fmtMoney(i.qty*i.price)}</td></tr>`).join('');
+    const waDisabled = !s.customerPhone;
     this.openModal('فاتورة ' + (s.invoiceNumber||''), `
       <div id="invoicePrintArea">
-        <p style="font-size:13px;color:var(--text-600);margin-bottom:4px;"><strong>العميل:</strong> ${esc(s.customerName)||'عميل مباشر'}</p>
-        <p style="font-size:13px;color:var(--text-600);margin-bottom:14px;"><strong>التاريخ:</strong> ${fmtDateTime(s.createdAt||s.date)}</p>
+        ${this.invoiceHeaderHtml(s)}
         <table style="width:100%;"><thead><tr><th>الصنف</th><th style="text-align:center;">الكمية</th><th style="text-align:left;">السعر</th><th style="text-align:left;">الإجمالي</th></tr></thead>
         <tbody>${rowsHtml}</tbody></table>
         <div style="text-align:left;margin-top:14px;font-size:17px;font-weight:800;">الإجمالي: <span class="num">${fmtMoney(s.total)} ر.ع</span></div>
       </div>
-      <button class="btn btn-amber btn-block" id="pdfInvoiceBtn" style="margin-top:16px;">${icon('download')} تحميل PDF</button>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-amber" style="flex:1;" id="pdfInvoiceBtn">${icon('download')} تحميل PDF</button>
+        <button class="btn btn-ghost" style="flex:1;" id="waInvoiceBtn" ${waDisabled?'disabled title="لا يوجد رقم هاتف لهذا العميل"':''}>${icon('phone')} واتساب</button>
+      </div>
     `);
     document.getElementById('pdfInvoiceBtn').addEventListener('click', ()=>this.downloadInvoicePDF(s));
+    const waBtn = document.getElementById('waInvoiceBtn');
+    if(waBtn && !waDisabled) waBtn.addEventListener('click', ()=>this.sendInvoiceWhatsApp(s));
+  }
+  sendInvoiceWhatsApp(s){
+    let phone = (s.customerPhone||'').replace(/[^0-9]/g,'');
+    if(!phone){ this.toast('لا يوجد رقم هاتف لهذا العميل', 'err'); return; }
+    if(phone.startsWith('00')) phone = phone.slice(2);
+    if(phone.length===8) phone = '968' + phone; // Oman local number, no country code entered
+    const lines = [
+      SHOP_NAME,
+      SHOP_CR_NUMBER ? `رقم السجل التجاري: ${SHOP_CR_NUMBER}` : null,
+      `فاتورة رقم: ${s.invoiceNumber||''}`,
+      `التاريخ: ${fmtDateTime(s.createdAt||s.date)}`,
+      `العميل: ${s.customerName||'عميل مباشر'}`,
+      '',
+      ...((s.items||[]).map(i=>`${i.name} × ${i.qty} — ${fmtMoney(i.qty*i.price)} ر.ع`)),
+      '',
+      `الإجمالي: ${fmtMoney(s.total)} ر.ع`,
+      `طريقة الدفع: ${PAYMENT_LABELS[s.paymentMethod]||PAYMENT_LABELS.cash}`,
+      `الضمان: ${WARRANTY_LABELS[s.warranty]||WARRANTY_LABELS.none}`,
+    ].filter(Boolean);
+    const text = encodeURIComponent(lines.join('\n'));
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   }
   async downloadInvoicePDF(s){
     const el = document.createElement('div');
     el.style.padding = '24px'; el.style.direction='rtl'; el.style.fontFamily='sans-serif';
     el.innerHTML = `
-      <h2>فاتورة ${esc(s.invoiceNumber||'')}</h2>
-      <p>العميل: ${esc(s.customerName)||'عميل مباشر'}</p>
-      <p>التاريخ: ${fmtDateTime(s.createdAt||s.date)}</p>
+      <div style="text-align:center;margin-bottom:14px;border-bottom:2px solid #333;padding-bottom:10px;">
+        <h1 style="margin:0;">${esc(SHOP_NAME)}</h1>
+        ${SHOP_CR_NUMBER?`<p style="margin:4px 0 0;font-size:12px;color:#555;">رقم السجل التجاري: ${esc(SHOP_CR_NUMBER)}</p>`:''}
+      </div>
+      <p>رقم الفاتورة: ${esc(s.invoiceNumber||'')}</p>
+      <p>التاريخ والوقت: ${fmtDateTime(s.createdAt||s.date)}</p>
+      <p>العميل: ${esc(s.customerName)||'عميل مباشر'}${s.customerPhone?' — '+esc(s.customerPhone):''}</p>
+      <p>طريقة الدفع: ${esc(PAYMENT_LABELS[s.paymentMethod]||PAYMENT_LABELS.cash)}</p>
+      <p>الضمان: ${esc(WARRANTY_LABELS[s.warranty]||WARRANTY_LABELS.none)}</p>
       <table border="1" cellpadding="8" style="width:100%;border-collapse:collapse;margin-top:12px;">
         <tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>
         ${(s.items||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${fmtMoney(i.price)}</td><td>${fmtMoney(i.qty*i.price)}</td></tr>`).join('')}
@@ -1321,6 +1394,16 @@ class TireShopApp{
   renderReportsView(){
     const totalRevenue = this.sales.reduce((s,x)=>s+(x.total||0),0);
     const inventoryValue = this.tires.reduce((s,t)=>s+((t.stock||0)*(t.price||0)),0);
+    const byPayment = this.sales.reduce((acc,s)=>{
+      const k = s.paymentMethod || 'cash';
+      acc[k] = (acc[k]||0) + (s.total||0);
+      return acc;
+    }, {});
+    const bestSellers = Object.values(this.sales.flatMap(s=>s.items||[]).reduce((acc,it)=>{
+      acc[it.name] = acc[it.name] || {name:it.name, qty:0, revenue:0};
+      acc[it.name].qty += it.qty; acc[it.name].revenue += it.qty*it.price;
+      return acc;
+    },{})).sort((a,b)=>b.revenue-a.revenue).slice(0,10);
     return `
       <div class="card">
         <div class="card-head"><h3>ملخص عام</h3></div>
@@ -1335,9 +1418,25 @@ class TireShopApp{
           <button class="btn btn-ghost" id="csvSalesBtn2">${icon('download')} تصدير المبيعات CSV</button>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-head"><h3>المبيعات حسب طريقة الدفع</h3></div>
+        <div class="grid-4">
+          ${Object.entries(PAYMENT_LABELS).map(([k,l])=>`<div class="stat blue"><h4>${l}</h4><div class="v num">${fmtMoney(byPayment[k]||0)}</div></div>`).join('')}
+        </div>
+      </div>
+
       <div class="grid-2">
         <div class="card"><div class="card-head"><h3>توزيع المبيعات (أفضل 5)</h3></div><div class="chart-box"><canvas id="categoriesChart"></canvas></div></div>
         <div class="card"><div class="card-head"><h3>حالة المخزون</h3></div><div class="chart-box"><canvas id="inventoryChart"></canvas></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>المنتجات والخدمات الأكثر مبيعاً (أفضل 10)</h3></div>
+        ${bestSellers.length===0 ? this.emptyState('لا توجد مبيعات بعد') : `
+        <div class="table-wrap"><table><thead><tr><th>الصنف</th><th>الكمية المباعة</th><th>الإيراد</th></tr></thead><tbody>
+          ${bestSellers.map(b=>`<tr><td><strong>${esc(b.name)}</strong></td><td class="num">${b.qty}</td><td class="num">${fmtMoney(b.revenue)} ر.ع</td></tr>`).join('')}
+        </tbody></table></div>`}
       </div>
     `;
   }
