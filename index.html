@@ -161,6 +161,22 @@ tbody tr:hover{background:#fbfaf7;}
 .gauge-hero .g-label{font-size:12.5px; color:var(--text-muted); font-weight:700; margin-top:2px;}
 
 .invoice-items{border:1px solid var(--line); border-radius:5px; padding:10px; margin-bottom:12px;}
+.pos-tabs{display:flex; gap:6px; margin-bottom:10px;}
+.pos-tabs button{flex:1; padding:9px; border:1px solid var(--line); border-radius:5px; background:#fff; font-size:13px; font-weight:700; color:var(--text-600);}
+.pos-tabs button.active{background:var(--asphalt-950); color:#fff; border-color:var(--asphalt-950);}
+.pos-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; max-height:280px; overflow-y:auto; padding:2px; margin-bottom:12px;}
+.pos-btn{
+  display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:10px 12px;
+  border:1px solid var(--line); border-radius:6px; background:#fdfcfa; text-align:right; min-height:66px;
+  transition:border-color .12s, background .12s;
+}
+.pos-btn:hover{border-color:var(--amber-500); background:#fff;}
+.pos-btn:active{background:var(--amber-100);}
+.pos-btn .pb-name{font-size:12.5px; font-weight:700; line-height:1.3; color:var(--text-900);}
+.pos-btn .pb-sub{font-size:10.5px; color:var(--text-muted);}
+.pos-btn .pb-price{font-family:'Oswald',sans-serif; font-size:14px; font-weight:700; color:var(--amber-600); margin-top:auto;}
+.pos-btn.low-stock{opacity:.55;}
+.pos-btn.out-stock{opacity:.35; pointer-events:none;}
 .invoice-item-row{display:flex; gap:8px; align-items:center; padding:6px 2px; font-size:13px; border-bottom:1px solid var(--line);}
 .invoice-item-row:last-child{border-bottom:none;}
 .invoice-item-row .name{flex:1; font-weight:600;}
@@ -1044,15 +1060,12 @@ class TireShopApp{
           </div>
           <div class="form-group">
             <label>إضافة صنف</label>
-            <select id="invItemPicker">
-              <option value="">اختر إطار أو خدمة...</option>
-              <optgroup label="إطارات">
-                ${this.tires.map(t=>`<option value="tire:${t.id}">${esc(t.brand)} ${esc(t.model)} (${esc(t.size)}) — ${fmtMoney(t.price)} ر.ع — متوفر ${t.stock||0}</option>`).join('')}
-              </optgroup>
-              <optgroup label="خدمات">
-                ${this.services.map(s=>`<option value="service:${s.id}">${esc(s.name)} — ${fmtMoney(s.price)} ر.ع</option>`).join('')}
-              </optgroup>
-            </select>
+            <div class="pos-tabs" id="posTabs">
+              <button type="button" data-tab="services" class="${(this._invPickerTab||'services')==='services'?'active':''}">${icon('wrench')} خدمات</button>
+              <button type="button" data-tab="tires" class="${this._invPickerTab==='tires'?'active':''}">${icon('tire')} إطارات</button>
+            </div>
+            <input type="text" id="posSearch" placeholder="ابحث..." style="margin-bottom:8px;">
+            <div class="pos-grid" id="posGrid">${this.renderPosGrid()}</div>
           </div>
           <div class="invoice-items" id="draftItemsBox">${this.renderDraftItems()}</div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
@@ -1112,6 +1125,41 @@ class TireShopApp{
     });
   }
   draftTotal(){ return this._draftInvoice.items.reduce((s,i)=>s+i.qty*i.price,0); }
+  renderPosGrid(){
+    const tab = this._invPickerTab || 'services';
+    const q = (this._posSearch||'').toLowerCase();
+    if(tab === 'services'){
+      const list = this.services.filter(s=>!q || s.name.toLowerCase().includes(q));
+      if(list.length===0) return `<p style="font-size:12.5px;color:var(--text-muted);padding:8px;grid-column:1/-1;">لا توجد خدمات مطابقة</p>`;
+      return list.map(s=>`
+        <button type="button" class="pos-btn" data-add-type="service" data-add-id="${s.id}">
+          <span class="pb-name">${esc(s.name)}</span>
+          <span class="pb-price num">${fmtMoney(s.price)} ر.ع</span>
+        </button>`).join('');
+    } else {
+      const list = this.tires.filter(t=>!q || (t.brand+' '+t.model+' '+t.size).toLowerCase().includes(q));
+      if(list.length===0) return `<p style="font-size:12.5px;color:var(--text-muted);padding:8px;grid-column:1/-1;">لا توجد إطارات مطابقة</p>`;
+      return list.map(t=>{
+        const stock = t.stock||0;
+        const cls = stock===0 ? 'out-stock' : stock<5 ? 'low-stock' : '';
+        return `
+        <button type="button" class="pos-btn ${cls}" data-add-type="tire" data-add-id="${t.id}">
+          <span class="pb-name">${esc(t.brand)} ${esc(t.model)}</span>
+          <span class="pb-sub">${esc(t.size)} — متوفر ${stock}</span>
+          <span class="pb-price num">${fmtMoney(t.price)} ر.ع</span>
+        </button>`;
+      }).join('');
+    }
+  }
+  addItemToDraft(type, id){
+    let name, price;
+    if(type==='tire'){ const t=this.tires.find(x=>x.id===id); if(!t) return; if((t.stock||0)<=0){ this.toast('هذا الإطار غير متوفر بالمخزون', 'err'); return; } name=`${t.brand} ${t.model} (${t.size})`; price=t.price||0; }
+    else { const s=this.services.find(x=>x.id===id); if(!s) return; name=s.name; price=s.price||0; }
+    const existing = this._draftInvoice.items.find(i=>i.type===type && i.refId===id);
+    if(existing) existing.qty += 1;
+    else this._draftInvoice.items.push({type, refId:id, name, price, qty:1});
+    this.refreshDraft();
+  }
   renderDraftItems(){
     const items = this._draftInvoice.items;
     if(items.length===0) return `<p style="font-size:12.5px;color:var(--text-muted);text-align:center;padding:8px;">لم تتم إضافة أصناف بعد</p>`;
@@ -1140,19 +1188,19 @@ class TireShopApp{
     </tbody></table></div>`;
   }
   bindSalesEvents(){
-    const picker = document.getElementById('invItemPicker');
-    if(picker) picker.addEventListener('change', ()=>{
-      const val = picker.value; if(!val) return;
-      const [type,id] = val.split(':');
-      let name, price;
-      if(type==='tire'){ const t=this.tires.find(x=>x.id===id); if(!t)return; name=`${t.brand} ${t.model} (${t.size})`; price=t.price||0; }
-      else { const s=this.services.find(x=>x.id===id); if(!s)return; name=s.name; price=s.price||0; }
-      const existing = this._draftInvoice.items.find(i=>i.type===type && i.refId===id);
-      if(existing) existing.qty += 1;
-      else this._draftInvoice.items.push({type, refId:id, name, price, qty:1});
-      picker.value='';
-      this.refreshDraft();
+    document.querySelectorAll('#posTabs [data-tab]').forEach(b=>b.addEventListener('click', ()=>{
+      this._invPickerTab = b.dataset.tab;
+      document.querySelectorAll('#posTabs [data-tab]').forEach(x=>x.classList.toggle('active', x===b));
+      document.getElementById('posGrid').innerHTML = this.renderPosGrid();
+      this.bindPosGridEvents();
+    }));
+    const posSearch = document.getElementById('posSearch');
+    if(posSearch) posSearch.addEventListener('input', ()=>{
+      this._posSearch = posSearch.value;
+      document.getElementById('posGrid').innerHTML = this.renderPosGrid();
+      this.bindPosGridEvents();
     });
+    this.bindPosGridEvents();
     const custSel = document.getElementById('invCustomer');
     if(custSel) custSel.addEventListener('change', ()=>{ this._draftInvoice.customerId = custSel.value; });
     this.bindDraftItemEvents();
@@ -1182,6 +1230,11 @@ class TireShopApp{
     });
     document.querySelectorAll('[data-view-inv]').forEach(b=>b.addEventListener('click', ()=>this.viewInvoice(b.dataset.viewInv)));
     document.querySelectorAll('[data-del-sale]').forEach(b=>b.addEventListener('click', ()=>this.confirmDelete('هل تريد حذف هذه الفاتورة؟', ()=>this.deleteDoc('sales', b.dataset.delSale, this._localFallback.sales).then(ok=>ok&&this.toast('تم الحذف')))));
+  }
+  bindPosGridEvents(){
+    document.querySelectorAll('#posGrid [data-add-type]').forEach(b=>b.addEventListener('click', ()=>{
+      this.addItemToDraft(b.dataset.addType, b.dataset.addId);
+    }));
   }
   bindDraftItemEvents(){
     document.querySelectorAll('[data-qty-idx]').forEach(inp=>inp.addEventListener('input', ()=>{
