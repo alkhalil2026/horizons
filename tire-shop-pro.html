@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة محل الإطارات - PRO</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: white; padding: 2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header h1 { display: flex; align-items: center; gap: 12px; margin-bottom: 0.5rem; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .main-nav { display: flex; gap: 12px; padding: 1rem; background: white; border-bottom: 1px solid #ddd; margin-bottom: 1.5rem; }
+        .nav-btn { padding: 10px 16px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s; }
+        .nav-btn.active { background: #3498db; color: white; border-color: #3498db; }
+        .nav-btn:hover { background: #ecf0f1; }
+        .nav-btn.active:hover { background: #2980b9; }
+        .card { background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+        .stat-card { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #3498db; }
+        .stat-card h3 { font-size: 13px; color: #666; margin-bottom: 8px; }
+        .stat-card .value { font-size: 28px; font-weight: bold; color: #2c3e50; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #2c3e50; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .btn { padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: #3498db; color: white; }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-secondary { background: #95a5a6; color: white; }
+        .btn-secondary:hover { background: #7f8c8d; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th { background: #ecf0f1; padding: 12px; text-align: right; font-size: 13px; font-weight: 600; color: #2c3e50; border-bottom: 2px solid #bdc3c7; }
+        .table td { padding: 12px; border-bottom: 1px solid #ecf0f1; font-size: 14px; }
+        .table tr:hover { background: #f9f9f9; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .badge-info { background: #d1ecf1; color: #0c5460; }
+        .search-bar { display: flex; gap: 12px; margin-bottom: 1rem; }
+        .search-bar input { flex: 1; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 8px; padding: 2rem; max-width: 500px; width: 90%; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid #ecf0f1; padding-bottom: 1rem; }
+        .modal-header h2 { margin: 0; }
+        .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #666; }
+        .alert { padding: 12px 16px; border-radius: 6px; margin-bottom: 1rem; font-size: 14px; }
+        .alert-success { background: #d4edda; color: #155724; border-left: 4px solid #27ae60; }
+        .alert-error { background: #f8d7da; color: #721c24; border-left: 4px solid #e74c3c; }
+        .chart-container { position: relative; height: 300px; margin-bottom: 2rem; }
+        .empty-state { text-align: center; padding: 2rem; color: #7f8c8d; }
+        .empty-state i { font-size: 48px; opacity: 0.3; display: block; margin-bottom: 1rem; }
+        .filter-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
+        .filter-tag { display: inline-flex; align-items: center; gap: 8px; background: #ecf0f1; padding: 6px 12px; border-radius: 20px; font-size: 13px; }
+        .filter-tag .remove { cursor: pointer; color: #e74c3c; font-weight: bold; }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+        .status-low { background: #e74c3c; }
+        .status-medium { background: #f39c12; }
+        .status-high { background: #27ae60; }
+        .hidden { display: none !important; }
+        .text-muted { color: #7f8c8d; font-size: 13px; }
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+            .header { padding: 1rem; }
+            .header h1 { font-size: 18px; }
+            .table { font-size: 12px; }
+            .table th, .table td { padding: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        class TireShopApp {
+            constructor() {
+                this.currentUser = null;
+                this.currentView = 'login';
+                this.tires = this.loadData('tires') || [];
+                this.services = this.loadData('services') || [];
+                this.sales = this.loadData('sales') || [];
+                this.inventory = this.loadData('inventory') || {};
+                this.init();
+            }
+
+            loadData(key) {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : null;
+            }
+
+            saveData(key, data) {
+                localStorage.setItem(key, JSON.stringify(data));
+            }
+
+            init() {
+                this.render();
+                this.setupEventListeners();
+            }
+
+            login(username, password) {
+                if (username === 'admin' && password === 'admin123') {
+                    this.currentUser = { name: 'المدير', role: 'manager', id: 1 };
+                    this.currentView = 'manager-dashboard';
+                } else if (username === 'employee' && password === 'emp123') {
+                    this.currentUser = { name: 'الموظف', role: 'employee', id: 2 };
+                    this.currentView = 'employee-dashboard';
+                } else {
+                    alert('بيانات الدخول غير صحيحة');
+                    return;
+                }
+                this.render();
+            }
+
+            logout() {
+                this.currentUser = null;
+                this.currentView = 'login';
+                this.render();
+            }
+
+            render() {
+                const app = document.getElementById('app');
+                
+                if (this.currentView === 'login') {
+                    app.innerHTML = this.renderLogin();
+                } else if (this.currentUser?.role === 'manager') {
+                    app.innerHTML = this.renderManager();
+                } else {
+                    app.innerHTML = this.renderEmployee();
+                }
+                
+                this.setupEventListeners();
+            }
+
+            renderLogin() {
+                return `
+                    <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <div class="card" style="max-width: 400px; width: 90%;">
+                            <div style="text-align: center; margin-bottom: 2rem;">
+                                <i class="ti ti-wheel-drive" style="font-size: 48px; color: #3498db;"></i>
+                                <h1 style="margin-top: 1rem; color: #2c3e50;">نظام إدارة المحل</h1>
+                                <p class="text-muted">الإطارات والخدمات</p>
+                            </div>
+
+                            <form id="loginForm" style="display: flex; flex-direction: column; gap: 1rem;">
+                                <div class="form-group">
+                                    <label>اسم المستخدم</label>
+                                    <input type="text" id="username" placeholder="أدخل اسم المستخدم" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>كلمة المرور</label>
+                                    <input type="password" id="password" placeholder="أدخل كلمة المرور" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                    <i class="ti ti-login"></i> تسجيل الدخول
+                                </button>
+                            </form>
+
+                            <div class="alert alert-info" style="margin-top: 1.5rem; background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8;">
+                                <strong>حسابات تجريبية:</strong><br>
+                                👤 المدير: admin / admin123<br>
+                                👷 الموظف: employee / emp123
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderManager() {
+                return `
+                    <div class="container">
+                        ${this.renderHeader()}
+                        <div class="main-nav">
+                            <button class="nav-btn active" onclick="app.switchView('dashboard')">
+                                <i class="ti ti-dashboard"></i> لوحة التحكم
+                            </button>
+                            <button class="nav-btn" onclick="app.switchView('tires')">
+                                <i class="ti ti-tire"></i> إدارة الإطارات
+                            </button>
+                            <button class="nav-btn" onclick="app.switchView('services')">
+                                <i class="ti ti-tools"></i> إدارة الخدمات
+                            </button>
+                            <button class="nav-btn" onclick="app.switchView('sales')">
+                                <i class="ti ti-shopping-cart"></i> المبيعات
+                            </button>
+                            <button class="nav-btn" onclick="app.switchView('reports')">
+                                <i class="ti ti-chart-bar"></i> التقارير
+                            </button>
+                        </div>
+                        
+                        <div id="content">
+                            ${this.renderManagerDashboard()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderEmployee() {
+                return `
+                    <div class="container">
+                        ${this.renderHeader()}
+                        <div class="main-nav">
+                            <button class="nav-btn active" onclick="app.switchView('tires')">
+                                <i class="ti ti-tire"></i> الإطارات
+                            </button>
+                            <button class="nav-btn" onclick="app.switchView('services')">
+                                <i class="ti ti-tools"></i> الخدمات
+                            </button>
+                            <button class="nav-btn" onclick="app.switchView('record-sale')">
+                                <i class="ti ti-plus"></i> تسجيل عملية بيع
+                            </button>
+                        </div>
+                        
+                        <div id="content">
+                            ${this.renderTiresView()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderHeader() {
+                return `
+                    <div class="header">
+                        <h1>
+                            <i class="ti ti-wheel-drive"></i>
+                            نظام إدارة محل الإطارات
+                        </h1>
+                        <p>مرحباً ${this.currentUser.name} - ${new Date().toLocaleDateString('ar-SA')}</p>
+                        <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                            <button class="btn btn-secondary" onclick="app.logout()" style="margin-left: auto;">
+                                <i class="ti ti-logout"></i> تسجيل الخروج
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderManagerDashboard() {
+                const totalSales = this.sales.reduce((sum, s) => sum + (s.quantity * s.price), 0);
+                const totalTires = this.tires.reduce((sum, t) => sum + (t.stock || 0), 0);
+                const lowStockTires = this.tires.filter(t => (t.stock || 0) < 5).length;
+                
+                const topSold = this.sales.reduce((acc, s) => {
+                    const existing = acc.find(x => x.name === s.name);
+                    if (existing) existing.quantity += s.quantity;
+                    else acc.push({ name: s.name, quantity: s.quantity });
+                    return acc;
+                }, []).sort((a, b) => b.quantity - a.quantity).slice(0, 5);
+
+                const dailySales = this.sales.reduce((acc, s) => {
+                    const date = new Date(s.date).toLocaleDateString('ar-SA');
+                    const existing = acc.find(x => x.date === date);
+                    if (existing) existing.total += s.quantity * s.price;
+                    else acc.push({ date, total: s.quantity * s.price });
+                    return acc;
+                }, []).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                return `
+                    <div class="grid-4">
+                        <div class="stat-card" style="border-left-color: #3498db;">
+                            <h3>💰 إجمالي المبيعات</h3>
+                            <div class="value">${totalSales.toFixed(2)} ر.ع</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #27ae60;">
+                            <h3>📦 المخزون الكلي</h3>
+                            <div class="value">${totalTires}</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #e74c3c;">
+                            <h3>⚠️ مخزون منخفض</h3>
+                            <div class="value">${lowStockTires}</div>
+                        </div>
+                        <div class="stat-card" style="border-left-color: #f39c12;">
+                            <h3>🛍️ عدد المبيعات</h3>
+                            <div class="value">${this.sales.length}</div>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="card">
+                            <h2 style="margin-bottom: 1.5rem;">📈 المبيعات اليومية</h2>
+                            <div class="chart-container">
+                                <canvas id="salesChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h2 style="margin-bottom: 1.5rem;">⭐ الأكثر مبيعاً</h2>
+                            ${topSold.length === 0 ? '<div class="empty-state">لا توجد مبيعات</div>' : `
+                                <table class="table" style="font-size: 13px;">
+                                    <tbody>
+                                        ${topSold.map((item, i) => `
+                                            <tr>
+                                                <td style="font-weight: 600;">${i + 1}. ${item.name}</td>
+                                                <td style="text-align: left;">
+                                                    <span class="badge badge-info">${item.quantity} وحدة</span>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            `}
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">📊 المخزون المنخفض</h2>
+                        ${this.tires.filter(t => (t.stock || 0) < 5).length === 0 ? 
+                            '<div class="empty-state">جميع الإطارات بمستويات صحية</div>' : 
+                            `<table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>العلامة التجارية</th>
+                                        <th>الموديل</th>
+                                        <th>الحجم</th>
+                                        <th>المخزون</th>
+                                        <th>الحالة</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${this.tires.filter(t => (t.stock || 0) < 5).map(t => `
+                                        <tr>
+                                            <td>${t.brand}</td>
+                                            <td>${t.model}</td>
+                                            <td>${t.size}</td>
+                                            <td><strong>${t.stock || 0}</strong></td>
+                                            <td><span class="badge badge-danger">منخفض جداً</span></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>`
+                        }
+                    </div>
+                `;
+            }
+
+            renderTiresView() {
+                return `
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">إضافة إطار جديد</h2>
+                        <form id="tireForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div class="form-group">
+                                <label>العلامة التجارية *</label>
+                                <input type="text" id="tireBrand" placeholder="مثل: Michelin" required>
+                            </div>
+                            <div class="form-group">
+                                <label>الموديل *</label>
+                                <input type="text" id="tireModel" placeholder="مثل: Latitude" required>
+                            </div>
+                            <div class="form-group">
+                                <label>الحجم *</label>
+                                <input type="text" id="tireSize" placeholder="مثل: 185/65R15" required>
+                            </div>
+                            <div class="form-group">
+                                <label>المخزون</label>
+                                <input type="number" id="tireStock" value="0" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>السعر (ر.ع)</label>
+                                <input type="number" id="tirePrice" step="0.01" min="0" value="0">
+                            </div>
+                            <div style="display: flex; align-items: flex-end;">
+                                <button type="submit" class="btn btn-success" style="width: 100%;">
+                                    <i class="ti ti-plus"></i> إضافة إطار
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">قائمة الإطارات</h2>
+                        <div class="search-bar">
+                            <input type="text" id="tireSearch" placeholder="ابحث عن إطار...">
+                            <button class="btn btn-secondary" onclick="app.exportToCSV('tires')">
+                                <i class="ti ti-download"></i> تصدير
+                            </button>
+                        </div>
+
+                        ${this.tires.length === 0 ? 
+                            '<div class="empty-state"><i class="ti ti-file-x"></i>لا توجد إطارات مسجلة</div>' :
+                            `<table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>العلامة</th>
+                                        <th>الموديل</th>
+                                        <th>الحجم</th>
+                                        <th>المخزون</th>
+                                        <th>السعر</th>
+                                        <th>الحالة</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tiresTableBody">
+                                    ${this.tires.map(tire => `
+                                        <tr>
+                                            <td><strong>${tire.brand}</strong></td>
+                                            <td>${tire.model}</td>
+                                            <td>${tire.size}</td>
+                                            <td>
+                                                <span class="status-indicator ${(tire.stock || 0) < 5 ? 'status-low' : (tire.stock || 0) < 15 ? 'status-medium' : 'status-high'}"></span>
+                                                ${tire.stock || 0}
+                                            </td>
+                                            <td>${tire.price || 0} ر.ع</td>
+                                            <td>
+                                                ${(tire.stock || 0) === 0 ? '<span class="badge badge-danger">نفاد</span>' :
+                                                  (tire.stock || 0) < 5 ? '<span class="badge badge-warning">منخفض</span>' :
+                                                  '<span class="badge badge-success">متوفر</span>'}
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-primary" onclick="app.editTire(${tire.id})" style="padding: 6px 10px; font-size: 12px;">تعديل</button>
+                                                <button class="btn btn-danger" onclick="app.deleteTire(${tire.id})" style="padding: 6px 10px; font-size: 12px;">حذف</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>`
+                        }
+                    </div>
+                `;
+            }
+
+            renderServicesView() {
+                return `
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">إضافة خدمة جديدة</h2>
+                        <form id="serviceForm" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div class="form-group">
+                                <label>اسم الخدمة *</label>
+                                <input type="text" id="serviceName" placeholder="مثل: تغيير الإطارات" required>
+                            </div>
+                            <div class="form-group">
+                                <label>الوصف</label>
+                                <textarea id="serviceDesc" placeholder="وصف مختصر للخدمة"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>السعر (ر.ع)</label>
+                                <input type="number" id="servicePrice" step="0.01" min="0" value="0">
+                            </div>
+                            <button type="submit" class="btn btn-success">
+                                <i class="ti ti-plus"></i> إضافة خدمة
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">قائمة الخدمات</h2>
+                        ${this.services.length === 0 ? 
+                            '<div class="empty-state"><i class="ti ti-file-x"></i>لا توجد خدمات مسجلة</div>' :
+                            `<table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>الخدمة</th>
+                                        <th>الوصف</th>
+                                        <th>السعر</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${this.services.map(service => `
+                                        <tr>
+                                            <td><strong>${service.name}</strong></td>
+                                            <td>${service.description || '-'}</td>
+                                            <td>${service.price || 0} ر.ع</td>
+                                            <td>
+                                                <button class="btn btn-danger" onclick="app.deleteService(${service.id})" style="padding: 6px 10px; font-size: 12px;">حذف</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>`
+                        }
+                    </div>
+                `;
+            }
+
+            renderSalesView() {
+                return `
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">تسجيل عملية بيع</h2>
+                        <form id="saleForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div class="form-group">
+                                <label>اسم المنتج/الخدمة *</label>
+                                <input type="text" id="saleName" placeholder="مثل: Michelin Latitude" required>
+                            </div>
+                            <div class="form-group">
+                                <label>الكمية *</label>
+                                <input type="number" id="saleQuantity" value="1" min="1" required>
+                            </div>
+                            <div class="form-group">
+                                <label>السعر الواحد (ر.ع) *</label>
+                                <input type="number" id="salePrice" step="0.01" min="0" required>
+                            </div>
+                            <div style="display: flex; align-items: flex-end;">
+                                <button type="submit" class="btn btn-success" style="width: 100%;">
+                                    <i class="ti ti-check"></i> تسجيل البيع
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">سجل المبيعات</h2>
+                        ${this.sales.length === 0 ? 
+                            '<div class="empty-state"><i class="ti ti-file-x"></i>لا توجد مبيعات مسجلة</div>' :
+                            `<table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>المنتج</th>
+                                        <th>الكمية</th>
+                                        <th>السعر الواحد</th>
+                                        <th>الإجمالي</th>
+                                        <th>التاريخ</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${this.sales.map(sale => `
+                                        <tr>
+                                            <td><strong>${sale.name}</strong></td>
+                                            <td>${sale.quantity}</td>
+                                            <td>${sale.price} ر.ع</td>
+                                            <td><strong>${(sale.quantity * sale.price).toFixed(2)} ر.ع</strong></td>
+                                            <td>${new Date(sale.date).toLocaleDateString('ar-SA')}</td>
+                                            <td>
+                                                <button class="btn btn-danger" onclick="app.deleteSale(${sale.id})" style="padding: 6px 10px; font-size: 12px;">حذف</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>`
+                        }
+                    </div>
+                `;
+            }
+
+            renderReportsView() {
+                const totalSales = this.sales.reduce((sum, s) => sum + (s.quantity * s.price), 0);
+                const totalTires = this.tires.reduce((sum, t) => sum + (t.stock || 0), 0);
+                const inventoryValue = this.tires.reduce((sum, t) => sum + ((t.stock || 0) * (t.price || 0)), 0);
+
+                return `
+                    <div class="card">
+                        <h2 style="margin-bottom: 1.5rem;">📊 التقارير والإحصائيات</h2>
+                        
+                        <div class="grid-4" style="margin-bottom: 2rem;">
+                            <div class="stat-card">
+                                <h3>💵 إجمالي المبيعات</h3>
+                                <div class="value">${totalSales.toFixed(2)} ر.ع</div>
+                            </div>
+                            <div class="stat-card" style="border-left-color: #27ae60;">
+                                <h3>📦 قيمة المخزون</h3>
+                                <div class="value">${inventoryValue.toFixed(2)} ر.ع</div>
+                            </div>
+                            <div class="stat-card" style="border-left-color: #f39c12;">
+                                <h3>🛍️ عدد أنواع الإطارات</h3>
+                                <div class="value">${this.tires.length}</div>
+                            </div>
+                            <div class="stat-card" style="border-left-color: #9b59b6;">
+                                <h3>🔧 عدد الخدمات</h3>
+                                <div class="value">${this.services.length}</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 12px; margin-bottom: 2rem;">
+                            <button class="btn btn-primary" onclick="app.generatePDFReport()">
+                                <i class="ti ti-file-pdf"></i> تحميل تقرير PDF
+                            </button>
+                            <button class="btn btn-secondary" onclick="app.exportToCSV('sales')">
+                                <i class="ti ti-file-csv"></i> تصدير المبيعات
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="card">
+                            <h3 style="margin-bottom: 1.5rem;">📈 توزيع المبيعات</h3>
+                            <div class="chart-container">
+                                <canvas id="categoriesChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="margin-bottom: 1.5rem;">📊 حالة المخزون</h3>
+                            <div class="chart-container">
+                                <canvas id="inventoryChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            switchView(view) {
+                const contentDiv = document.getElementById('content');
+                
+                if (view === 'dashboard' && this.currentUser?.role === 'manager') {
+                    contentDiv.innerHTML = this.renderManagerDashboard();
+                } else if (view === 'tires') {
+                    contentDiv.innerHTML = this.renderTiresView();
+                } else if (view === 'services') {
+                    contentDiv.innerHTML = this.renderServicesView();
+                } else if (view === 'sales') {
+                    contentDiv.innerHTML = this.renderSalesView();
+                } else if (view === 'reports') {
+                    contentDiv.innerHTML = this.renderReportsView();
+                } else if (view === 'record-sale') {
+                    contentDiv.innerHTML = this.renderSalesView();
+                }
+
+                this.setupEventListeners();
+                
+                if (view === 'dashboard' || view === 'reports') {
+                    setTimeout(() => this.initCharts(), 100);
+                }
+            }
+
+            setupEventListeners() {
+                const loginForm = document.getElementById('loginForm');
+                if (loginForm) {
+                    loginForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        const username = document.getElementById('username').value;
+                        const password = document.getElementById('password').value;
+                        this.login(username, password);
+                    });
+                }
+
+                const tireForm = document.getElementById('tireForm');
+                if (tireForm) {
+                    tireForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        this.addTire();
+                    });
+                }
+
+                const serviceForm = document.getElementById('serviceForm');
+                if (serviceForm) {
+                    serviceForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        this.addService();
+                    });
+                }
+
+                const saleForm = document.getElementById('saleForm');
+                if (saleForm) {
+                    saleForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        this.recordSale();
+                    });
+                }
+
+                const tireSearch = document.getElementById('tireSearch');
+                if (tireSearch) {
+                    tireSearch.addEventListener('input', (e) => this.filterTires(e.target.value));
+                }
+            }
+
+            addTire() {
+                const tire = {
+                    id: Date.now(),
+                    brand: document.getElementById('tireBrand').value,
+                    model: document.getElementById('tireModel').value,
+                    size: document.getElementById('tireSize').value,
+                    stock: parseInt(document.getElementById('tireStock').value) || 0,
+                    price: parseFloat(document.getElementById('tirePrice').value) || 0
+                };
+
+                this.tires.push(tire);
+                this.saveData('tires', this.tires);
+                
+                document.getElementById('tireForm').reset();
+                alert('تم إضافة الإطار بنجاح');
+                this.switchView('tires');
+            }
+
+            deleteTire(id) {
+                if (confirm('هل أنت متأكد من حذف هذا الإطار؟')) {
+                    this.tires = this.tires.filter(t => t.id !== id);
+                    this.saveData('tires', this.tires);
+                    this.switchView('tires');
+                }
+            }
+
+            addService() {
+                const service = {
+                    id: Date.now(),
+                    name: document.getElementById('serviceName').value,
+                    description: document.getElementById('serviceDesc').value,
+                    price: parseFloat(document.getElementById('servicePrice').value) || 0
+                };
+
+                this.services.push(service);
+                this.saveData('services', this.services);
+                
+                document.getElementById('serviceForm').reset();
+                alert('تم إضافة الخدمة بنجاح');
+                this.switchView('services');
+            }
+
+            deleteService(id) {
+                if (confirm('هل أنت متأكد من حذف هذه الخدمة؟')) {
+                    this.services = this.services.filter(s => s.id !== id);
+                    this.saveData('services', this.services);
+                    this.switchView('services');
+                }
+            }
+
+            recordSale() {
+                const sale = {
+                    id: Date.now(),
+                    name: document.getElementById('saleName').value,
+                    quantity: parseInt(document.getElementById('saleQuantity').value),
+                    price: parseFloat(document.getElementById('salePrice').value),
+                    date: new Date().toISOString()
+                };
+
+                this.sales.push(sale);
+                this.saveData('sales', this.sales);
+                
+                document.getElementById('saleForm').reset();
+                alert('تم تسجيل البيع بنجاح');
+                this.switchView('sales');
+            }
+
+            deleteSale(id) {
+                if (confirm('هل أنت متأكد من حذف هذه البيعة؟')) {
+                    this.sales = this.sales.filter(s => s.id !== id);
+                    this.saveData('sales', this.sales);
+                    this.switchView('sales');
+                }
+            }
+
+            filterTires(query) {
+                const rows = document.querySelectorAll('#tiresTableBody tr');
+                rows.forEach(row => {
+                    const text = row.innerText.toLowerCase();
+                    row.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+                });
+            }
+
+            initCharts() {
+                const salesCtx = document.getElementById('salesChart');
+                const categoriesCtx = document.getElementById('categoriesChart');
+                const inventoryCtx = document.getElementById('inventoryChart');
+
+                if (salesCtx) {
+                    const dailySales = this.sales.reduce((acc, s) => {
+                        const date = new Date(s.date).toLocaleDateString('ar-SA');
+                        const existing = acc.find(x => x.date === date);
+                        if (existing) existing.total += s.quantity * s.price;
+                        else acc.push({ date, total: s.quantity * s.price });
+                        return acc;
+                    }, []).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-7);
+
+                    new Chart(salesCtx, {
+                        type: 'line',
+                        data: {
+                            labels: dailySales.map(s => s.date),
+                            datasets: [{
+                                label: 'المبيعات (ر.ع)',
+                                data: dailySales.map(s => s.total),
+                                borderColor: '#3498db',
+                                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    });
+                }
+
+                if (categoriesCtx) {
+                    const topSold = this.sales.reduce((acc, s) => {
+                        const existing = acc.find(x => x.name === s.name);
+                        if (existing) existing.total += s.quantity * s.price;
+                        else acc.push({ name: s.name, total: s.quantity * s.price });
+                        return acc;
+                    }, []).sort((a, b) => b.total - a.total).slice(0, 5);
+
+                    new Chart(categoriesCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: topSold.map(s => s.name),
+                            datasets: [{
+                                label: 'المبيعات (ر.ع)',
+                                data: topSold.map(s => s.total),
+                                backgroundColor: '#27ae60'
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y' }
+                    });
+                }
+
+                if (inventoryCtx) {
+                    const stockStatus = {
+                        متوفر: this.tires.filter(t => (t.stock || 0) >= 15).length,
+                        منخفض: this.tires.filter(t => (t.stock || 0) >= 5 && (t.stock || 0) < 15).length,
+                        نفاد: this.tires.filter(t => (t.stock || 0) < 5).length
+                    };
+
+                    new Chart(inventoryCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: Object.keys(stockStatus),
+                            datasets: [{
+                                data: Object.values(stockStatus),
+                                backgroundColor: ['#27ae60', '#f39c12', '#e74c3c']
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                }
+            }
+
+            exportToCSV(type) {
+                let data = [];
+                let filename = '';
+
+                if (type === 'tires') {
+                    data = this.tires;
+                    filename = 'الاطارات.csv';
+                } else if (type === 'sales') {
+                    data = this.sales;
+                    filename = 'المبيعات.csv';
+                }
+
+                const csv = Papa.unparse(data);
+                const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+            }
+
+            generatePDFReport() {
+                const element = document.createElement('div');
+                element.innerHTML = `
+                    <h1>تقرير المبيعات والمخزون</h1>
+                    <p>التاريخ: ${new Date().toLocaleDateString('ar-SA')}</p>
+                    <h2>ملخص المبيعات</h2>
+                    <p>إجمالي المبيعات: ${this.sales.reduce((sum, s) => sum + (s.quantity * s.price), 0).toFixed(2)} ر.ع</p>
+                    <p>عدد المبيعات: ${this.sales.length}</p>
+                    <h2>حالة المخزون</h2>
+                    <p>إجمالي الإطارات: ${this.tires.reduce((sum, t) => sum + (t.stock || 0), 0)}</p>
+                    <p>عدد أنواع الإطارات: ${this.tires.length}</p>
+                `;
+
+                html2pdf().set({ filename: 'تقرير المبيعات.pdf' }).save(element);
+            }
+
+            logout() {
+                this.currentUser = null;
+                this.currentView = 'login';
+                this.render();
+            }
+        }
+
+        const app = new TireShopApp();
+        
+        // Make app globally available for onclick handlers
+        window.app = app;
+    </script>
+</body>
+</html>

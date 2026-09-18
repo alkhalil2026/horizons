@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ورشتي | نظام إدارة محل الإطارات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --asphalt-950:#15171B; --asphalt-800:#20232A; --asphalt-700:#2B2F37;
+  --concrete-100:#F3F0EA; --paper:#FFFFFF;
+  --amber-500:#F2A71B; --amber-600:#D6900F; --amber-100:#FCEACB;
+  --tread-green:#3E8F5C; --tread-green-bg:#E4F3EA;
+  --brake-red:#C4483A; --brake-red-bg:#FBE7E4;
+  --info-blue:#3E7EA6; --info-blue-bg:#E4EFF5;
+  --line:#E3DDD0; --text-900:#1E1C19; --text-600:#5B564C; --text-muted:#928C7E;
+  --radius:6px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:'Cairo',sans-serif; background:var(--concrete-100); color:var(--text-900);
+  -webkit-font-smoothing:antialiased;
+}
+.num{font-family:'Oswald',sans-serif; font-variant-numeric:tabular-nums;}
+button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+::selection{background:var(--amber-100);}
+
+/* ---- shell layout ---- */
+#app{min-height:100vh;}
+.shell{display:flex; min-height:100vh;}
+.sidebar{
+  width:236px; flex-shrink:0; background:var(--asphalt-950); color:#fff;
+  display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
+}
+.brand{padding:22px 20px 18px; display:flex; align-items:center; gap:10px; border-bottom:1px solid rgba(255,255,255,.08);}
+.brand-mark{width:34px; height:34px; flex-shrink:0;}
+.brand-text h1{font-size:16px; font-weight:800; letter-spacing:.2px;}
+.brand-text p{font-size:11px; color:#9a958a; margin-top:1px;}
+.side-nav{flex:1; padding:14px 10px; display:flex; flex-direction:column; gap:2px; overflow-y:auto;}
+.side-link{
+  display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:5px;
+  color:#c7c2b6; font-size:14px; font-weight:600; background:transparent; border:none;
+  text-align:right; width:100%; position:relative; transition:background .15s,color .15s;
+}
+.side-link svg{width:18px; height:18px; flex-shrink:0; opacity:.85;}
+.side-link:hover{background:rgba(255,255,255,.06); color:#fff;}
+.side-link.active{background:rgba(242,167,27,.12); color:var(--amber-500);}
+.side-link.active::before{content:"";position:absolute; right:0; top:6px; bottom:6px; width:3px; background:var(--amber-500); border-radius:2px;}
+.side-link.active svg{opacity:1;}
+.side-foot{padding:14px 16px 18px; border-top:1px solid rgba(255,255,255,.08);}
+.user-chip{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+.user-avatar{width:32px; height:32px; border-radius:50%; background:var(--amber-500); color:var(--asphalt-950); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0;}
+.user-meta p{font-size:13px; font-weight:700; color:#fff;}
+.user-meta span{font-size:11px; color:#9a958a;}
+.logout-btn{display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border-radius:5px; background:rgba(255,255,255,.06); color:#d8d3c6; font-size:13px; font-weight:600; border:none;}
+.logout-btn:hover{background:rgba(255,255,255,.12); color:#fff;}
+.logout-btn svg{width:15px; height:15px;}
+
+.main{flex:1; min-width:0; display:flex; flex-direction:column;}
+.topbar{
+  background:var(--paper); border-bottom:1px solid var(--line); padding:16px 28px;
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+}
+.topbar h2{font-size:19px; font-weight:800;}
+.topbar .sub{font-size:12.5px; color:var(--text-muted); margin-top:2px;}
+.topbar-right{display:flex; align-items:center; gap:10px;}
+.storage-flag{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--tread-green); font-weight:700;}
+.storage-flag.offline{color:var(--brake-red);}
+.storage-flag .dot{width:7px; height:7px; border-radius:50%; background:currentColor;}
+.content{padding:22px 28px 60px; max-width:1320px; width:100%;}
+
+/* ---- generic components ---- */
+.card{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:20px;}
+.card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
+.card-head h3{font-size:15.5px; font-weight:800;}
+.card-accent{border-inline-start:3px solid var(--amber-500);}
+.grid-2{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px;}
+.grid-4{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
+.form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px;}
+.form-group label{display:block; font-size:12.5px; font-weight:700; margin-bottom:6px; color:var(--text-600);}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:5px; font-size:13.5px; background:#fdfcfa;
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:2px solid var(--amber-500); outline-offset:1px; border-color:var(--amber-500);}
+.form-group textarea{resize:vertical; min-height:70px;}
+.form-actions{display:flex; align-items:flex-end;}
+
+.btn{display:inline-flex; align-items:center; gap:7px; padding:9px 15px; border:none; border-radius:5px; font-size:13.5px; font-weight:700; transition:filter .15s,background .15s;}
+.btn svg{width:15px; height:15px;}
+.btn-primary{background:var(--asphalt-950); color:#fff;}
+.btn-primary:hover{filter:brightness(1.25);}
+.btn-amber{background:var(--amber-500); color:var(--asphalt-950);}
+.btn-amber:hover{background:var(--amber-600);}
+.btn-ghost{background:#fff; color:var(--text-900); border:1px solid var(--line);}
+.btn-ghost:hover{background:var(--concrete-100);}
+.btn-danger{background:var(--brake-red-bg); color:var(--brake-red);}
+.btn-danger:hover{background:#f5cfc9;}
+.btn-sm{padding:6px 10px; font-size:12px;}
+.btn-block{width:100%; justify-content:center;}
+.btn:disabled{opacity:.5; cursor:not-allowed;}
+
+.stat{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; border-inline-start:3px solid var(--amber-500);}
+.stat.green{border-inline-start-color:var(--tread-green);}
+.stat.red{border-inline-start-color:var(--brake-red);}
+.stat.blue{border-inline-start-color:var(--info-blue);}
+.stat h4{font-size:12px; color:var(--text-muted); font-weight:700; margin-bottom:6px;}
+.stat .v{font-family:'Oswald',sans-serif; font-size:26px; font-weight:700; color:var(--text-900);}
+.stat .v small{font-size:13px; font-weight:600; color:var(--text-muted);}
+
+.table-wrap{overflow-x:auto;}
+table{width:100%; border-collapse:collapse; min-width:560px;}
+th{background:var(--concrete-100); text-align:right; padding:10px 12px; font-size:12px; font-weight:800; color:var(--text-600); border-bottom:1px solid var(--line); white-space:nowrap;}
+td{padding:11px 12px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:#fbfaf7;}
+
+.badge{display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:700;}
+.badge-green{background:var(--tread-green-bg); color:var(--tread-green);}
+.badge-amber{background:var(--amber-100); color:var(--amber-600);}
+.badge-red{background:var(--brake-red-bg); color:var(--brake-red);}
+.badge-blue{background:var(--info-blue-bg); color:var(--info-blue);}
+.badge-grey{background:#ECE8E0; color:var(--text-600);}
+.dot-ind{display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:6px;}
+
+.search-row{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
+.search-row input{flex:1; min-width:180px;}
+.empty{text-align:center; padding:36px 20px; color:var(--text-muted);}
+.empty svg{width:38px; height:38px; margin:0 auto 10px; opacity:.4; display:block;}
+.empty p{font-size:13.5px;}
+
+.chart-box{position:relative; height:270px;}
+.action-cell{display:flex; gap:6px; flex-wrap:wrap;}
+
+.toast-wrap{position:fixed; top:18px; left:18px; z-index:2000; display:flex; flex-direction:column; gap:8px;}
+.toast{background:var(--asphalt-950); color:#fff; padding:11px 16px; border-radius:6px; font-size:13px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.2); display:flex; align-items:center; gap:8px; animation:slide .18s ease-out;}
+.toast.err{background:var(--brake-red);}
+.toast.ok{background:var(--tread-green);}
+@keyframes slide{from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);}}
+
+.modal-overlay{position:fixed; inset:0; background:rgba(21,23,27,.55); z-index:1500; display:none; align-items:center; justify-content:center; padding:16px;}
+.modal-overlay.active{display:flex;}
+.modal-box{background:#fff; border-radius:8px; padding:24px; max-width:520px; width:100%; max-height:88vh; overflow-y:auto;}
+.modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+.modal-head h3{font-size:16px; font-weight:800;}
+.modal-close{background:none; border:none; font-size:20px; color:var(--text-muted); line-height:1;}
+
+.status-pill{display:flex; gap:6px; flex-wrap:wrap;}
+.status-pill button{padding:5px 11px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid var(--line); background:#fff; color:var(--text-600);}
+.status-pill button.active-pending{background:var(--amber-100); border-color:var(--amber-500); color:var(--amber-600);}
+.status-pill button.active-done{background:var(--tread-green-bg); border-color:var(--tread-green); color:var(--tread-green);}
+.status-pill button.active-cancelled{background:var(--brake-red-bg); border-color:var(--brake-red); color:var(--brake-red);}
+
+.gauge-hero{display:flex; align-items:center; gap:26px; flex-wrap:wrap;}
+.gauge-hero .g-num{font-family:'Oswald',sans-serif; font-size:40px; font-weight:700;}
+.gauge-hero .g-label{font-size:12.5px; color:var(--text-muted); font-weight:700; margin-top:2px;}
+
+.invoice-items{border:1px solid var(--line); border-radius:5px; padding:10px; margin-bottom:12px;}
+.invoice-item-row{display:flex; gap:8px; align-items:center; padding:6px 2px; font-size:13px; border-bottom:1px solid var(--line);}
+.invoice-item-row:last-child{border-bottom:none;}
+.invoice-item-row .name{flex:1; font-weight:600;}
+.pick-list{max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:5px;}
+.pick-row{display:flex; justify-content:space-between; align-items:center; padding:8px 10px; font-size:13px; border-bottom:1px solid var(--line);}
+.pick-row:last-child{border-bottom:none;}
+.pick-row button{font-size:11.5px; padding:4px 9px;}
+
+.login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--asphalt-950); padding:20px;
+  background-image:repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0 2px, transparent 2px 14px);}
+.login-box{background:#fff; border-radius:10px; padding:36px 32px; max-width:380px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,.35);}
+.login-box .mark{width:52px; height:52px; margin:0 auto 14px;}
+.login-box h1{text-align:center; font-size:19px; font-weight:800; margin-bottom:3px;}
+.login-box p.tag{text-align:center; font-size:12.5px; color:var(--text-muted); margin-bottom:24px;}
+.role-toggle{display:flex; gap:8px; margin-bottom:18px; background:var(--concrete-100); padding:4px; border-radius:7px;}
+.role-toggle button{flex:1; padding:9px; border:none; border-radius:5px; background:transparent; font-size:13px; font-weight:700; color:var(--text-600);}
+.role-toggle button.active{background:#fff; color:var(--asphalt-950); box-shadow:0 1px 3px rgba(0,0,0,.12);}
+.login-note{margin-top:16px; font-size:11.5px; color:var(--text-muted); background:var(--concrete-100); padding:10px 12px; border-radius:6px; line-height:1.7;}
+
+.mobile-topnav{display:none;}
+@media (max-width:860px){
+  .shell{flex-direction:column;}
+  .sidebar{display:none;}
+  .mobile-topnav{
+    display:flex; gap:4px; overflow-x:auto; background:var(--asphalt-950); padding:8px 10px; position:sticky; top:0; z-index:50;
+  }
+  .mobile-topnav button{
+    display:flex; align-items:center; gap:6px; padding:8px 12px; border:none; border-radius:6px; background:transparent;
+    color:#c7c2b6; font-size:12.5px; font-weight:700; white-space:nowrap; flex-shrink:0;
+  }
+  .mobile-topnav button svg{width:15px; height:15px;}
+  .mobile-topnav button.active{background:rgba(242,167,27,.15); color:var(--amber-500);}
+  .content{padding:16px 14px 40px;}
+  .topbar{padding:14px 16px;}
+  .grid-4{grid-template-columns:repeat(2,1fr);}
+  .gauge-hero{flex-direction:column; align-items:flex-start;}
+}
+@media (max-width:480px){.grid-4{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+<div class="modal-overlay" id="modalOverlay"><div class="modal-box" id="modalBox"></div></div>
+
+<script>
+/* ---------------------------------------------------------------
+   Icon set (inline SVG — no external icon-font dependency)
+----------------------------------------------------------------*/
+const ICON = {
+  wheel:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M21 12h-6M9 12H3M17.5 6.5l-4.2 4.2M10.7 13.3l-4.2 4.2M17.5 17.5l-4.2-4.2M10.7 10.7L6.5 6.5"/></svg>',
+  dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>',
+  tire:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/><path d="M12 3.5v3M12 17.5v3M20.5 12h-3M6.5 12h-3M18 6l-2.2 2.2M8.2 15.8L6 18M18 18l-2.2-2.2M8.2 8.2L6 6"/></svg>',
+  wrench:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a4 4 0 1 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2 2.6-2.6z"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="7.5" r="2.6"/><path d="M15 12.2c2.9.4 5 2.6 5 5.5"/></svg>',
+  calendar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  invoice:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l4 4v16H6z"/><path d="M15 2v4h4M9 12h6M9 16h6M9 8h2"/></svg>',
+  chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2 20h20"/></svg>',
+  logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>',
+  download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v13M7 11l5 5 5-5"/><path d="M4 19h16"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l5 5 9-9"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17.5v.1"/></svg>',
+  phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .8 3a2 2 0 0 1-.4 2.1L8.1 10a16 16 0 0 0 6 6l1.2-1.4a2 2 0 0 1 2.1-.4c1 .4 2 .7 3 .8a2 2 0 0 1 1.7 2z"/></svg>',
+  car:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><rect x="2" y="13" width="20" height="6" rx="1.5"/><circle cx="7" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>',
+};
+function icon(name){ return ICON[name] || ''; }
+function esc(s){
+  if(s===undefined||s===null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtMoney(n){ return (Number(n)||0).toFixed(2); }
+function fmtDate(iso){ try{ return new Date(iso).toLocaleDateString('ar-OM',{year:'numeric',month:'short',day:'numeric'}); }catch(e){ return '-'; } }
+function fmtDateTime(iso){ try{ return new Date(iso).toLocaleString('ar-OM',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return '-'; } }
+function uid(){ return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+/* ---------------------------------------------------------------
+   App
+----------------------------------------------------------------*/
+/* ---------------------------------------------------------------
+   Supabase connection + column-name mapping
+   (DB columns are snake_case; the app's render code uses camelCase)
+----------------------------------------------------------------*/
+const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFocm5vcmp6ZXprdXNnaHFxYmZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mzc5NzksImV4cCI6MjEwNTMxMzk3OX0.eFVLGMmapEgiAcueu_mV94KRcr_OcIS59BkTQPJcWbo';
+
+const FIELD_MAP = {
+  tires: {},
+  services: {},
+  customers: { car_model:'carModel', car_plate:'carPlate' },
+  appointments: { customer_id:'customerId', customer_name:'customerName', service_name:'serviceName' },
+  sales: { invoice_number:'invoiceNumber', customer_id:'customerId', customer_name:'customerName' },
+};
+function rowFromDb(row, table){
+  const map = FIELD_MAP[table] || {};
+  const out = { ...row };
+  Object.entries(map).forEach(([snake,camel])=>{
+    if(snake in out){ out[camel] = out[snake]; delete out[snake]; }
+  });
+  out.createdAt = row.created_at;
+  delete out.created_at;
+  return out;
+}
+function rowToDb(obj, table){
+  const map = FIELD_MAP[table] || {};
+  const out = { ...obj };
+  Object.entries(map).forEach(([snake,camel])=>{
+    if(camel in out){ out[snake] = out[camel]; delete out[camel]; }
+  });
+  delete out.id; delete out.createdAt; delete out.created_at;
+  return out;
+}
+
+class TireShopApp{
+  constructor(){
+    this.sb = null;
+    this.persistent = false;
+    this.currentUser = null;      // {name, role}
+    this.currentView = 'login';
+    this.tires = [];
+    this.services = [];
+    this.customers = [];
+    this.appointments = [];
+    this.sales = [];
+    this._unsubs = [];
+    this._renderTimers = {};
+    this._localFallback = { tires:[], services:[], customers:[], appointments:[], sales:[] };
+    this.init();
+  }
+
+  async init(){
+    // restore a lightweight session (role only — not secure auth)
+    try{
+      const saved = sessionStorage.getItem('tireshop_session');
+      if(saved){ this.currentUser = JSON.parse(saved); this.currentView = this.currentUser.role === 'manager' ? 'dashboard' : 'tires'; }
+    }catch(e){}
+
+    this.render();
+
+    try{
+      if(window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY){
+        this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // quick connectivity check
+        const { error } = await this.sb.from('tires').select('id').limit(1);
+        if(error) { console.error('Supabase check failed:', error); this.sb = null; }
+      }
+    }catch(e){ console.error(e); this.sb = null; }
+
+    this.persistent = !!this.sb;
+    if(this.currentUser) await this.subscribeAll();
+    this.render();
+  }
+
+  toast(msg, type){
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.innerHTML = (type==='err'?icon('alert'):icon('check')) + '<span>' + esc(msg) + '</span>';
+    wrap.appendChild(el);
+    setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 2600);
+  }
+
+  /* ---------- auth (role gate; not a security boundary) ---------- */
+  login(username, password, role){
+    const creds = {
+      manager: {u:'admin', p:'admin123', name:'المدير'},
+      employee: {u:'employee', p:'emp123', name:'الموظف'}
+    };
+    const c = creds[role];
+    if(username === c.u && password === c.p){
+      this.currentUser = { name: c.name, role };
+      sessionStorage.setItem('tireshop_session', JSON.stringify(this.currentUser));
+      this.currentView = role === 'manager' ? 'dashboard' : 'tires';
+      this.subscribeAll();
+      this.render();
+    } else {
+      this.toast('بيانات الدخول غير صحيحة', 'err');
+    }
+  }
+
+  logout(){
+    this._unsubs.forEach(u=>{ try{u();}catch(e){} });
+    this._unsubs = [];
+    this.currentUser = null;
+    this.currentView = 'login';
+    sessionStorage.removeItem('tireshop_session');
+    this.render();
+  }
+
+  /* ---------- data layer ---------- */
+  async subscribeAll(){
+    if(!this.sb){
+      // fallback: operate on in-memory data for this session only
+      this.tires = this._localFallback.tires;
+      this.services = this._localFallback.services;
+      this.customers = this._localFallback.customers;
+      this.appointments = this._localFallback.appointments;
+      this.sales = this._localFallback.sales;
+      return;
+    }
+    const bind = async (table) => {
+      // initial load
+      const { data, error } = await this.sb.from(table).select('*').order('created_at', {ascending:false});
+      if(!error && data) this[table] = data.map(r => rowFromDb(r, table));
+      this.onDataChange(table);
+      // realtime subscription (requires the table added to the supabase_realtime publication)
+      const channel = this.sb.channel(table + '-changes').on('postgres_changes',
+        { event:'*', schema:'public', table },
+        async () => {
+          const { data, error } = await this.sb.from(table).select('*').order('created_at', {ascending:false});
+          if(!error && data){ this[table] = data.map(r => rowFromDb(r, table)); this.onDataChange(table); }
+        }
+      ).subscribe();
+      this._unsubs.push(()=>this.sb.removeChannel(channel));
+    };
+    await Promise.all(['tires','services','customers','appointments','sales'].map(bind));
+  }
+
+  onDataChange(prop){
+    // debounce, then refresh only the visible view's dynamic region
+    clearTimeout(this._renderTimers[prop]);
+    this._renderTimers[prop] = setTimeout(()=>{
+      const affects = {
+        tires: ['dashboard','tires','sales','reports'],
+        services: ['services','sales'],
+        customers: ['customers','appointments','sales'],
+        appointments: ['dashboard','appointments'],
+        sales: ['dashboard','sales','reports']
+      };
+      if((affects[prop]||[]).includes(this.currentView)){
+        this.refreshList();
+        if(this.currentView === 'dashboard' || this.currentView === 'reports') this.initCharts();
+      }
+    }, 120);
+  }
+
+  async addDoc(col, data, localArr){
+    if(this.sb){
+      const { error } = await this.sb.from(col).insert(rowToDb(data, col));
+      if(error){ console.error(error); this.toast('تعذر الحفظ، حاول مرة أخرى', 'err'); return false; }
+      // realtime subscription refreshes the list; refresh once more immediately for snappy feedback
+      const { data: rows } = await this.sb.from(col).select('*').order('created_at', {ascending:false});
+      if(rows){ this[col] = rows.map(r=>rowFromDb(r,col)); this.onDataChange(col); }
+      return true;
+    } else {
+      localArr.push({ id: uid(), ...data, createdAt: new Date().toISOString() });
+      this.refreshList();
+      return true;
+    }
+  }
+  async updateDoc(col, id, data, localArr){
+    if(this.sb){
+      const { error } = await this.sb.from(col).update(rowToDb(data, col)).eq('id', id);
+      if(error){ console.error(error); this.toast('تعذر التحديث', 'err'); return false; }
+      const { data: rows } = await this.sb.from(col).select('*').order('created_at', {ascending:false});
+      if(rows){ this[col] = rows.map(r=>rowFromDb(r,col)); this.onDataChange(col); }
+      return true;
+    } else {
+      const item = localArr.find(x=>x.id===id); if(item) Object.assign(item, data);
+      this.refreshList(); return true;
+    }
+  }
+  async deleteDoc(col, id, localArr){
+    if(this.sb){
+      const { error } = await this.sb.from(col).delete().eq('id', id);
+      if(error){ console.error(error); this.toast('تعذر الحذف', 'err'); return false; }
+      const { data: rows } = await this.sb.from(col).select('*').order('created_at', {ascending:false});
+      if(rows){ this[col] = rows.map(r=>rowFromDb(r,col)); this.onDataChange(col); }
+      return true;
+    } else {
+      const idx = localArr.findIndex(x=>x.id===id); if(idx>-1) localArr.splice(idx,1);
+      this.refreshList(); return true;
+    }
+  }
+
+  /* ---------- render shell ---------- */
+  render(){
+    const app = document.getElementById('app');
+    if(this.currentView === 'login' || !this.currentUser){
+      app.innerHTML = this.renderLogin();
+      this.attachLoginEvents();
+      return;
+    }
+    app.innerHTML = this.renderShell();
+    this.attachNavEvents();
+    this.switchView(this.currentView, true);
+  }
+
+  renderLogin(){
+    return `
+    <div class="login-screen">
+      <div class="login-box">
+        <div class="mark">${icon('wheel')}</div>
+        <h1>ورشتي</h1>
+        <p class="tag">نظام إدارة محل الإطارات والخدمات</p>
+        <div class="role-toggle" id="roleToggle">
+          <button type="button" data-role="manager" class="active">مدير</button>
+          <button type="button" data-role="employee">موظف</button>
+        </div>
+        <form id="loginForm" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="form-group"><label>اسم المستخدم</label><input type="text" id="username" placeholder="admin" required></div>
+          <div class="form-group"><label>كلمة المرور</label><input type="password" id="password" placeholder="••••••••" required></div>
+          <button type="submit" class="btn btn-primary btn-block">${icon('check')} تسجيل الدخول</button>
+        </form>
+        <div class="login-note">
+          <strong>حسابات تجريبية</strong><br>
+          مدير: admin / admin123 &nbsp;•&nbsp; موظف: employee / emp123
+        </div>
+      </div>
+    </div>`;
+  }
+
+  attachLoginEvents(){
+    let role = 'manager';
+    document.querySelectorAll('#roleToggle button').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        role = b.dataset.role;
+        document.querySelectorAll('#roleToggle button').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+      });
+    });
+    document.getElementById('loginForm').addEventListener('submit', e=>{
+      e.preventDefault();
+      this.login(document.getElementById('username').value.trim(), document.getElementById('password').value, role);
+    });
+  }
+
+  navItems(){
+    const manager = [
+      ['dashboard','لوحة التحكم','dashboard'],
+      ['tires','المخزون','tire'],
+      ['services','الخدمات','wrench'],
+      ['customers','العملاء','users'],
+      ['appointments','المواعيد','calendar'],
+      ['sales','الفواتير','invoice'],
+      ['reports','التقارير','chart'],
+    ];
+    const employee = [
+      ['tires','المخزون','tire'],
+      ['services','الخدمات','wrench'],
+      ['customers','العملاء','users'],
+      ['appointments','المواعيد','calendar'],
+      ['sales','تسجيل بيع','invoice'],
+    ];
+    return this.currentUser.role === 'manager' ? manager : employee;
+  }
+
+  renderShell(){
+    const initials = this.currentUser.name.trim().charAt(0);
+    const items = this.navItems();
+    return `
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">${icon('wheel')}</div>
+          <div class="brand-text"><h1>ورشتي</h1><p>إدارة محل الإطارات</p></div>
+        </div>
+        <nav class="side-nav" id="sideNav">
+          ${items.map(([v,l,i])=>`<button class="side-link" data-view="${v}">${icon(i)}<span>${l}</span></button>`).join('')}
+        </nav>
+        <div class="side-foot">
+          <div class="user-chip">
+            <div class="user-avatar">${esc(initials)}</div>
+            <div class="user-meta"><p>${esc(this.currentUser.name)}</p><span>${this.currentUser.role==='manager'?'مدير':'موظف'}</span></div>
+          </div>
+          <button class="logout-btn" id="logoutBtn">${icon('logout')} تسجيل الخروج</button>
+        </div>
+      </aside>
+
+      <div class="mobile-topnav" id="mobileNav">
+        ${items.map(([v,l,i])=>`<button data-view="${v}">${icon(i)}<span>${l}</span></button>`).join('')}
+      </div>
+
+      <main class="main">
+        <div class="topbar">
+          <div>
+            <h2 id="pageTitle">—</h2>
+            <p class="sub">${new Date().toLocaleDateString('ar-OM',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>
+          </div>
+          <div class="topbar-right">
+            <div class="storage-flag ${this.persistent?'':'offline'}">
+              <span class="dot"></span>${this.persistent?'متصل بقاعدة البيانات — محفوظ ومتزامن':'غير متصل بقاعدة البيانات — لن يتم حفظ البيانات'}
+            </div>
+          </div>
+        </div>
+        <div class="content" id="content"></div>
+      </main>
+    </div>`;
+  }
+
+  attachNavEvents(){
+    document.getElementById('logoutBtn').addEventListener('click', ()=>this.logout());
+    document.querySelectorAll('#sideNav [data-view], #mobileNav [data-view]').forEach(b=>{
+      b.addEventListener('click', ()=>this.switchView(b.dataset.view));
+    });
+  }
+
+  switchView(view, isInit){
+    this.currentView = view;
+    document.querySelectorAll('#sideNav [data-view], #mobileNav [data-view]').forEach(b=>{
+      b.classList.toggle('active', b.dataset.view === view);
+    });
+    const titles = {
+      dashboard:'لوحة التحكم', tires:'إدارة المخزون', services:'إدارة الخدمات',
+      customers:'العملاء', appointments:'المواعيد', sales:'المبيعات والفواتير', reports:'التقارير'
+    };
+    const t = document.getElementById('pageTitle'); if(t) t.textContent = titles[view] || '';
+    const content = document.getElementById('content');
+    const renderers = {
+      dashboard: ()=>this.renderDashboard(),
+      tires: ()=>this.renderTiresView(),
+      services: ()=>this.renderServicesView(),
+      customers: ()=>this.renderCustomersView(),
+      appointments: ()=>this.renderAppointmentsView(),
+      sales: ()=>this.renderSalesView(),
+      reports: ()=>this.renderReportsView(),
+    };
+    content.innerHTML = (renderers[view] || (()=>''))();
+    this.attachViewEvents(view);
+    if(view === 'dashboard' || view === 'reports') setTimeout(()=>this.initCharts(), 60);
+  }
+
+  refreshList(){
+    // re-render current view fully (forms use uncontrolled inputs so a rerender
+    // is safe between user actions; we only trigger this on data snapshots).
+    if(!this.currentUser) return;
+    this.switchView(this.currentView);
+  }
+
+  attachViewEvents(view){
+    if(view === 'tires') this.bindTiresEvents();
+    if(view === 'services') this.bindServicesEvents();
+    if(view === 'customers') this.bindCustomersEvents();
+    if(view === 'appointments') this.bindAppointmentsEvents();
+    if(view === 'sales') this.bindSalesEvents();
+    if(view === 'reports') this.bindReportsEvents();
+  }
+
+  /* ============================================================
+     DASHBOARD
+  ============================================================ */
+  renderDashboard(){
+    const totalRevenue = this.sales.reduce((s,x)=>s+(x.total||0),0);
+    const today = new Date().toDateString();
+    const todayRevenue = this.sales.filter(s=>new Date(s.createdAt||s.date).toDateString()===today).reduce((s,x)=>s+(x.total||0),0);
+    const totalStock = this.tires.reduce((s,t)=>s+(t.stock||0),0);
+    const lowStock = this.tires.filter(t=>(t.stock||0) < 5);
+    const todaysAppts = this.appointments.filter(a=> a.date === new Date().toISOString().slice(0,10));
+
+    const topSold = Object.values(this.sales.flatMap(s=>s.items||[]).reduce((acc,it)=>{
+      acc[it.name] = acc[it.name] || {name:it.name, qty:0};
+      acc[it.name].qty += it.qty; return acc;
+    },{})).sort((a,b)=>b.qty-a.qty).slice(0,5);
+
+    return `
+      <div class="card card-accent" style="margin-bottom:20px;">
+        <div class="gauge-hero">
+          <div>
+            <div class="g-num num">${fmtMoney(todayRevenue)} <small style="font-size:16px;">ر.ع</small></div>
+            <div class="g-label">إيرادات اليوم</div>
+          </div>
+          <div style="height:44px;width:1px;background:var(--line);"></div>
+          <div>
+            <div class="g-num num" style="font-size:28px;">${fmtMoney(totalRevenue)}</div>
+            <div class="g-label">إجمالي الإيرادات</div>
+          </div>
+          <div style="height:44px;width:1px;background:var(--line);"></div>
+          <div>
+            <div class="g-num num" style="font-size:28px;">${this.sales.length}</div>
+            <div class="g-label">عدد الفواتير</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-4" style="margin-bottom:20px;">
+        <div class="stat blue"><h4>قطع في المخزون</h4><div class="v num">${totalStock}</div></div>
+        <div class="stat red"><h4>مخزون منخفض</h4><div class="v num">${lowStock.length}</div></div>
+        <div class="stat green"><h4>مواعيد اليوم</h4><div class="v num">${todaysAppts.length}</div></div>
+        <div class="stat"><h4>عدد العملاء</h4><div class="v num">${this.customers.length}</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>الإيرادات اليومية</h3></div>
+          <div class="chart-box"><canvas id="salesChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>الأكثر مبيعاً</h3></div>
+          ${topSold.length===0 ? this.emptyState('لا توجد مبيعات بعد') : `
+          <table><thead><tr><th>الصنف</th><th style="text-align:left;">الكمية</th></tr></thead><tbody>
+            ${topSold.map(t=>`<tr><td>${esc(t.name)}</td><td style="text-align:left;"><span class="badge badge-blue">${t.qty} وحدة</span></td></tr>`).join('')}
+          </tbody></table>`}
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>${icon('alert')} مخزون منخفض</h3></div>
+          ${lowStock.length===0 ? this.emptyState('كل الإطارات بمستويات جيدة') : `
+          <table><thead><tr><th>الماركة</th><th>الموديل</th><th>المقاس</th><th>المتبقي</th></tr></thead><tbody>
+            ${lowStock.map(t=>`<tr><td><strong>${esc(t.brand)}</strong></td><td>${esc(t.model)}</td><td>${esc(t.size)}</td><td><span class="badge badge-red">${t.stock||0}</span></td></tr>`).join('')}
+          </tbody></table>`}
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>مواعيد اليوم</h3></div>
+          ${todaysAppts.length===0 ? this.emptyState('لا توجد مواعيد اليوم') : `
+          <table><thead><tr><th>العميل</th><th>الخدمة</th><th>الوقت</th><th>الحالة</th></tr></thead><tbody>
+            ${todaysAppts.map(a=>`<tr><td>${esc(a.customerName)}</td><td>${esc(a.serviceName||'-')}</td><td>${esc(a.time||'-')}</td><td>${this.statusBadge(a.status)}</td></tr>`).join('')}
+          </tbody></table>`}
+        </div>
+      </div>
+    `;
+  }
+
+  emptyState(msg){
+    return `<div class="empty">${icon('box')}<p>${esc(msg)}</p></div>`;
+  }
+  statusBadge(status){
+    const map = {pending:['قيد الانتظار','badge-amber'], done:['مكتمل','badge-green'], cancelled:['ملغي','badge-red']};
+    const [label,cls] = map[status] || map.pending;
+    return `<span class="badge ${cls}">${label}</span>`;
+  }
+
+  /* ============================================================
+     TIRES
+  ============================================================ */
+  renderTiresView(){
+    return `
+      <div class="card">
+        <div class="card-head"><h3>إضافة إطار جديد</h3></div>
+        <form id="tireForm" class="form-grid" style="margin-bottom:6px;">
+          <div class="form-group"><label>العلامة التجارية *</label><input type="text" id="tireBrand" placeholder="مثل: Michelin" required></div>
+          <div class="form-group"><label>الموديل *</label><input type="text" id="tireModel" placeholder="مثل: Latitude" required></div>
+          <div class="form-group"><label>الحجم *</label><input type="text" id="tireSize" placeholder="مثل: 185/65R15" required></div>
+          <div class="form-group"><label>المخزون</label><input type="number" id="tireStock" value="0" min="0"></div>
+          <div class="form-group"><label>السعر (ر.ع)</label><input type="number" id="tirePrice" step="0.01" min="0" value="0"></div>
+          <div class="form-actions"><button type="submit" class="btn btn-amber btn-block">${icon('plus')} إضافة</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>قائمة الإطارات (${this.tires.length})</h3></div>
+        <div class="search-row">
+          <input type="text" id="tireSearch" placeholder="ابحث بالماركة أو الموديل أو المقاس...">
+          <button class="btn btn-ghost" id="exportTiresBtn">${icon('download')} تصدير CSV</button>
+        </div>
+        <div id="tiresListArea">${this.renderTiresTable(this.tires)}</div>
+      </div>
+    `;
+  }
+  renderTiresTable(list){
+    if(list.length===0) return this.emptyState('لا توجد إطارات مسجلة بعد');
+    return `<div class="table-wrap"><table><thead><tr>
+      <th>الماركة</th><th>الموديل</th><th>الحجم</th><th>المخزون</th><th>السعر</th><th>الحالة</th><th>إجراءات</th>
+    </tr></thead><tbody>
+    ${list.map(t=>{
+      const st = (t.stock||0)===0?'status-low':(t.stock||0)<5?'status-low':(t.stock||0)<15?'status-medium':'status-high';
+      const stColor = (t.stock||0)===0?'var(--brake-red)':(t.stock||0)<5?'var(--brake-red)':(t.stock||0)<15?'var(--amber-500)':'var(--tread-green)';
+      const badge = (t.stock||0)===0?'<span class="badge badge-red">نفاد</span>':(t.stock||0)<5?'<span class="badge badge-amber">منخفض</span>':'<span class="badge badge-green">متوفر</span>';
+      return `<tr>
+        <td><strong>${esc(t.brand)}</strong></td><td>${esc(t.model)}</td><td>${esc(t.size)}</td>
+        <td><span class="dot-ind" style="background:${stColor}"></span>${t.stock||0}</td>
+        <td class="num">${fmtMoney(t.price)} ر.ع</td>
+        <td>${badge}</td>
+        <td class="action-cell">
+          <button class="btn btn-ghost btn-sm" data-edit-tire="${t.id}">${icon('edit')} تعديل</button>
+          <button class="btn btn-danger btn-sm" data-del-tire="${t.id}">${icon('trash')} حذف</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+  }
+  bindTiresEvents(){
+    const form = document.getElementById('tireForm');
+    if(form) form.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const data = {
+        brand: document.getElementById('tireBrand').value.trim(),
+        model: document.getElementById('tireModel').value.trim(),
+        size: document.getElementById('tireSize').value.trim(),
+        stock: parseInt(document.getElementById('tireStock').value)||0,
+        price: parseFloat(document.getElementById('tirePrice').value)||0,
+      };
+      const ok = await this.addDoc('tires', data, this._localFallback.tires);
+      if(ok){ form.reset(); this.toast('تمت إضافة الإطار'); }
+    });
+    const search = document.getElementById('tireSearch');
+    if(search) search.addEventListener('input', e=>{
+      const q = e.target.value.toLowerCase();
+      const filtered = this.tires.filter(t => (t.brand+' '+t.model+' '+t.size).toLowerCase().includes(q));
+      document.getElementById('tiresListArea').innerHTML = this.renderTiresTable(filtered);
+      this.bindTireRowEvents();
+    });
+    const exp = document.getElementById('exportTiresBtn');
+    if(exp) exp.addEventListener('click', ()=>this.exportCSV(this.tires, ['brand','model','size','stock','price'], ['الماركة','الموديل','الحجم','المخزون','السعر'], 'الاطارات.csv'));
+    this.bindTireRowEvents();
+  }
+  bindTireRowEvents(){
+    document.querySelectorAll('[data-edit-tire]').forEach(b=>b.addEventListener('click', ()=>this.openTireEdit(b.dataset.editTire)));
+    document.querySelectorAll('[data-del-tire]').forEach(b=>b.addEventListener('click', ()=>this.confirmDelete('هل تريد حذف هذا الإطار؟', ()=>this.deleteDoc('tires', b.dataset.delTire, this._localFallback.tires).then(ok=>ok&&this.toast('تم الحذف')))));
+  }
+  openTireEdit(id){
+    const t = this.tires.find(x=>x.id===id); if(!t) return;
+    this.openModal('تعديل بيانات الإطار', `
+      <form id="editTireForm" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="form-group"><label>العلامة التجارية</label><input type="text" id="etBrand" value="${esc(t.brand)}" required></div>
+        <div class="form-group"><label>الموديل</label><input type="text" id="etModel" value="${esc(t.model)}" required></div>
+        <div class="form-group"><label>الحجم</label><input type="text" id="etSize" value="${esc(t.size)}" required></div>
+        <div class="form-group"><label>المخزون</label><input type="number" id="etStock" min="0" value="${t.stock||0}"></div>
+        <div class="form-group"><label>السعر (ر.ع)</label><input type="number" id="etPrice" min="0" step="0.01" value="${t.price||0}"></div>
+        <button type="submit" class="btn btn-amber btn-block">${icon('check')} حفظ التعديلات</button>
+      </form>
+    `);
+    document.getElementById('editTireForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const ok = await this.updateDoc('tires', id, {
+        brand: document.getElementById('etBrand').value.trim(),
+        model: document.getElementById('etModel').value.trim(),
+        size: document.getElementById('etSize').value.trim(),
+        stock: parseInt(document.getElementById('etStock').value)||0,
+        price: parseFloat(document.getElementById('etPrice').value)||0,
+      }, this._localFallback.tires);
+      if(ok){ this.closeModal(); this.toast('تم التحديث'); }
+    });
+  }
+
+  /* ============================================================
+     SERVICES
+  ============================================================ */
+  renderServicesView(){
+    return `
+      <div class="card">
+        <div class="card-head"><h3>إضافة خدمة جديدة</h3></div>
+        <form id="serviceForm" style="display:flex;flex-direction:column;gap:12px;max-width:520px;">
+          <div class="form-group"><label>اسم الخدمة *</label><input type="text" id="serviceName" placeholder="مثل: تغيير الإطارات" required></div>
+          <div class="form-group"><label>الوصف</label><textarea id="serviceDesc" placeholder="وصف مختصر للخدمة"></textarea></div>
+          <div class="form-group"><label>السعر (ر.ع)</label><input type="number" id="servicePrice" step="0.01" min="0" value="0"></div>
+          <button type="submit" class="btn btn-amber" style="align-self:flex-start;">${icon('plus')} إضافة خدمة</button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>قائمة الخدمات (${this.services.length})</h3></div>
+        <div id="servicesListArea">${this.renderServicesTable(this.services)}</div>
+      </div>
+    `;
+  }
+  renderServicesTable(list){
+    if(list.length===0) return this.emptyState('لا توجد خدمات مسجلة بعد');
+    return `<div class="table-wrap"><table><thead><tr><th>الخدمة</th><th>الوصف</th><th>السعر</th><th>إجراءات</th></tr></thead><tbody>
+    ${list.map(s=>`<tr>
+      <td><strong>${esc(s.name)}</strong></td><td>${esc(s.description)||'-'}</td><td class="num">${fmtMoney(s.price)} ر.ع</td>
+      <td class="action-cell">
+        <button class="btn btn-ghost btn-sm" data-edit-service="${s.id}">${icon('edit')} تعديل</button>
+        <button class="btn btn-danger btn-sm" data-del-service="${s.id}">${icon('trash')} حذف</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  }
+  bindServicesEvents(){
+    const form = document.getElementById('serviceForm');
+    if(form) form.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const data = {
+        name: document.getElementById('serviceName').value.trim(),
+        description: document.getElementById('serviceDesc').value.trim(),
+        price: parseFloat(document.getElementById('servicePrice').value)||0,
+      };
+      const ok = await this.addDoc('services', data, this._localFallback.services);
+      if(ok){ form.reset(); this.toast('تمت إضافة الخدمة'); }
+    });
+    document.querySelectorAll('[data-edit-service]').forEach(b=>b.addEventListener('click', ()=>this.openServiceEdit(b.dataset.editService)));
+    document.querySelectorAll('[data-del-service]').forEach(b=>b.addEventListener('click', ()=>this.confirmDelete('هل تريد حذف هذه الخدمة؟', ()=>this.deleteDoc('services', b.dataset.delService, this._localFallback.services).then(ok=>ok&&this.toast('تم الحذف')))));
+  }
+  openServiceEdit(id){
+    const s = this.services.find(x=>x.id===id); if(!s) return;
+    this.openModal('تعديل الخدمة', `
+      <form id="editServiceForm" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="form-group"><label>اسم الخدمة</label><input type="text" id="esName" value="${esc(s.name)}" required></div>
+        <div class="form-group"><label>الوصف</label><textarea id="esDesc">${esc(s.description)}</textarea></div>
+        <div class="form-group"><label>السعر (ر.ع)</label><input type="number" id="esPrice" min="0" step="0.01" value="${s.price||0}"></div>
+        <button type="submit" class="btn btn-amber btn-block">${icon('check')} حفظ</button>
+      </form>
+    `);
+    document.getElementById('editServiceForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const ok = await this.updateDoc('services', id, {
+        name: document.getElementById('esName').value.trim(),
+        description: document.getElementById('esDesc').value.trim(),
+        price: parseFloat(document.getElementById('esPrice').value)||0,
+      }, this._localFallback.services);
+      if(ok){ this.closeModal(); this.toast('تم التحديث'); }
+    });
+  }
+
+  /* ============================================================
+     CUSTOMERS
+  ============================================================ */
+  renderCustomersView(){
+    return `
+      <div class="card">
+        <div class="card-head"><h3>إضافة عميل جديد</h3></div>
+        <form id="customerForm" class="form-grid">
+          <div class="form-group"><label>الاسم *</label><input type="text" id="custName" placeholder="اسم العميل" required></div>
+          <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="custPhone" placeholder="9xxxxxxx"></div>
+          <div class="form-group"><label>موديل السيارة</label><input type="text" id="custCar" placeholder="مثل: تويوتا كامري"></div>
+          <div class="form-group"><label>رقم اللوحة</label><input type="text" id="custPlate" placeholder="مثل: 12345"></div>
+          <div class="form-actions"><button type="submit" class="btn btn-amber btn-block">${icon('plus')} إضافة عميل</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>قائمة العملاء (${this.customers.length})</h3></div>
+        <div class="search-row"><input type="text" id="custSearch" placeholder="ابحث بالاسم أو الهاتف..."></div>
+        <div id="customersListArea">${this.renderCustomersTable(this.customers)}</div>
+      </div>
+    `;
+  }
+  renderCustomersTable(list){
+    if(list.length===0) return this.emptyState('لا يوجد عملاء مسجلون بعد');
+    return `<div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>السيارة</th><th>اللوحة</th><th>إجراءات</th></tr></thead><tbody>
+    ${list.map(c=>`<tr>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td>${c.phone?`<span class="badge badge-blue">${icon('phone')} ${esc(c.phone)}</span>`:'-'}</td>
+      <td>${esc(c.carModel)||'-'}</td><td>${esc(c.carPlate)||'-'}</td>
+      <td class="action-cell">
+        <button class="btn btn-ghost btn-sm" data-edit-cust="${c.id}">${icon('edit')} تعديل</button>
+        <button class="btn btn-danger btn-sm" data-del-cust="${c.id}">${icon('trash')} حذف</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  }
+  bindCustomersEvents(){
+    const form = document.getElementById('customerForm');
+    if(form) form.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const data = {
+        name: document.getElementById('custName').value.trim(),
+        phone: document.getElementById('custPhone').value.trim(),
+        carModel: document.getElementById('custCar').value.trim(),
+        carPlate: document.getElementById('custPlate').value.trim(),
+      };
+      const ok = await this.addDoc('customers', data, this._localFallback.customers);
+      if(ok){ form.reset(); this.toast('تمت إضافة العميل'); }
+    });
+    const search = document.getElementById('custSearch');
+    if(search) search.addEventListener('input', e=>{
+      const q = e.target.value.toLowerCase();
+      const filtered = this.customers.filter(c=>(c.name+' '+(c.phone||'')).toLowerCase().includes(q));
+      document.getElementById('customersListArea').innerHTML = this.renderCustomersTable(filtered);
+      this.bindCustomerRowEvents();
+    });
+    this.bindCustomerRowEvents();
+  }
+  bindCustomerRowEvents(){
+    document.querySelectorAll('[data-edit-cust]').forEach(b=>b.addEventListener('click', ()=>this.openCustomerEdit(b.dataset.editCust)));
+    document.querySelectorAll('[data-del-cust]').forEach(b=>b.addEventListener('click', ()=>this.confirmDelete('هل تريد حذف هذا العميل؟', ()=>this.deleteDoc('customers', b.dataset.delCust, this._localFallback.customers).then(ok=>ok&&this.toast('تم الحذف')))));
+  }
+  openCustomerEdit(id){
+    const c = this.customers.find(x=>x.id===id); if(!c) return;
+    this.openModal('تعديل بيانات العميل', `
+      <form id="editCustForm" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="form-group"><label>الاسم</label><input type="text" id="ecName" value="${esc(c.name)}" required></div>
+        <div class="form-group"><label>الهاتف</label><input type="tel" id="ecPhone" value="${esc(c.phone)}"></div>
+        <div class="form-group"><label>موديل السيارة</label><input type="text" id="ecCar" value="${esc(c.carModel)}"></div>
+        <div class="form-group"><label>رقم اللوحة</label><input type="text" id="ecPlate" value="${esc(c.carPlate)}"></div>
+        <button type="submit" class="btn btn-amber btn-block">${icon('check')} حفظ</button>
+      </form>
+    `);
+    document.getElementById('editCustForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const ok = await this.updateDoc('customers', id, {
+        name: document.getElementById('ecName').value.trim(),
+        phone: document.getElementById('ecPhone').value.trim(),
+        carModel: document.getElementById('ecCar').value.trim(),
+        carPlate: document.getElementById('ecPlate').value.trim(),
+      }, this._localFallback.customers);
+      if(ok){ this.closeModal(); this.toast('تم التحديث'); }
+    });
+  }
+
+  /* ============================================================
+     APPOINTMENTS
+  ============================================================ */
+  renderAppointmentsView(){
+    const todayIso = new Date().toISOString().slice(0,10);
+    return `
+      <div class="card">
+        <div class="card-head"><h3>حجز موعد جديد</h3></div>
+        <form id="apptForm" class="form-grid">
+          <div class="form-group"><label>العميل *</label>
+            <select id="apptCustomer" required>
+              <option value="">اختر عميل...</option>
+              ${this.customers.map(c=>`<option value="${c.id}">${esc(c.name)}${c.phone?' — '+esc(c.phone):''}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>الخدمة</label>
+            <select id="apptService">
+              <option value="">بدون تحديد</option>
+              ${this.services.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>التاريخ *</label><input type="date" id="apptDate" value="${todayIso}" required></div>
+          <div class="form-group"><label>الوقت</label><input type="time" id="apptTime"></div>
+          <div class="form-group" style="grid-column:1/-1;"><label>ملاحظات</label><input type="text" id="apptNotes" placeholder="ملاحظات إضافية"></div>
+          <div class="form-actions"><button type="submit" class="btn btn-amber btn-block">${icon('plus')} حجز الموعد</button></div>
+        </form>
+        ${this.customers.length===0?'<p class="text-muted" style="font-size:12.5px;color:var(--text-muted);margin-top:8px;">أضف عميلاً أولاً من صفحة العملاء لتتمكن من حجز موعد.</p>':''}
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>المواعيد (${this.appointments.length})</h3></div>
+        <div id="apptListArea">${this.renderAppointmentsTable(this.appointments)}</div>
+      </div>
+    `;
+  }
+  renderAppointmentsTable(list){
+    if(list.length===0) return this.emptyState('لا توجد مواعيد مسجلة');
+    const sorted = [...list].sort((a,b)=> (a.date+((a.time)||'')).localeCompare(b.date+((b.time)||'')));
+    return `<div class="table-wrap"><table><thead><tr><th>العميل</th><th>الخدمة</th><th>التاريخ</th><th>الوقت</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>
+    ${sorted.map(a=>`<tr>
+      <td><strong>${esc(a.customerName)}</strong></td><td>${esc(a.serviceName)||'-'}</td>
+      <td>${esc(a.date)}</td><td>${esc(a.time)||'-'}</td>
+      <td>${this.statusBadge(a.status)}</td>
+      <td class="action-cell">
+        ${a.status!=='done'?`<button class="btn btn-ghost btn-sm" data-appt-status="${a.id}" data-status="done">${icon('check')} إتمام</button>`:''}
+        ${a.status!=='cancelled'?`<button class="btn btn-danger btn-sm" data-appt-status="${a.id}" data-status="cancelled">${icon('x')} إلغاء</button>`:''}
+        <button class="btn btn-ghost btn-sm" data-del-appt="${a.id}">${icon('trash')}</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  }
+  bindAppointmentsEvents(){
+    const form = document.getElementById('apptForm');
+    if(form) form.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const custSel = document.getElementById('apptCustomer');
+      const cust = this.customers.find(c=>c.id===custSel.value);
+      if(!cust){ this.toast('اختر عميلاً', 'err'); return; }
+      const data = {
+        customerId: cust.id, customerName: cust.name, phone: cust.phone||'',
+        serviceName: document.getElementById('apptService').value,
+        date: document.getElementById('apptDate').value,
+        time: document.getElementById('apptTime').value,
+        notes: document.getElementById('apptNotes').value.trim(),
+        status: 'pending',
+      };
+      const ok = await this.addDoc('appointments', data, this._localFallback.appointments);
+      if(ok){ form.reset(); document.getElementById('apptDate').value = new Date().toISOString().slice(0,10); this.toast('تم حجز الموعد'); }
+    });
+    document.querySelectorAll('[data-appt-status]').forEach(b=>b.addEventListener('click', async ()=>{
+      const ok = await this.updateDoc('appointments', b.dataset.apptStatus, {status:b.dataset.status}, this._localFallback.appointments);
+      if(ok) this.toast('تم تحديث حالة الموعد');
+    }));
+    document.querySelectorAll('[data-del-appt]').forEach(b=>b.addEventListener('click', ()=>this.confirmDelete('هل تريد حذف هذا الموعد؟', ()=>this.deleteDoc('appointments', b.dataset.delAppt, this._localFallback.appointments).then(ok=>ok&&this.toast('تم الحذف')))));
+  }
+
+  /* ============================================================
+     SALES / INVOICES
+  ============================================================ */
+  renderSalesView(){
+    if(!this._draftInvoice) this._draftInvoice = { customerId:'', items:[] };
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>فاتورة جديدة</h3></div>
+          <div class="form-group">
+            <label>العميل (اختياري)</label>
+            <select id="invCustomer">
+              <option value="">عميل مباشر (بدون تسجيل)</option>
+              ${this.customers.map(c=>`<option value="${c.id}" ${this._draftInvoice.customerId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>إضافة صنف</label>
+            <select id="invItemPicker">
+              <option value="">اختر إطار أو خدمة...</option>
+              <optgroup label="إطارات">
+                ${this.tires.map(t=>`<option value="tire:${t.id}">${esc(t.brand)} ${esc(t.model)} (${esc(t.size)}) — ${fmtMoney(t.price)} ر.ع — متوفر ${t.stock||0}</option>`).join('')}
+              </optgroup>
+              <optgroup label="خدمات">
+                ${this.services.map(s=>`<option value="service:${s.id}">${esc(s.name)} — ${fmtMoney(s.price)} ر.ع</option>`).join('')}
+              </optgroup>
+            </select>
+          </div>
+          <div class="invoice-items" id="draftItemsBox">${this.renderDraftItems()}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <span style="font-weight:700;font-size:14px;">الإجمالي</span>
+            <span class="num" style="font-size:20px;font-weight:700;" id="draftTotal">${fmtMoney(this.draftTotal())} ر.ع</span>
+          </div>
+          <button class="btn btn-amber btn-block" id="submitInvoiceBtn" ${this._draftInvoice.items.length===0?'disabled':''}>${icon('check')} تسجيل الفاتورة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>سجل الفواتير (${this.sales.length})</h3>
+            <button class="btn btn-ghost btn-sm" id="exportSalesBtn">${icon('download')} تصدير CSV</button>
+          </div>
+          <div id="salesListArea" style="max-height:560px;overflow-y:auto;">${this.renderSalesTable(this.sales)}</div>
+        </div>
+      </div>
+    `;
+  }
+  draftTotal(){ return this._draftInvoice.items.reduce((s,i)=>s+i.qty*i.price,0); }
+  renderDraftItems(){
+    const items = this._draftInvoice.items;
+    if(items.length===0) return `<p style="font-size:12.5px;color:var(--text-muted);text-align:center;padding:8px;">لم تتم إضافة أصناف بعد</p>`;
+    return items.map((it,idx)=>`
+      <div class="invoice-item-row">
+        <span class="name">${esc(it.name)}</span>
+        <input type="number" min="1" value="${it.qty}" data-qty-idx="${idx}" style="width:56px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;text-align:center;">
+        <span class="num" style="width:80px;text-align:left;">${fmtMoney(it.qty*it.price)} ر.ع</span>
+        <button data-rm-idx="${idx}" class="btn btn-ghost btn-sm" style="padding:3px 8px;">${icon('x')}</button>
+      </div>`).join('');
+  }
+  renderSalesTable(list){
+    if(list.length===0) return this.emptyState('لا توجد فواتير مسجلة بعد');
+    return `<div class="table-wrap"><table><thead><tr><th>#</th><th>العميل</th><th>الأصناف</th><th>الإجمالي</th><th>التاريخ</th><th></th></tr></thead><tbody>
+    ${list.map(s=>`<tr>
+      <td class="num">${esc(s.invoiceNumber||('#'+(s.id||'').slice(-5)))}</td>
+      <td>${esc(s.customerName)||'عميل مباشر'}</td>
+      <td>${(s.items||[]).length} صنف</td>
+      <td class="num"><strong>${fmtMoney(s.total)} ر.ع</strong></td>
+      <td>${fmtDate(s.createdAt||s.date)}</td>
+      <td class="action-cell">
+        <button class="btn btn-ghost btn-sm" data-view-inv="${s.id}">${icon('invoice')}</button>
+        <button class="btn btn-danger btn-sm" data-del-sale="${s.id}">${icon('trash')}</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  }
+  bindSalesEvents(){
+    const picker = document.getElementById('invItemPicker');
+    if(picker) picker.addEventListener('change', ()=>{
+      const val = picker.value; if(!val) return;
+      const [type,id] = val.split(':');
+      let name, price;
+      if(type==='tire'){ const t=this.tires.find(x=>x.id===id); if(!t)return; name=`${t.brand} ${t.model} (${t.size})`; price=t.price||0; }
+      else { const s=this.services.find(x=>x.id===id); if(!s)return; name=s.name; price=s.price||0; }
+      const existing = this._draftInvoice.items.find(i=>i.type===type && i.refId===id);
+      if(existing) existing.qty += 1;
+      else this._draftInvoice.items.push({type, refId:id, name, price, qty:1});
+      picker.value='';
+      this.refreshDraft();
+    });
+    const custSel = document.getElementById('invCustomer');
+    if(custSel) custSel.addEventListener('change', ()=>{ this._draftInvoice.customerId = custSel.value; });
+    this.bindDraftItemEvents();
+    const submitBtn = document.getElementById('submitInvoiceBtn');
+    if(submitBtn) submitBtn.addEventListener('click', ()=>this.submitInvoice());
+    const exp = document.getElementById('exportSalesBtn');
+    if(exp) exp.addEventListener('click', ()=>this.exportCSV(
+      this.sales.map(s=>({invoice:s.invoiceNumber, customer:s.customerName, total:s.total, date:fmtDate(s.createdAt||s.date), items:(s.items||[]).map(i=>i.name+' x'+i.qty).join(' | ')})),
+      ['invoice','customer','total','date','items'], ['رقم الفاتورة','العميل','الإجمالي','التاريخ','الأصناف'], 'الفواتير.csv'
+    ));
+    document.querySelectorAll('[data-view-inv]').forEach(b=>b.addEventListener('click', ()=>this.viewInvoice(b.dataset.viewInv)));
+    document.querySelectorAll('[data-del-sale]').forEach(b=>b.addEventListener('click', ()=>this.confirmDelete('هل تريد حذف هذه الفاتورة؟', ()=>this.deleteDoc('sales', b.dataset.delSale, this._localFallback.sales).then(ok=>ok&&this.toast('تم الحذف')))));
+  }
+  bindDraftItemEvents(){
+    document.querySelectorAll('[data-qty-idx]').forEach(inp=>inp.addEventListener('input', ()=>{
+      const idx = parseInt(inp.dataset.qtyIdx);
+      this._draftInvoice.items[idx].qty = Math.max(1, parseInt(inp.value)||1);
+      this.refreshDraft(true);
+    }));
+    document.querySelectorAll('[data-rm-idx]').forEach(b=>b.addEventListener('click', ()=>{
+      this._draftInvoice.items.splice(parseInt(b.dataset.rmIdx),1);
+      this.refreshDraft();
+    }));
+  }
+  refreshDraft(skipFullRerender){
+    document.getElementById('draftItemsBox').innerHTML = this.renderDraftItems();
+    document.getElementById('draftTotal').textContent = fmtMoney(this.draftTotal()) + ' ر.ع';
+    document.getElementById('submitInvoiceBtn').disabled = this._draftInvoice.items.length===0;
+    this.bindDraftItemEvents();
+  }
+  async submitInvoice(){
+    const items = this._draftInvoice.items;
+    if(items.length===0) return;
+    const cust = this.customers.find(c=>c.id===this._draftInvoice.customerId);
+    const invoiceNumber = 'INV-' + new Date().toISOString().slice(2,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,5).toUpperCase();
+    const sale = {
+      invoiceNumber,
+      customerId: cust ? cust.id : null,
+      customerName: cust ? cust.name : 'عميل مباشر',
+      items: items.map(i=>({type:i.type, refId:i.refId, name:i.name, price:i.price, qty:i.qty})),
+      total: items.reduce((s,i)=>s+i.qty*i.price,0),
+    };
+    const ok = await this.addDoc('sales', sale, this._localFallback.sales);
+    if(!ok) return;
+    // decrement tire stock for tire line items
+    for(const it of items){
+      if(it.type==='tire'){
+        const t = this.tires.find(x=>x.id===it.refId);
+        if(t) await this.updateDoc('tires', t.id, {stock: Math.max(0,(t.stock||0)-it.qty)}, this._localFallback.tires);
+      }
+    }
+    this._draftInvoice = { customerId:'', items:[] };
+    this.toast('تم تسجيل الفاتورة بنجاح');
+    this.switchView('sales');
+  }
+  viewInvoice(id){
+    const s = this.sales.find(x=>x.id===id); if(!s) return;
+    const rowsHtml = (s.items||[]).map(i=>`<tr><td>${esc(i.name)}</td><td class="num" style="text-align:center;">${i.qty}</td><td class="num" style="text-align:left;">${fmtMoney(i.price)}</td><td class="num" style="text-align:left;">${fmtMoney(i.qty*i.price)}</td></tr>`).join('');
+    this.openModal('فاتورة ' + (s.invoiceNumber||''), `
+      <div id="invoicePrintArea">
+        <p style="font-size:13px;color:var(--text-600);margin-bottom:4px;"><strong>العميل:</strong> ${esc(s.customerName)||'عميل مباشر'}</p>
+        <p style="font-size:13px;color:var(--text-600);margin-bottom:14px;"><strong>التاريخ:</strong> ${fmtDateTime(s.createdAt||s.date)}</p>
+        <table style="width:100%;"><thead><tr><th>الصنف</th><th style="text-align:center;">الكمية</th><th style="text-align:left;">السعر</th><th style="text-align:left;">الإجمالي</th></tr></thead>
+        <tbody>${rowsHtml}</tbody></table>
+        <div style="text-align:left;margin-top:14px;font-size:17px;font-weight:800;">الإجمالي: <span class="num">${fmtMoney(s.total)} ر.ع</span></div>
+      </div>
+      <button class="btn btn-amber btn-block" id="pdfInvoiceBtn" style="margin-top:16px;">${icon('download')} تحميل PDF</button>
+    `);
+    document.getElementById('pdfInvoiceBtn').addEventListener('click', ()=>this.downloadInvoicePDF(s));
+  }
+  async downloadInvoicePDF(s){
+    const el = document.createElement('div');
+    el.style.padding = '24px'; el.style.direction='rtl'; el.style.fontFamily='sans-serif';
+    el.innerHTML = `
+      <h2>فاتورة ${esc(s.invoiceNumber||'')}</h2>
+      <p>العميل: ${esc(s.customerName)||'عميل مباشر'}</p>
+      <p>التاريخ: ${fmtDateTime(s.createdAt||s.date)}</p>
+      <table border="1" cellpadding="8" style="width:100%;border-collapse:collapse;margin-top:12px;">
+        <tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>
+        ${(s.items||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${fmtMoney(i.price)}</td><td>${fmtMoney(i.qty*i.price)}</td></tr>`).join('')}
+      </table>
+      <h3 style="margin-top:16px;">الإجمالي: ${fmtMoney(s.total)} ر.ع</h3>
+    `;
+    const filename = `فاتورة-${s.invoiceNumber||s.id}.pdf`;
+    try{
+      const blob = await html2pdf().set({filename}).from(el).outputPdf('blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+      this.toast('تم تحميل الفاتورة');
+    }catch(e){ this.toast('تعذر إنشاء ملف PDF', 'err'); }
+  }
+
+  /* ============================================================
+     REPORTS
+  ============================================================ */
+  renderReportsView(){
+    const totalRevenue = this.sales.reduce((s,x)=>s+(x.total||0),0);
+    const inventoryValue = this.tires.reduce((s,t)=>s+((t.stock||0)*(t.price||0)),0);
+    return `
+      <div class="card">
+        <div class="card-head"><h3>ملخص عام</h3></div>
+        <div class="grid-4" style="margin-bottom:20px;">
+          <div class="stat"><h4>إجمالي الإيرادات</h4><div class="v num">${fmtMoney(totalRevenue)}</div></div>
+          <div class="stat green"><h4>قيمة المخزون</h4><div class="v num">${fmtMoney(inventoryValue)}</div></div>
+          <div class="stat blue"><h4>أنواع الإطارات</h4><div class="v num">${this.tires.length}</div></div>
+          <div class="stat"><h4>عدد الخدمات</h4><div class="v num">${this.services.length}</div></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="pdfReportBtn">${icon('download')} تقرير PDF شامل</button>
+          <button class="btn btn-ghost" id="csvSalesBtn2">${icon('download')} تصدير المبيعات CSV</button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-head"><h3>توزيع المبيعات (أفضل 5)</h3></div><div class="chart-box"><canvas id="categoriesChart"></canvas></div></div>
+        <div class="card"><div class="card-head"><h3>حالة المخزون</h3></div><div class="chart-box"><canvas id="inventoryChart"></canvas></div></div>
+      </div>
+    `;
+  }
+  bindReportsEvents(){
+    const pdfBtn = document.getElementById('pdfReportBtn');
+    if(pdfBtn) pdfBtn.addEventListener('click', ()=>this.generatePDFReport());
+    const csvBtn = document.getElementById('csvSalesBtn2');
+    if(csvBtn) csvBtn.addEventListener('click', ()=>this.exportCSV(this.sales, ['invoiceNumber','customerName','total'], ['رقم الفاتورة','العميل','الإجمالي'], 'المبيعات.csv'));
+  }
+  async generatePDFReport(){
+    const totalRevenue = this.sales.reduce((s,x)=>s+(x.total||0),0);
+    const totalStock = this.tires.reduce((s,t)=>s+(t.stock||0),0);
+    const el = document.createElement('div');
+    el.style.padding='24px'; el.style.direction='rtl'; el.style.fontFamily='sans-serif';
+    el.innerHTML = `
+      <h1>تقرير المبيعات والمخزون</h1>
+      <p>التاريخ: ${fmtDate(new Date().toISOString())}</p>
+      <h2>ملخص المبيعات</h2>
+      <p>إجمالي الإيرادات: ${fmtMoney(totalRevenue)} ر.ع</p>
+      <p>عدد الفواتير: ${this.sales.length}</p>
+      <h2>حالة المخزون</h2>
+      <p>إجمالي القطع: ${totalStock}</p>
+      <p>عدد أنواع الإطارات: ${this.tires.length}</p>
+    `;
+    const filename = 'تقرير-المبيعات.pdf';
+    try{
+      const blob = await html2pdf().set({filename}).from(el).outputPdf('blob');
+      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+      this.toast('تم تحميل التقرير');
+    }catch(e){ this.toast('تعذر إنشاء التقرير', 'err'); }
+  }
+
+  initCharts(){
+    if(!window.Chart) return;
+    const salesCtx = document.getElementById('salesChart');
+    const categoriesCtx = document.getElementById('categoriesChart');
+    const inventoryCtx = document.getElementById('inventoryChart');
+
+    if(salesCtx){
+      if(salesCtx._chart) salesCtx._chart.destroy();
+      const daily = this.sales.reduce((acc,s)=>{
+        const d = fmtDate(s.createdAt||s.date);
+        const found = acc.find(x=>x.d===d);
+        if(found) found.t += s.total||0; else acc.push({d, t:s.total||0});
+        return acc;
+      }, []).slice(-7);
+      salesCtx._chart = new Chart(salesCtx, {
+        type:'line',
+        data:{ labels: daily.map(x=>x.d), datasets:[{label:'الإيرادات', data:daily.map(x=>x.t), borderColor:'#F2A71B', backgroundColor:'rgba(242,167,27,.12)', tension:.35, fill:true}] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+      });
+    }
+    if(categoriesCtx){
+      if(categoriesCtx._chart) categoriesCtx._chart.destroy();
+      const agg = Object.values(this.sales.flatMap(s=>s.items||[]).reduce((acc,it)=>{
+        acc[it.name] = acc[it.name] || {name:it.name,total:0};
+        acc[it.name].total += it.qty*it.price; return acc;
+      },{})).sort((a,b)=>b.total-a.total).slice(0,5);
+      categoriesCtx._chart = new Chart(categoriesCtx, {
+        type:'bar',
+        data:{ labels: agg.map(x=>x.name), datasets:[{label:'ر.ع', data: agg.map(x=>x.total), backgroundColor:'#3E8F5C'}] },
+        options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y' }
+      });
+    }
+    if(inventoryCtx){
+      if(inventoryCtx._chart) inventoryCtx._chart.destroy();
+      const status = {
+        'متوفر': this.tires.filter(t=>(t.stock||0)>=15).length,
+        'منخفض': this.tires.filter(t=>(t.stock||0)>=5 && (t.stock||0)<15).length,
+        'نفاد': this.tires.filter(t=>(t.stock||0)<5).length,
+      };
+      inventoryCtx._chart = new Chart(inventoryCtx, {
+        type:'doughnut',
+        data:{ labels:Object.keys(status), datasets:[{data:Object.values(status), backgroundColor:['#3E8F5C','#F2A71B','#C4483A']}] },
+        options:{ responsive:true, maintainAspectRatio:false }
+      });
+    }
+  }
+
+  exportCSV(rows, keys, headers, filename){
+    if(rows.length===0){ this.toast('لا توجد بيانات للتصدير', 'err'); return; }
+    const csvRows = [headers.join(',')];
+    rows.forEach(r=>{
+      csvRows.push(keys.map(k=>{
+        let v = r[k]; if(v===undefined||v===null) v='';
+        v = String(v).replace(/"/g,'""');
+        return `"${v}"`;
+      }).join(','));
+    });
+    const csv = '\ufeff' + csvRows.join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+    this.toast('تم تصدير الملف');
+  }
+
+  /* ---------- modal + confirm helpers ---------- */
+  openModal(title, bodyHtml){
+    document.getElementById('modalBox').innerHTML = `
+      <div class="modal-head"><h3>${esc(title)}</h3><button class="modal-close" id="modalCloseBtn">×</button></div>
+      ${bodyHtml}
+    `;
+    document.getElementById('modalOverlay').classList.add('active');
+    document.getElementById('modalCloseBtn').addEventListener('click', ()=>this.closeModal());
+  }
+  closeModal(){ document.getElementById('modalOverlay').classList.remove('active'); }
+  confirmDelete(msg, onConfirm){
+    this.openModal('تأكيد الحذف', `
+      <p style="font-size:14px;margin-bottom:18px;color:var(--text-600);">${esc(msg)}</p>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-danger" style="flex:1;" id="confirmYes">${icon('trash')} حذف</button>
+        <button class="btn btn-ghost" style="flex:1;" id="confirmNo">إلغاء</button>
+      </div>
+    `);
+    document.getElementById('confirmYes').addEventListener('click', ()=>{ this.closeModal(); onConfirm(); });
+    document.getElementById('confirmNo').addEventListener('click', ()=>this.closeModal());
+  }
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'modalOverlay') window.app && window.app.closeModal();
+});
+
+const app = new TireShopApp();
+window.app = app;
+</script>
+</body>
+</html>
