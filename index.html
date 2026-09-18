@@ -278,7 +278,7 @@ const PAYMENT_LABELS = { cash:'كاش', visa:'فيزا', transfer:'تحويل ب
 const FIELD_MAP = {
   tires: {},
   services: {},
-  customers: { car_model:'carModel', car_plate:'carPlate' },
+  customers: {},
   appointments: { customer_id:'customerId', customer_name:'customerName', service_name:'serviceName' },
   sales: { invoice_number:'invoiceNumber', customer_id:'customerId', customer_name:'customerName', customer_phone:'customerPhone', payment_method:'paymentMethod' },
 };
@@ -892,8 +892,6 @@ class TireShopApp{
         <form id="customerForm" class="form-grid">
           <div class="form-group"><label>الاسم *</label><input type="text" id="custName" placeholder="اسم العميل" required></div>
           <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="custPhone" placeholder="9xxxxxxx"></div>
-          <div class="form-group"><label>موديل السيارة</label><input type="text" id="custCar" placeholder="مثل: تويوتا كامري"></div>
-          <div class="form-group"><label>رقم اللوحة</label><input type="text" id="custPlate" placeholder="مثل: 12345"></div>
           <div class="form-actions"><button type="submit" class="btn btn-amber btn-block">${icon('plus')} إضافة عميل</button></div>
         </form>
       </div>
@@ -906,11 +904,10 @@ class TireShopApp{
   }
   renderCustomersTable(list){
     if(list.length===0) return this.emptyState('لا يوجد عملاء مسجلون بعد');
-    return `<div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>السيارة</th><th>اللوحة</th><th>إجراءات</th></tr></thead><tbody>
+    return `<div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الهاتف</th><th>إجراءات</th></tr></thead><tbody>
     ${list.map(c=>`<tr>
       <td><strong>${esc(c.name)}</strong></td>
       <td>${c.phone?`<span class="badge badge-blue">${icon('phone')} ${esc(c.phone)}</span>`:'-'}</td>
-      <td>${esc(c.carModel)||'-'}</td><td>${esc(c.carPlate)||'-'}</td>
       <td class="action-cell">
         <button class="btn btn-ghost btn-sm" data-edit-cust="${c.id}">${icon('edit')} تعديل</button>
         <button class="btn btn-danger btn-sm" data-del-cust="${c.id}">${icon('trash')} حذف</button>
@@ -925,8 +922,6 @@ class TireShopApp{
       const data = {
         name: document.getElementById('custName').value.trim(),
         phone: document.getElementById('custPhone').value.trim(),
-        carModel: document.getElementById('custCar').value.trim(),
-        carPlate: document.getElementById('custPlate').value.trim(),
       };
       const ok = await this.addDoc('customers', data, this._localFallback.customers);
       if(ok){ form.reset(); this.toast('تمت إضافة العميل'); }
@@ -950,8 +945,6 @@ class TireShopApp{
       <form id="editCustForm" style="display:flex;flex-direction:column;gap:12px;">
         <div class="form-group"><label>الاسم</label><input type="text" id="ecName" value="${esc(c.name)}" required></div>
         <div class="form-group"><label>الهاتف</label><input type="tel" id="ecPhone" value="${esc(c.phone)}"></div>
-        <div class="form-group"><label>موديل السيارة</label><input type="text" id="ecCar" value="${esc(c.carModel)}"></div>
-        <div class="form-group"><label>رقم اللوحة</label><input type="text" id="ecPlate" value="${esc(c.carPlate)}"></div>
         <button type="submit" class="btn btn-amber btn-block">${icon('check')} حفظ</button>
       </form>
     `);
@@ -960,8 +953,6 @@ class TireShopApp{
       const ok = await this.updateDoc('customers', id, {
         name: document.getElementById('ecName').value.trim(),
         phone: document.getElementById('ecPhone').value.trim(),
-        carModel: document.getElementById('ecCar').value.trim(),
-        carPlate: document.getElementById('ecPlate').value.trim(),
       }, this._localFallback.customers);
       if(ok){ this.closeModal(); this.toast('تم التحديث'); }
     });
@@ -1046,7 +1037,7 @@ class TireShopApp{
      SALES / INVOICES
   ============================================================ */
   renderSalesView(){
-    if(!this._draftInvoice) this._draftInvoice = { customerId:'', items:[], warranty:'none', paymentMethod:'cash' };
+    if(!this._draftInvoice) this._draftInvoice = { customerId:'', items:[], warranty:'none', paymentMethod:'cash', directName:'', directPhone:'' };
     if(!this._salesFilter) this._salesFilter = { mode:'all', from:'', to:'' };
     const filtered = this.getFilteredSales();
     const filteredTotal = filtered.reduce((s,x)=>s+(x.total||0),0);
@@ -1064,6 +1055,10 @@ class TireShopApp{
               <option value="">عميل مباشر (بدون تسجيل)</option>
               ${this.customers.map(c=>`<option value="${c.id}" ${this._draftInvoice.customerId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
             </select>
+          </div>
+          <div class="form-grid" id="directCustFields" style="${this._draftInvoice.customerId?'display:none;':''}margin-bottom:12px;">
+            <div class="form-group"><label>اسم العميل (اختياري)</label><input type="text" id="invDirectName" placeholder="عميل مباشر" value="${esc(this._draftInvoice.directName||'')}"></div>
+            <div class="form-group"><label>رقم الهاتف (اختياري)</label><input type="tel" id="invDirectPhone" placeholder="لإرسال الفاتورة عبر واتساب" value="${esc(this._draftInvoice.directPhone||'')}"></div>
           </div>
           <div class="form-group">
             <label>إضافة صنف</label>
@@ -1223,7 +1218,15 @@ class TireShopApp{
     });
     this.bindPosGridEvents();
     const custSel = document.getElementById('invCustomer');
-    if(custSel) custSel.addEventListener('change', ()=>{ this._draftInvoice.customerId = custSel.value; });
+    const directFields = document.getElementById('directCustFields');
+    if(custSel) custSel.addEventListener('change', ()=>{
+      this._draftInvoice.customerId = custSel.value;
+      if(directFields) directFields.style.display = custSel.value ? 'none' : '';
+    });
+    const directName = document.getElementById('invDirectName');
+    if(directName) directName.addEventListener('input', ()=>{ this._draftInvoice.directName = directName.value; });
+    const directPhone = document.getElementById('invDirectPhone');
+    if(directPhone) directPhone.addEventListener('input', ()=>{ this._draftInvoice.directPhone = directPhone.value; });
     const warrSel = document.getElementById('invWarranty');
     if(warrSel) warrSel.addEventListener('change', ()=>{ this._draftInvoice.warranty = warrSel.value; });
     const paySel = document.getElementById('invPayment');
@@ -1286,8 +1289,8 @@ class TireShopApp{
     const sale = {
       invoiceNumber,
       customerId: cust ? cust.id : null,
-      customerName: cust ? cust.name : 'عميل مباشر',
-      customerPhone: cust ? (cust.phone||'') : '',
+      customerName: cust ? cust.name : (this._draftInvoice.directName||'').trim() || 'عميل مباشر',
+      customerPhone: cust ? (cust.phone||'') : (this._draftInvoice.directPhone||'').trim(),
       warranty: this._draftInvoice.warranty || 'none',
       paymentMethod: this._draftInvoice.paymentMethod || 'cash',
       items: items.map(i=>({type:i.type, refId:i.refId, name:i.name, price:i.price, qty:i.qty})),
@@ -1302,7 +1305,7 @@ class TireShopApp{
         if(t) await this.updateDoc('tires', t.id, {stock: Math.max(0,(t.stock||0)-it.qty)}, this._localFallback.tires);
       }
     }
-    this._draftInvoice = { customerId:'', items:[], warranty:'none', paymentMethod:'cash' };
+    this._draftInvoice = { customerId:'', items:[], warranty:'none', paymentMethod:'cash', directName:'', directPhone:'' };
     this.toast('تم تسجيل الفاتورة بنجاح');
     this.switchView('sales');
   }
