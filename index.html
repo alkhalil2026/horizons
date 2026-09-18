@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ورشتي | نظام إدارة المخزون المتقدم</title>
+<title>ورشتي | نظام إدارة محل الإطارات المتكامل</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -37,18 +37,17 @@ input,select,textarea{font-family:inherit;}
 .shell{display:flex; min-height:100vh;}
 .sidebar{
   width:236px; flex-shrink:0; background:var(--asphalt-950); color:#fff;
-  display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
+  display:flex; flex-direction:column; position:sticky; top:0; height:100vh; z-index:100;
 }
 .brand{padding:22px 20px 18px; display:flex; align-items:center; gap:10px; border-bottom:1px solid rgba(255,255,255,.08);}
-.brand-mark{width:34px; height:34px; flex-shrink:0;}
+.brand-mark{width:34px; height:34px; flex-shrink:0; background:var(--amber-500); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#000; font-weight:800; font-size:18px;}
 .brand-text h1{font-size:16px; font-weight:800; letter-spacing:.2px;}
 .brand-text p{font-size:11px; color:#9a958a; margin-top:1px;}
 .side-nav{flex:1; padding:14px 10px; display:flex; flex-direction:column; gap:2px; overflow-y:auto;}
 .side-link{
   display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:5px;
   color:#c7c2b6; font-size:14px; font-weight:600; background:transparent; border:none;
-  text-align:right; width:100%; position:relative; transition:background .15s,color .15s;
-  cursor:pointer;
+  text-align:right; width:100%; position:relative; transition:background .15s,color .15s; cursor:pointer;
 }
 .side-link svg{width:18px; height:18px; flex-shrink:0; opacity:.85;}
 .side-link:hover{background:rgba(255,255,255,.06); color:#fff;}
@@ -56,10 +55,6 @@ input,select,textarea{font-family:inherit;}
 .side-link.active::before{content:"";position:absolute; right:0; top:6px; bottom:6px; width:3px; background:var(--amber-500); border-radius:2px;}
 .side-link.active svg{opacity:1;}
 .side-foot{padding:14px 16px 18px; border-top:1px solid rgba(255,255,255,.08);}
-.user-chip{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
-.user-avatar{width:32px; height:32px; border-radius:50%; background:var(--amber-500); color:var(--asphalt-950); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0;}
-.user-meta p{font-size:13px; font-weight:700; color:#fff;}
-.user-meta span{font-size:11px; color:#9a958a;}
 
 .main{flex:1; min-width:0; display:flex; flex-direction:column;}
 .topbar{
@@ -68,17 +63,11 @@ input,select,textarea{font-family:inherit;}
 }
 .topbar h2{font-size:19px; font-weight:800;}
 .topbar .sub{font-size:12.5px; color:var(--text-muted); margin-top:2px;}
-.topbar-right{display:flex; align-items:center; gap:10px;}
-.storage-flag{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--tread-green); font-weight:700;}
-.storage-flag.offline{color:var(--brake-red);}
-.storage-flag .dot{width:7px; height:7px; border-radius:50%; background:currentColor;}
 .content{padding:22px 28px 60px; max-width:1400px; width:100%; overflow-y:auto;}
 
-/* ---- generic components ---- */
 .card{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:20px;}
 .card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
 .card-head h3{font-size:15.5px; font-weight:800;}
-.card-accent{border-inline-start:3px solid var(--amber-500);}
 .grid-2{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px;}
 .grid-4{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
 .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px;}
@@ -88,8 +77,6 @@ input,select,textarea{font-family:inherit;}
   width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:5px; font-size:13.5px; background:#fdfcfa;
 }
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:2px solid var(--amber-500); outline-offset:1px; border-color:var(--amber-500);}
-.form-group textarea{resize:vertical; min-height:70px;}
-.form-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 
 .btn{display:inline-flex; align-items:center; gap:7px; padding:9px 15px; border:none; border-radius:5px; font-size:13.5px; font-weight:700; transition:filter .15s,background .15s;}
 .btn svg{width:15px; height:15px;}
@@ -111,29 +98,22 @@ input,select,textarea{font-family:inherit;}
 .stat.blue{border-inline-start-color:var(--info-blue);}
 .stat h4{font-size:12px; color:var(--text-muted); font-weight:700; margin-bottom:6px;}
 .stat .v{font-family:'Oswald',sans-serif; font-size:26px; font-weight:700; color:var(--text-900);}
-.stat .v small{font-size:13px; font-weight:600; color:var(--text-muted);}
 
 .table-wrap{overflow-x:auto;}
 table{width:100%; border-collapse:collapse; min-width:560px;}
-th{background:var(--concrete-100); text-align:right; padding:10px 12px; font-size:12px; font-weight:800; color:var(--text-600); border-bottom:1px solid var(--line); white-space:nowrap;}
-td{padding:11px 12px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:middle;}
+th{background:var(--concrete-100); text-align:right; padding:10px 12px; font-size:12px; font-weight:800; color:var(--text-600); border-bottom:1px solid var(--line);}
+td{padding:11px 12px; border-bottom:1px solid var(--line); font-size:13.5px;}
 tr:last-child td{border-bottom:none;}
 tbody tr:hover{background:#fbfaf7;}
-tbody tr.low-stock{background:#fffaf0;}
-tbody tr.out-stock{background:#fef2f0;}
 
 .badge{display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:11.5px; font-weight:700;}
 .badge-green{background:var(--tread-green-bg); color:var(--tread-green);}
 .badge-amber{background:var(--amber-100); color:var(--amber-600);}
 .badge-red{background:var(--brake-red-bg); color:var(--brake-red);}
 .badge-blue{background:var(--info-blue-bg); color:var(--info-blue);}
-.badge-grey{background:#ECE8E0; color:var(--text-600);}
 
 .search-row{display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
-.search-row input{flex:1; min-width:200px;}
-.empty{text-align:center; padding:36px 20px; color:var(--text-muted);}
-.empty svg{width:38px; height:38px; margin:0 auto 10px; opacity:.4; display:block;}
-.empty p{font-size:13.5px;}
+.search-row input{flex:1; min-width:180px;}
 
 .modal-overlay{display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center;}
 .modal-overlay.active{display:flex;}
@@ -141,277 +121,224 @@ tbody tr.out-stock{background:#fef2f0;}
 .modal-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
 .modal-head h3{font-size:16px; font-weight:800;}
 .modal-close{background:none; border:none; font-size:24px; color:var(--text-muted); cursor:pointer;}
-.modal-close:hover{color:var(--text-900);}
 
 .toast-wrap{position:fixed; top:18px; left:18px; z-index:2000; display:flex; flex-direction:column; gap:8px;}
-.toast{background:var(--asphalt-950); color:#fff; padding:11px 16px; border-radius:6px; font-size:13px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.2); display:flex; align-items:center; gap:8px; animation:slide .18s ease-out;}
+.toast{background:var(--asphalt-950); color:#fff; padding:11px 16px; border-radius:6px; font-size:13px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.2); animation:slide .18s ease-out;}
 .toast.err{background:var(--brake-red);}
 .toast.ok{background:var(--tread-green);}
 @keyframes slide{from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);}}
 
-.tabs{display:flex; gap:0; border-bottom:1px solid var(--line); margin-bottom:20px;}
-.tab-btn{background:none; border:none; padding:12px 16px; font-size:14px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:3px solid transparent; transition:all .15s;}
-.tab-btn.active{color:var(--amber-500); border-bottom-color:var(--amber-500);}
-.tab-content{display:none;}
-.tab-content.active{display:block;}
-
+.page{display:none;}
+.page.active{display:block;}
+.chart-box{position:relative; height:270px;}
 .action-cell{display:flex; gap:6px; flex-wrap:wrap;}
-.action-cell .btn{padding:4px 8px; font-size:12px;}
-.loading{text-align:center; padding:40px 20px; color:var(--text-muted);}
-.loading::after{content:"..."; animation:dots 1.5s steps(3, end) infinite;}
-@keyframes dots{0%{content:".";} 33%{content:"..";} 66%{content:"...";}
-}
+.empty{text-align:center; padding:36px 20px; color:var(--text-muted);}
 </style>
 </head>
 <body>
 <div id="app" class="shell">
   <div class="sidebar">
     <div class="brand">
+      <div class="brand-mark">🛞</div>
       <div class="brand-text">
         <h1>ورشتي</h1>
-        <p>مخزون الإطارات</p>
+        <p>إدارة متكاملة</p>
       </div>
     </div>
     <nav class="side-nav">
-      <button class="side-link active" data-page="inventory">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+      <button class="side-link active" data-page="dashboard" onclick="app.switchPage('dashboard')">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M3 13h2v8H3zm4-8h2v16H7zm4-2h2v18h-2zm4-2h2v20h-2zm4 4h2v16h-2z"/></svg>
+        البيت
+      </button>
+      <button class="side-link" data-page="sales" onclick="app.switchPage('sales')">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-1-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        المبيعات
+      </button>
+      <button class="side-link" data-page="inventory" onclick="app.switchPage('inventory')">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
         المخزون
       </button>
-      <button class="side-link" data-page="history">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.6 3.6.4.4L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v6l5.25 3.15.75-1.23-4-2.42V8z"/></svg>
-        السجل
+      <button class="side-link" data-page="customers" onclick="app.switchPage('customers')">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        العملاء
       </button>
-      <button class="side-link" data-page="alerts">
-        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.96 5.36 6.31 7.92 6.31 11v5l-2 2v1h15.69v-1l-2-2z"/></svg>
-        التنبيهات
+      <button class="side-link" data-page="services" onclick="app.switchPage('services')">
+        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+        الخدمات
       </button>
-      <button class="side-link" data-page="reports">
+      <button class="side-link" data-page="reports" onclick="app.switchPage('reports')">
         <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
         التقارير
       </button>
     </nav>
-    <div class="side-foot">
-      <div class="user-chip">
-        <div class="user-avatar">م</div>
-        <div class="user-meta">
-          <p>محمد</p>
-          <span>مشرف</span>
-        </div>
-      </div>
-    </div>
   </div>
 
   <div class="main">
     <div class="topbar">
       <div>
-        <h2>نظام إدارة مخزون الإطارات</h2>
-        <div class="sub">إدارة متقدمة للمخزون والمبيعات</div>
-      </div>
-      <div class="topbar-right">
-        <div class="storage-flag" id="syncStatus">
-          <div class="dot"></div>
-          <span>متصل</span>
-        </div>
+        <h2 id="pageTitle">البيت</h2>
+        <div class="sub" id="pageSubtitle">ملخص النظام</div>
       </div>
     </div>
 
     <div class="content">
+      <!-- Dashboard Page -->
+      <div class="page active" data-page="dashboard">
+        <div class="grid-4" style="margin-bottom:20px;">
+          <div class="stat green">
+            <h4>المبيعات اليوم</h4>
+            <div class="v num" id="todayRevenue">0 ر.ع</div>
+          </div>
+          <div class="stat blue">
+            <h4>عدد العملاء</h4>
+            <div class="v num" id="totalCustomers">0</div>
+          </div>
+          <div class="stat amber">
+            <h4>الإطارات المتوفرة</h4>
+            <div class="v num" id="totalTires">0</div>
+          </div>
+          <div class="stat red">
+            <h4>إطارات منقطعة</h4>
+            <div class="v num" id="outOfStock">0</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h3>آخر المبيعات</h3></div>
+            <div id="recentSalesContainer" class="table-wrap">
+              <div class="empty"><p>لا توجد مبيعات بعد</p></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>الإطارات المنخفضة</h3></div>
+            <div id="lowStockContainer" style="max-height:300px; overflow-y:auto;"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>الإيرادات اليومية (آخر 7 أيام)</h3></div>
+          <div class="chart-box"><canvas id="revenueChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Sales Page -->
+      <div class="page" data-page="sales">
+        <div class="card">
+          <div class="card-head">
+            <h3>الفواتير والمبيعات</h3>
+            <button class="btn btn-amber" id="addSaleBtn">+ فاتورة جديدة</button>
+          </div>
+          <div class="search-row">
+            <input type="text" id="saleSearch" placeholder="ابحث برقم الفاتورة أو العميل...">
+            <input type="date" id="saleDate">
+          </div>
+          <div id="salesTableContainer" class="table-wrap">
+            <div class="empty"><p>لا توجد فواتير</p></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Inventory Page -->
-      <div class="tab-content active" data-page="inventory">
+      <div class="page" data-page="inventory">
         <div class="card">
           <div class="card-head">
             <h3>الإطارات المتوفرة</h3>
             <div style="display:flex; gap:10px;">
-              <button class="btn btn-amber" id="addTireBtn">
-                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                إضافة إطار
-              </button>
-              <button class="btn btn-ghost" id="importCsvBtn">
-                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
-                استيراد CSV
-              </button>
+              <button class="btn btn-amber" id="addTireBtn">+ إطار جديد</button>
+              <button class="btn btn-ghost" id="importCsvBtn">استيراد CSV</button>
             </div>
           </div>
-
           <div class="search-row">
-            <input type="text" id="searchInput" placeholder="ابحث عن إطار (الحجم، الماركة، الموديل)...">
+            <input type="text" id="tireSearch" placeholder="ابحث بالحجم أو الماركة...">
             <select id="brandFilter">
               <option value="">جميع الماركات</option>
               <option value="ATLANDER">ATLANDER</option>
-            </select>
-            <select id="stockFilter">
-              <option value="">جميع الحالات</option>
-              <option value="available">متوفر</option>
-              <option value="low">منخفض</option>
-              <option value="out">نفاد</option>
+              <option value="Kapsen">Kapsen</option>
+              <option value="Habliead">Habliead</option>
+              <option value="Duraman">Duraman</option>
             </select>
           </div>
-
           <div id="tiresTableContainer" class="table-wrap">
-            <div class="loading">جاري تحميل البيانات...</div>
+            <div class="empty"><p>لا توجد إطارات</p></div>
           </div>
         </div>
       </div>
 
-      <!-- History Page -->
-      <div class="tab-content" data-page="history">
+      <!-- Customers Page -->
+      <div class="page" data-page="customers">
         <div class="card">
           <div class="card-head">
-            <h3>سجل حركة المخزون</h3>
-            <button class="btn btn-ghost" id="exportHistoryBtn">
-              <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2z"/></svg>
-              تصدير
-            </button>
+            <h3>قائمة العملاء</h3>
+            <button class="btn btn-amber" id="addCustomerBtn">+ عميل جديد</button>
           </div>
-
           <div class="search-row">
-            <input type="date" id="historyDateFilter">
-            <select id="historyTypeFilter">
-              <option value="">جميع العمليات</option>
-              <option value="add">إضافة</option>
-              <option value="sale">بيع</option>
-              <option value="update">تعديل</option>
-              <option value="delete">حذف</option>
-            </select>
+            <input type="text" id="customerSearch" placeholder="ابحث باسم أو رقم الهاتف...">
           </div>
-
-          <div id="historyTableContainer" class="table-wrap">
-            <div class="loading">جاري تحميل السجل...</div>
+          <div id="customersTableContainer" class="table-wrap">
+            <div class="empty"><p>لا توجد عملاء</p></div>
           </div>
         </div>
       </div>
 
-      <!-- Alerts Page -->
-      <div class="tab-content" data-page="alerts">
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-head"><h3>الإطارات المنخفضة (أقل من 3 قطع)</h3></div>
-            <div id="lowStockList" style="max-height:400px; overflow-y:auto;"></div>
+      <!-- Services Page -->
+      <div class="page" data-page="services">
+        <div class="card">
+          <div class="card-head">
+            <h3>الخدمات والصيانة</h3>
+            <button class="btn btn-amber" id="addServiceBtn">+ خدمة جديدة</button>
           </div>
-          <div class="card">
-            <div class="card-head"><h3>الإطارات المنقطعة (0 قطع)</h3></div>
-            <div id="outStockList" style="max-height:400px; overflow-y:auto;"></div>
+          <div id="servicesTableContainer" class="table-wrap">
+            <div class="empty"><p>لا توجد خدمات</p></div>
           </div>
         </div>
       </div>
 
       <!-- Reports Page -->
-      <div class="tab-content" data-page="reports">
+      <div class="page" data-page="reports">
         <div class="grid-4" style="margin-bottom:20px;">
           <div class="stat green">
-            <h4>إجمالي الإطارات</h4>
-            <div class="v num" id="totalTiresCount">0</div>
+            <h4>إجمالي الإيرادات</h4>
+            <div class="v num" id="totalRevenue">0 ر.ع</div>
           </div>
           <div class="stat blue">
-            <h4>إجمالي القيمة</h4>
-            <div class="v num" id="totalValue">0 ر.ع</div>
+            <h4>عدد الفواتير</h4>
+            <div class="v num" id="totalInvoices">0</div>
           </div>
           <div class="stat amber">
-            <h4>الإطارات المنخفضة</h4>
-            <div class="v num" id="lowStockCount">0</div>
+            <h4>إجمالي المخزون</h4>
+            <div class="v num" id="totalStock">0</div>
           </div>
           <div class="stat red">
-            <h4>الإطارات المنقطعة</h4>
-            <div class="v num" id="outStockCount">0</div>
+            <h4>قيمة المخزون</h4>
+            <div class="v num" id="inventoryValue">0 ر.ع</div>
           </div>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <h3>توزيع المخزون حسب الحجم</h3>
-            <button class="btn btn-ghost" id="pdfReportBtn">
-              <svg fill="currentColor" viewBox="0 0 24 24"><path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2z"/></svg>
-              تحميل PDF
-            </button>
+            <h3>أفضل الإطارات مبيعاً</h3>
+            <button class="btn btn-ghost" id="pdfReportBtn">تحميل PDF</button>
           </div>
-          <div style="position:relative; height:300px;">
-            <canvas id="sizeDistributionChart"></canvas>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>أكثر الأحجام مبيعاً (أفضل 10)</h3>
-          </div>
-          <div id="topSizesContainer" class="table-wrap">
-            <div class="loading">جاري تحميل البيانات...</div>
-          </div>
+          <div id="topTiresContainer" class="table-wrap"></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal for Add/Edit Tire -->
+<!-- Modals -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box">
     <div class="modal-head">
-      <h3 id="modalTitle">إضافة إطار جديد</h3>
+      <h3 id="modalTitle">إضافة جديد</h3>
       <button class="modal-close" id="modalCloseBtn">×</button>
     </div>
-    <form id="tireForm" class="form-grid">
-      <input type="hidden" id="tireId">
-      
-      <div class="form-group">
-        <label>الحجم *</label>
-        <input type="text" id="tireSize" required placeholder="مثال: 195/R15C">
-      </div>
-      
-      <div class="form-group">
-        <label>الماركة *</label>
-        <select id="tireBrand" required>
-          <option value="">اختر ماركة</option>
-          <option value="ATLANDER">ATLANDER</option>
-          <option value="MICHELIN">MICHELIN</option>
-          <option value="DUNLOP">DUNLOP</option>
-          <option value="BRIDGESTONE">BRIDGESTONE</option>
-          <option value="GOODYEAR">GOODYEAR</option>
-          <option value="OTHER">أخرى</option>
-        </select>
-      </div>
-      
-      <div class="form-group">
-        <label>الموديل *</label>
-        <input type="number" id="tireModel" required placeholder="2026">
-      </div>
-      
-      <div class="form-group">
-        <label>الكمية *</label>
-        <input type="number" id="tireQty" required placeholder="0" min="0">
-      </div>
-      
-      <div class="form-group">
-        <label>السعر (ر.ع) *</label>
-        <input type="number" id="tirePrice" required placeholder="0.00" step="0.01" min="0">
-      </div>
-
-      <div class="form-group">
-        <label>المورد</label>
-        <input type="text" id="tireSupplier" placeholder="اسم المورد">
-      </div>
-
-      <div class="form-group">
-        <label>تاريخ الشراء</label>
-        <input type="date" id="tirePurchaseDate">
-      </div>
-
-      <div class="form-group">
-        <label>ملاحظات</label>
-        <textarea id="tireNotes" placeholder="ملاحظات إضافية" style="grid-column:1/-1;"></textarea>
-      </div>
-
-      <div class="form-actions" style="grid-column:1/-1;">
-        <button type="submit" class="btn btn-primary">حفظ</button>
-        <button type="button" class="btn btn-ghost" id="formCancelBtn">إلغاء</button>
-      </div>
-    </form>
+    <form id="mainForm" class="form-grid" style="grid-column:1/-1;"></form>
   </div>
 </div>
 
-<!-- CSV Import Input -->
-<input type="file" id="csvFileInput" accept=".csv,.xlsx" style="display:none;">
-
-<!-- Toast Container -->
+<input type="file" id="csvFileInput" accept=".csv" style="display:none;">
 <div class="toast-wrap" id="toastContainer"></div>
 
 <script>
@@ -420,216 +347,286 @@ const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_l7OcFBdVgEiCo58cbbNptw_EdMuY059';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-class TireInventoryApp {
+class TireShopApp {
   constructor() {
     this.tires = [];
-    this.history = [];
-    this.currentPage = 'inventory';
-    this.editingTireId = null;
+    this.sales = [];
+    this.customers = [];
+    this.services = [];
+    this.currentPage = 'dashboard';
     this.init();
   }
 
   async init() {
     this.setupEventListeners();
-    await this.loadTires();
-    this.setupPageNavigation();
+    await this.loadAllData();
+    this.renderDashboard();
   }
 
   setupEventListeners() {
-    // Page Navigation
-    document.querySelectorAll('.side-link').forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const page = link.dataset.page;
-        this.switchPage(page);
-      });
-    });
-
-    // Inventory Page
-    document.getElementById('addTireBtn').addEventListener('click', () => this.openAddModal());
+    document.getElementById('addTireBtn').addEventListener('click', () => this.openTireModal());
     document.getElementById('importCsvBtn').addEventListener('click', () => document.getElementById('csvFileInput').click());
     document.getElementById('csvFileInput').addEventListener('change', (e) => this.importCSV(e));
-    document.getElementById('searchInput').addEventListener('input', () => this.filterTires());
-    document.getElementById('brandFilter').addEventListener('change', () => this.filterTires());
-    document.getElementById('stockFilter').addEventListener('change', () => this.filterTires());
-
-    // Modal
-    document.getElementById('tireForm').addEventListener('submit', (e) => this.saveTire(e));
+    document.getElementById('addSaleBtn').addEventListener('click', () => this.openSaleModal());
+    document.getElementById('addCustomerBtn').addEventListener('click', () => this.openCustomerModal());
+    document.getElementById('addServiceBtn').addEventListener('click', () => this.openServiceModal());
     document.getElementById('modalCloseBtn').addEventListener('click', () => this.closeModal());
-    document.getElementById('formCancelBtn').addEventListener('click', () => this.closeModal());
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
-      if(e.target.id === 'modalOverlay') this.closeModal();
-    });
+    document.getElementById('mainForm').addEventListener('submit', (e) => this.handleFormSubmit(e));
+    document.getElementById('pdfReportBtn').addEventListener('click', () => this.generateReport());
+  }
 
-    // History Page
-    document.getElementById('historyDateFilter').addEventListener('change', () => this.filterHistory());
-    document.getElementById('historyTypeFilter').addEventListener('change', () => this.filterHistory());
-    document.getElementById('exportHistoryBtn').addEventListener('click', () => this.exportHistory());
+  async loadAllData() {
+    try {
+      const [tiresResult, salesResult, customersResult, servicesResult] = await Promise.all([
+        supabase.from('tires').select('*'),
+        supabase.from('sales').select('*'),
+        supabase.from('customers').select('*'),
+        supabase.from('services').select('*')
+      ]);
 
-    // Reports Page
-    document.getElementById('pdfReportBtn').addEventListener('click', () => this.generatePDFReport());
+      this.tires = tiresResult.data || [];
+      this.sales = salesResult.data || [];
+      this.customers = customersResult.data || [];
+      this.services = servicesResult.data || [];
+    } catch(err) {
+      this.toast('خطأ في تحميل البيانات', 'err');
+    }
   }
 
   switchPage(page) {
     this.currentPage = page;
-
-    // Update nav
     document.querySelectorAll('.side-link').forEach(link => {
       link.classList.toggle('active', link.dataset.page === page);
     });
-
-    // Update content
-    document.querySelectorAll('.tab-content').forEach(tab => {
-      tab.classList.toggle('active', tab.dataset.page === page);
+    document.querySelectorAll('.page').forEach(p => {
+      p.classList.toggle('active', p.dataset.page === page);
     });
 
-    // Load page data
-    if(page === 'history') this.renderHistory();
-    if(page === 'alerts') this.renderAlerts();
+    const titles = {
+      dashboard: 'البيت',
+      sales: 'المبيعات',
+      inventory: 'المخزون',
+      customers: 'العملاء',
+      services: 'الخدمات',
+      reports: 'التقارير'
+    };
+
+    document.getElementById('pageTitle').textContent = titles[page] || 'البيت';
+    document.getElementById('pageSubtitle').textContent = 'إدارة ' + titles[page];
+
+    if(page === 'dashboard') this.renderDashboard();
+    if(page === 'sales') this.renderSales();
+    if(page === 'inventory') this.renderTires();
+    if(page === 'customers') this.renderCustomers();
+    if(page === 'services') this.renderServices();
     if(page === 'reports') this.renderReports();
   }
 
-  async loadTires() {
-    try {
-      const { data, error } = await supabase
-        .from('tires')
-        .select('*')
-        .order('id', { ascending: true });
+  renderDashboard() {
+    const todayRevenue = this.sales
+      .filter(s => new Date(s.date).toDateString() === new Date().toDateString())
+      .reduce((sum, s) => sum + (s.total || 0), 0);
 
-      if(error) throw error;
-      this.tires = data || [];
-      this.renderTires();
-      this.updateStats();
-    } catch(err) {
-      this.toast('خطأ في تحميل البيانات: ' + err.message, 'err');
+    const totalTires = this.tires.reduce((s, t) => s + (t.stock || 0), 0);
+    const outOfStock = this.tires.filter(t => t.stock === 0).length;
+
+    document.getElementById('todayRevenue').textContent = this.fmtMoney(todayRevenue) + ' ر.ع';
+    document.getElementById('totalCustomers').textContent = this.tires.length;
+    document.getElementById('totalTires').textContent = this.num(totalTires);
+    document.getElementById('outOfStock').textContent = this.num(outOfStock);
+
+    // Recent sales
+    const recent = this.sales.slice(-5).reverse();
+    const html = recent.length === 0 ? '<div class="empty"><p>لا توجد مبيعات</p></div>' : `
+      <table><thead><tr><th>الفاتورة</th><th>العميل</th><th>الإجمالي</th><th>التاريخ</th></tr></thead><tbody>
+      ${recent.map(s => `<tr><td>${s.invoiceNumber}</td><td>${this.esc(s.customerName)}</td><td class="num">${this.fmtMoney(s.total)}</td><td>${this.fmtDate(s.date)}</td></tr>`).join('')}
+      </tbody></table>
+    `;
+    document.getElementById('recentSalesContainer').innerHTML = html;
+
+    // Low stock
+    const lowStock = this.tires.filter(t => t.stock < 3).slice(0, 5);
+    document.getElementById('lowStockContainer').innerHTML = lowStock.length === 0 
+      ? '<div class="empty"><p>المخزون جيد</p></div>'
+      : lowStock.map(t => `<div style="padding:12px; border-bottom:1px solid var(--line);"><strong>${this.esc(t.size)}</strong> - ${this.esc(t.brand)}<br><small style="color:var(--text-muted);">المتوفر: ${t.stock}</small></div>`).join('');
+
+    this.initRevenueChart();
+  }
+
+  renderSales() {
+    const container = document.getElementById('salesTableContainer');
+    if(this.sales.length === 0) {
+      container.innerHTML = '<div class="empty"><p>لا توجد فواتير</p></div>';
+      return;
     }
+
+    const html = `<table><thead><tr><th>الفاتورة</th><th>العميل</th><th>الإطارات</th><th>الإجمالي</th><th>التاريخ</th><th>الإجراءات</th></tr></thead><tbody>
+      ${this.sales.map(s => `
+        <tr>
+          <td class="num">${s.invoiceNumber}</td>
+          <td>${this.esc(s.customerName)}</td>
+          <td>${s.items.length} صنف</td>
+          <td class="num">${this.fmtMoney(s.total)}</td>
+          <td>${this.fmtDate(s.date)}</td>
+          <td><button class="btn btn-sm btn-danger" onclick="app.deleteSale(${s.id})">حذف</button></td>
+        </tr>
+      `).join('')}
+    </tbody></table>`;
+    container.innerHTML = html;
   }
 
   renderTires() {
     const container = document.getElementById('tiresTableContainer');
     if(this.tires.length === 0) {
-      container.innerHTML = '<div class="empty"><p>لا توجد إطارات في المخزون</p></div>';
+      container.innerHTML = '<div class="empty"><p>لا توجد إطارات</p></div>';
       return;
     }
 
-    const html = `
-      <table>
-        <thead>
-          <tr>
-            <th>الحجم</th>
-            <th>الماركة</th>
-            <th>الموديل</th>
-            <th>الكمية</th>
-            <th>السعر (ر.ع)</th>
-            <th>الإجمالي (ر.ع)</th>
-            <th>الحالة</th>
-            <th>الإجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${this.tires.map(t => `
-            <tr class="${t.stock < 5 ? (t.stock === 0 ? 'out-stock' : 'low-stock') : ''}">
-              <td><strong>${this.esc(t.size)}</strong></td>
-              <td>${this.esc(t.brand)}</td>
-              <td class="num">${t.model}</td>
-              <td class="num"><strong>${t.stock}</strong></td>
-              <td class="num">${this.fmtMoney(t.price)}</td>
-              <td class="num">${this.fmtMoney(t.stock * t.price)}</td>
-              <td>${this.getStockBadge(t.stock)}</td>
-              <td>
-                <div class="action-cell">
-                  <button class="btn btn-sm btn-ghost" onclick="window.app.openEditModal(${t.id})">تعديل</button>
-                  <button class="btn btn-sm btn-danger" onclick="window.app.deleteTire(${t.id})">حذف</button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
+    const html = `<table><thead><tr><th>الحجم</th><th>الماركة</th><th>الموديل</th><th>الكمية</th><th>السعر</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>
+      ${this.tires.map(t => `
+        <tr>
+          <td><strong>${this.esc(t.size)}</strong></td>
+          <td>${this.esc(t.brand)}</td>
+          <td class="num">${t.model}</td>
+          <td class="num">${t.stock}</td>
+          <td class="num">${this.fmtMoney(t.price)}</td>
+          <td>${t.stock === 0 ? '<span class="badge badge-red">نفاد</span>' : t.stock < 3 ? '<span class="badge badge-amber">منخفض</span>' : '<span class="badge badge-green">متوفر</span>'}</td>
+          <td><button class="btn btn-sm btn-danger" onclick="app.deleteTire(${t.id})">حذف</button></td>
+        </tr>
+      `).join('')}
+    </tbody></table>`;
     container.innerHTML = html;
   }
 
-  filterTires() {
-    const search = document.getElementById('searchInput').value.toLowerCase();
-    const brand = document.getElementById('brandFilter').value;
-    const stock = document.getElementById('stockFilter').value;
+  renderCustomers() {
+    const container = document.getElementById('customersTableContainer');
+    if(this.customers.length === 0) {
+      container.innerHTML = '<div class="empty"><p>لا توجد عملاء</p></div>';
+      return;
+    }
 
-    let filtered = this.tires.filter(t => {
-      const matchSearch = !search || t.size.toLowerCase().includes(search) || t.brand.toLowerCase().includes(search) || String(t.model).includes(search);
-      const matchBrand = !brand || t.brand === brand;
-      const matchStock = !stock || (stock === 'available' && t.stock >= 5) || (stock === 'low' && t.stock > 0 && t.stock < 5) || (stock === 'out' && t.stock === 0);
-      return matchSearch && matchBrand && matchStock;
+    const html = `<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th><th>المدينة</th></tr></thead><tbody>
+      ${this.customers.map(c => `
+        <tr>
+          <td><strong>${this.esc(c.name)}</strong></td>
+          <td>${c.phone || '-'}</td>
+          <td>${c.email || '-'}</td>
+          <td>${c.city || '-'}</td>
+        </tr>
+      `).join('')}
+    </tbody></table>`;
+    container.innerHTML = html;
+  }
+
+  renderServices() {
+    const container = document.getElementById('servicesTableContainer');
+    if(this.services.length === 0) {
+      container.innerHTML = '<div class="empty"><p>لا توجد خدمات</p></div>';
+      return;
+    }
+
+    const html = `<table><thead><tr><th>الخدمة</th><th>الوصف</th><th>السعر</th></tr></thead><tbody>
+      ${this.services.map(s => `
+        <tr>
+          <td><strong>${this.esc(s.name)}</strong></td>
+          <td>${this.esc(s.description || '')}</td>
+          <td class="num">${this.fmtMoney(s.price)}</td>
+        </tr>
+      `).join('')}
+    </tbody></table>`;
+    container.innerHTML = html;
+  }
+
+  renderReports() {
+    const totalRevenue = this.sales.reduce((s, x) => s + (x.total || 0), 0);
+    const totalStock = this.tires.reduce((s, t) => s + (t.stock || 0), 0);
+    const inventoryValue = this.tires.reduce((s, t) => s + (t.stock * t.price || 0), 0);
+
+    document.getElementById('totalRevenue').textContent = this.fmtMoney(totalRevenue) + ' ر.ع';
+    document.getElementById('totalInvoices').textContent = this.sales.length;
+    document.getElementById('totalStock').textContent = this.num(totalStock);
+    document.getElementById('inventoryValue').textContent = this.fmtMoney(inventoryValue) + ' ر.ع';
+
+    const sizes = {};
+    this.tires.forEach(t => {
+      if(!sizes[t.size]) sizes[t.size] = { qty: 0, value: 0 };
+      sizes[t.size].qty += t.stock;
+      sizes[t.size].value += t.stock * t.price;
     });
 
-    const container = document.getElementById('tiresTableContainer');
-    const html = `
-      <table>
-        <thead>
-          <tr>
-            <th>الحجم</th>
-            <th>الماركة</th>
-            <th>الموديل</th>
-            <th>الكمية</th>
-            <th>السعر (ر.ع)</th>
-            <th>الإجمالي (ر.ع)</th>
-            <th>الحالة</th>
-            <th>الإجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filtered.map(t => `
-            <tr class="${t.stock < 5 ? (t.stock === 0 ? 'out-stock' : 'low-stock') : ''}">
-              <td><strong>${this.esc(t.size)}</strong></td>
-              <td>${this.esc(t.brand)}</td>
-              <td class="num">${t.model}</td>
-              <td class="num"><strong>${t.stock}</strong></td>
-              <td class="num">${this.fmtMoney(t.price)}</td>
-              <td class="num">${this.fmtMoney(t.stock * t.price)}</td>
-              <td>${this.getStockBadge(t.stock)}</td>
-              <td>
-                <div class="action-cell">
-                  <button class="btn btn-sm btn-ghost" onclick="window.app.openEditModal(${t.id})">تعديل</button>
-                  <button class="btn btn-sm btn-danger" onclick="window.app.deleteTire(${t.id})">حذف</button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-    container.innerHTML = html || '<div class="empty"><p>لا توجد نتائج</p></div>';
+    const sorted = Object.entries(sizes).map(([k, v]) => ({size: k, ...v})).sort((a, b) => b.qty - a.qty).slice(0, 10);
+
+    const html = `<table><thead><tr><th>الحجم</th><th>الكمية</th><th>القيمة</th></tr></thead><tbody>
+      ${sorted.map(s => `<tr><td><strong>${this.esc(s.size)}</strong></td><td class="num">${s.qty}</td><td class="num">${this.fmtMoney(s.value)}</td></tr>`).join('')}
+    </tbody></table>`;
+    document.getElementById('topTiresContainer').innerHTML = html;
   }
 
-  getStockBadge(stock) {
-    if(stock === 0) return '<span class="badge badge-red">نفاد</span>';
-    if(stock < 5) return '<span class="badge badge-amber">منخفض</span>';
-    return '<span class="badge badge-green">متوفر</span>';
-  }
-
-  openAddModal() {
-    this.editingTireId = null;
+  openTireModal() {
     document.getElementById('modalTitle').textContent = 'إضافة إطار جديد';
-    document.getElementById('tireForm').reset();
-    document.getElementById('tireId').value = '';
+    const form = document.getElementById('mainForm');
+    form.innerHTML = `
+      <input type="hidden" id="modalType" value="tire">
+      <div class="form-group"><label>الحجم *</label><input type="text" id="modalSize" required></div>
+      <div class="form-group"><label>الماركة *</label><input type="text" id="modalBrand" required></div>
+      <div class="form-group"><label>الموديل *</label><input type="number" id="modalModel" required value="2026"></div>
+      <div class="form-group"><label>الكمية *</label><input type="number" id="modalQty" required></div>
+      <div class="form-group"><label>السعر *</label><input type="number" id="modalPrice" required step="0.01"></div>
+      <div style="grid-column:1/-1; display:flex; gap:10px;">
+        <button type="submit" class="btn btn-primary">حفظ</button>
+        <button type="button" class="btn btn-ghost" onclick="app.closeModal()">إلغاء</button>
+      </div>
+    `;
     document.getElementById('modalOverlay').classList.add('active');
   }
 
-  async openEditModal(id) {
-    const tire = this.tires.find(t => t.id === id);
-    if(!tire) return;
+  openSaleModal() {
+    document.getElementById('modalTitle').textContent = 'فاتورة جديدة';
+    const form = document.getElementById('mainForm');
+    form.innerHTML = `
+      <input type="hidden" id="modalType" value="sale">
+      <div class="form-group"><label>رقم الفاتورة *</label><input type="number" id="modalInvoiceNumber" required></div>
+      <div class="form-group"><label>اسم العميل *</label><input type="text" id="modalCustomerName" required></div>
+      <div class="form-group"><label>الإجمالي *</label><input type="number" id="modalTotal" required step="0.01"></div>
+      <div class="form-group"><label>التاريخ *</label><input type="date" id="modalSaleDate" required></div>
+      <div style="grid-column:1/-1; display:flex; gap:10px;">
+        <button type="submit" class="btn btn-primary">حفظ</button>
+        <button type="button" class="btn btn-ghost" onclick="app.closeModal()">إلغاء</button>
+      </div>
+    `;
+    document.getElementById('modalOverlay').classList.add('active');
+  }
 
-    this.editingTireId = id;
-    document.getElementById('modalTitle').textContent = 'تعديل الإطار';
-    document.getElementById('tireId').value = tire.id;
-    document.getElementById('tireSize').value = tire.size;
-    document.getElementById('tireBrand').value = tire.brand;
-    document.getElementById('tireModel').value = tire.model;
-    document.getElementById('tireQty').value = tire.stock;
-    document.getElementById('tirePrice').value = tire.price;
-    document.getElementById('tireSupplier').value = tire.supplier || '';
-    document.getElementById('tirePurchaseDate').value = tire.purchase_date || '';
-    document.getElementById('tireNotes').value = tire.notes || '';
+  openCustomerModal() {
+    document.getElementById('modalTitle').textContent = 'عميل جديد';
+    const form = document.getElementById('mainForm');
+    form.innerHTML = `
+      <input type="hidden" id="modalType" value="customer">
+      <div class="form-group"><label>الاسم *</label><input type="text" id="modalName" required></div>
+      <div class="form-group"><label>الهاتف</label><input type="tel" id="modalPhone"></div>
+      <div class="form-group"><label>البريد</label><input type="email" id="modalEmail"></div>
+      <div class="form-group"><label>المدينة</label><input type="text" id="modalCity"></div>
+      <div style="grid-column:1/-1; display:flex; gap:10px;">
+        <button type="submit" class="btn btn-primary">حفظ</button>
+        <button type="button" class="btn btn-ghost" onclick="app.closeModal()">إلغاء</button>
+      </div>
+    `;
+    document.getElementById('modalOverlay').classList.add('active');
+  }
+
+  openServiceModal() {
+    document.getElementById('modalTitle').textContent = 'خدمة جديدة';
+    const form = document.getElementById('mainForm');
+    form.innerHTML = `
+      <input type="hidden" id="modalType" value="service">
+      <div class="form-group"><label>اسم الخدمة *</label><input type="text" id="modalServiceName" required></div>
+      <div class="form-group"><label>الوصف</label><textarea id="modalServiceDesc"></textarea></div>
+      <div class="form-group"><label>السعر *</label><input type="number" id="modalServicePrice" required step="0.01"></div>
+      <div style="grid-column:1/-1; display:flex; gap:10px;">
+        <button type="submit" class="btn btn-primary">حفظ</button>
+        <button type="button" class="btn btn-ghost" onclick="app.closeModal()">إلغاء</button>
+      </div>
+    `;
     document.getElementById('modalOverlay').classList.add('active');
   }
 
@@ -637,349 +634,153 @@ class TireInventoryApp {
     document.getElementById('modalOverlay').classList.remove('active');
   }
 
-  async saveTire(e) {
+  async handleFormSubmit(e) {
     e.preventDefault();
+    const type = document.getElementById('modalType').value;
 
-    const tireData = {
-      size: document.getElementById('tireSize').value,
-      brand: document.getElementById('tireBrand').value,
-      model: parseInt(document.getElementById('tireModel').value),
-      stock: parseInt(document.getElementById('tireQty').value),
-      price: parseFloat(document.getElementById('tirePrice').value),
-      supplier: document.getElementById('tireSupplier').value || null,
-      purchase_date: document.getElementById('tirePurchaseDate').value || null,
-      notes: document.getElementById('tireNotes').value || null,
-      total: parseInt(document.getElementById('tireQty').value) * parseFloat(document.getElementById('tirePrice').value)
-    };
-
-    try {
-      if(this.editingTireId) {
-        // Update
-        const { error } = await supabase
-          .from('tires')
-          .update(tireData)
-          .eq('id', this.editingTireId);
-        if(error) throw error;
-        this.logHistory('update', `تحديث ${tireData.size} - ${tireData.brand}`);
-        this.toast('تم تحديث الإطار بنجاح');
-      } else {
-        // Insert
-        const { error } = await supabase
-          .from('tires')
-          .insert([tireData]);
-        if(error) throw error;
-        this.logHistory('add', `إضافة ${tireData.size} - ${tireData.brand}`);
-        this.toast('تم إضافة الإطار بنجاح');
-      }
-
-      await this.loadTires();
-      this.closeModal();
-    } catch(err) {
-      this.toast('خطأ: ' + err.message, 'err');
+    if(type === 'tire') {
+      const data = {
+        size: document.getElementById('modalSize').value,
+        brand: document.getElementById('modalBrand').value,
+        model: parseInt(document.getElementById('modalModel').value),
+        stock: parseInt(document.getElementById('modalQty').value),
+        price: parseFloat(document.getElementById('modalPrice').value),
+        total: parseInt(document.getElementById('modalQty').value) * parseFloat(document.getElementById('modalPrice').value)
+      };
+      const { error } = await supabase.from('tires').insert([data]);
+      if(error) { this.toast('خطأ: ' + error.message, 'err'); return; }
+      this.toast('تم إضافة الإطار');
+    } else if(type === 'sale') {
+      const data = {
+        invoiceNumber: document.getElementById('modalInvoiceNumber').value,
+        customerName: document.getElementById('modalCustomerName').value,
+        total: parseFloat(document.getElementById('modalTotal').value),
+        date: document.getElementById('modalSaleDate').value,
+        items: []
+      };
+      const { error } = await supabase.from('sales').insert([data]);
+      if(error) { this.toast('خطأ: ' + error.message, 'err'); return; }
+      this.toast('تم إضافة الفاتورة');
+    } else if(type === 'customer') {
+      const data = {
+        name: document.getElementById('modalName').value,
+        phone: document.getElementById('modalPhone').value || null,
+        email: document.getElementById('modalEmail').value || null,
+        city: document.getElementById('modalCity').value || null
+      };
+      const { error } = await supabase.from('customers').insert([data]);
+      if(error) { this.toast('خطأ: ' + error.message, 'err'); return; }
+      this.toast('تم إضافة العميل');
+    } else if(type === 'service') {
+      const data = {
+        name: document.getElementById('modalServiceName').value,
+        description: document.getElementById('modalServiceDesc').value || null,
+        price: parseFloat(document.getElementById('modalServicePrice').value)
+      };
+      const { error } = await supabase.from('services').insert([data]);
+      if(error) { this.toast('خطأ: ' + error.message, 'err'); return; }
+      this.toast('تم إضافة الخدمة');
     }
+
+    await this.loadAllData();
+    this.closeModal();
+    if(type === 'tire') this.renderTires();
+    if(type === 'sale') this.renderSales();
+    if(type === 'customer') this.renderCustomers();
+    if(type === 'service') this.renderServices();
   }
 
   async deleteTire(id) {
-    if(!confirm('هل أنت متأكد من حذف هذا الإطار؟')) return;
+    if(!confirm('هل أنت متأكد؟')) return;
+    const { error } = await supabase.from('tires').delete().eq('id', id);
+    if(error) { this.toast('خطأ', 'err'); return; }
+    this.toast('تم الحذف');
+    await this.loadAllData();
+    this.renderTires();
+  }
 
-    try {
-      const tire = this.tires.find(t => t.id === id);
-      const { error } = await supabase.from('tires').delete().eq('id', id);
-      if(error) throw error;
-
-      this.logHistory('delete', `حذف ${tire.size} - ${tire.brand}`);
-      this.toast('تم حذف الإطار');
-      await this.loadTires();
-    } catch(err) {
-      this.toast('خطأ: ' + err.message, 'err');
-    }
+  async deleteSale(id) {
+    if(!confirm('هل أنت متأكد؟')) return;
+    const { error } = await supabase.from('sales').delete().eq('id', id);
+    if(error) { this.toast('خطأ', 'err'); return; }
+    this.toast('تم الحذف');
+    await this.loadAllData();
+    this.renderSales();
   }
 
   importCSV(e) {
     const file = e.target.files[0];
-    if(!file) return;
-
     Papa.parse(file, {
       complete: async (results) => {
-        if(results.data.length < 2) {
-          this.toast('ملف فارغ', 'err');
-          return;
-        }
-
         const headers = results.data[0];
-        const sizeIdx = headers.findIndex(h => h.toLowerCase().includes('size'));
-        const brandIdx = headers.findIndex(h => h.toLowerCase().includes('brand'));
-        const modelIdx = headers.findIndex(h => h.toLowerCase().includes('model'));
-        const qtyIdx = headers.findIndex(h => h.toLowerCase().includes('qty'));
-        const priceIdx = headers.findIndex(h => h.toLowerCase().includes('price'));
+        const tires = results.data.slice(1).filter(row => row[0]).map(row => ({
+          size: row[0],
+          brand: row[1],
+          model: parseInt(row[2]) || 2026,
+          stock: parseInt(row[3]) || 0,
+          price: parseFloat(row[4]) || 0,
+          total: parseInt(row[3]) * parseFloat(row[4]) || 0
+        }));
 
-        const rows = results.data.slice(1).filter(row => row[0]);
-        const tires = rows.map(row => ({
-          size: row[sizeIdx] || '',
-          brand: row[brandIdx] || '',
-          model: parseInt(row[modelIdx]) || 2026,
-          stock: parseInt(row[qtyIdx]) || 0,
-          price: parseFloat(row[priceIdx]) || 0,
-          total: parseInt(row[qtyIdx]) * parseFloat(row[priceIdx]) || 0
-        })).filter(t => t.size && t.brand);
+        if(tires.length === 0) { this.toast('بيانات فارغة', 'err'); return; }
 
-        if(tires.length === 0) {
-          this.toast('لم يتم العثور على بيانات صحيحة', 'err');
-          return;
-        }
-
-        try {
-          const { error } = await supabase.from('tires').insert(tires);
-          if(error) throw error;
-          this.logHistory('add', `استيراد ${tires.length} إطار من ملف CSV`);
-          this.toast(`تم استيراد ${tires.length} إطار بنجاح`);
-          await this.loadTires();
-        } catch(err) {
-          this.toast('خطأ في الاستيراد: ' + err.message, 'err');
-        }
-      },
-      error: (err) => this.toast('خطأ: ' + err.message, 'err')
+        const { error } = await supabase.from('tires').insert(tires);
+        if(error) { this.toast('خطأ: ' + error.message, 'err'); return; }
+        this.toast(`تم استيراد ${tires.length} إطار`);
+        await this.loadAllData();
+        this.renderTires();
+      }
     });
-
     e.target.value = '';
   }
 
-  renderHistory() {
-    const container = document.getElementById('historyTableContainer');
-    if(this.history.length === 0) {
-      container.innerHTML = '<div class="empty"><p>لا يوجد سجل</p></div>';
-      return;
-    }
-
-    const html = `
-      <table>
-        <thead>
-          <tr>
-            <th>التاريخ والوقت</th>
-            <th>نوع العملية</th>
-            <th>الوصف</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${this.history.map(h => `
-            <tr>
-              <td class="num">${this.fmtDateTime(h.timestamp)}</td>
-              <td>${this.getOperationType(h.type)}</td>
-              <td>${this.esc(h.description)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-    container.innerHTML = html;
-  }
-
-  filterHistory() {
-    // Implement filtering logic
-  }
-
-  exportHistory() {
-    const csv = ['التاريخ,نوع العملية,الوصف'];
-    this.history.forEach(h => {
-      csv.push(`${this.fmtDateTime(h.timestamp)},${this.getOperationType(h.type)},${h.description}`);
-    });
-
-    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'سجل_المخزون.csv';
-    a.click();
-    this.toast('تم تصدير السجل');
-  }
-
-  renderAlerts() {
-    const lowStock = this.tires.filter(t => t.stock > 0 && t.stock < 3);
-    const outStock = this.tires.filter(t => t.stock === 0);
-
-    document.getElementById('lowStockList').innerHTML = lowStock.length === 0 
-      ? '<p style="text-align:center; color:var(--text-muted);">لا توجد إطارات منخفضة</p>'
-      : lowStock.map(t => `
-        <div style="padding:12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <strong>${this.esc(t.size)}</strong> - ${this.esc(t.brand)}<br>
-            <small style="color:var(--text-muted);">المتوفر: ${t.stock} قطعة</small>
-          </div>
-          <span class="badge badge-amber">منخفض</span>
-        </div>
-      `).join('');
-
-    document.getElementById('outStockList').innerHTML = outStock.length === 0
-      ? '<p style="text-align:center; color:var(--text-muted);">لا توجد إطارات منقطعة</p>'
-      : outStock.map(t => `
-        <div style="padding:12px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <strong>${this.esc(t.size)}</strong> - ${this.esc(t.brand)}<br>
-            <small style="color:var(--text-muted);">موديل: ${t.model}</small>
-          </div>
-          <span class="badge badge-red">نفاد</span>
-        </div>
-      `).join('');
-  }
-
-  renderReports() {
-    this.updateStats();
-    this.initCharts();
-    this.renderTopSizes();
-  }
-
-  updateStats() {
-    const totalTires = this.tires.reduce((s, t) => s + t.stock, 0);
-    const totalValue = this.tires.reduce((s, t) => s + (t.stock * t.price), 0);
-    const lowStock = this.tires.filter(t => t.stock > 0 && t.stock < 3).length;
-    const outStock = this.tires.filter(t => t.stock === 0).length;
-
-    document.getElementById('totalTiresCount').textContent = this.num(totalTires);
-    document.getElementById('totalValue').textContent = this.fmtMoney(totalValue) + ' ر.ع';
-    document.getElementById('lowStockCount').textContent = this.num(lowStock);
-    document.getElementById('outStockCount').textContent = this.num(outStock);
-  }
-
-  initCharts() {
-    const ctx = document.getElementById('sizeDistributionChart');
-    if(!ctx || !window.Chart) return;
-
-    if(ctx._chart) ctx._chart.destroy();
-
-    const sizes = {};
-    this.tires.forEach(t => {
-      sizes[t.size] = (sizes[t.size] || 0) + t.stock;
-    });
-
-    const sorted = Object.entries(sizes).sort((a, b) => b[1] - a[1]).slice(0, 10);
-
-    ctx._chart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: sorted.map(s => s[0]),
-        datasets: [{
-          label: 'الكمية المتوفرة',
-          data: sorted.map(s => s[1]),
-          backgroundColor: '#F2A71B'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        indexAxis: 'y',
-        plugins: { legend: { display: false } }
-      }
-    });
-  }
-
-  renderTopSizes() {
-    const sizes = {};
-    this.tires.forEach(t => {
-      if(!sizes[t.size]) sizes[t.size] = { size: t.size, qty: 0, value: 0 };
-      sizes[t.size].qty += t.stock;
-      sizes[t.size].value += t.stock * t.price;
-    });
-
-    const sorted = Object.values(sizes).sort((a, b) => b.qty - a.qty).slice(0, 10);
-    
-    const html = `
-      <table>
-        <thead>
-          <tr>
-            <th>الحجم</th>
-            <th>الكمية</th>
-            <th>القيمة الإجمالية</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${sorted.map(s => `
-            <tr>
-              <td><strong>${this.esc(s.size)}</strong></td>
-              <td class="num">${this.num(s.qty)}</td>
-              <td class="num">${this.fmtMoney(s.value)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-    
-    document.getElementById('topSizesContainer').innerHTML = html;
-  }
-
-  async generatePDFReport() {
+  async generateReport() {
+    const totalRevenue = this.sales.reduce((s, x) => s + (x.total || 0), 0);
+    const totalStock = this.tires.reduce((s, t) => s + (t.stock || 0), 0);
     const el = document.createElement('div');
     el.style.padding = '24px';
     el.style.direction = 'rtl';
-    el.style.fontFamily = 'Arial';
-
-    const totalTires = this.tires.reduce((s, t) => s + t.stock, 0);
-    const totalValue = this.tires.reduce((s, t) => s + (t.stock * t.price), 0);
-
     el.innerHTML = `
-      <h1 style="text-align:center; margin-bottom:20px;">تقرير مخزون الإطارات</h1>
-      <p><strong>التاريخ:</strong> ${this.fmtDate(new Date().toISOString())}</p>
-      
-      <h2 style="margin-top:20px; margin-bottom:10px;">ملخص المخزون</h2>
-      <p><strong>إجمالي الإطارات:</strong> ${totalTires} قطعة</p>
-      <p><strong>إجمالي القيمة:</strong> ${this.fmtMoney(totalValue)} ر.ع</p>
-      <p><strong>عدد أنواع الإطارات:</strong> ${this.tires.length} نوع</p>
-
-      <h2 style="margin-top:20px; margin-bottom:10px;">التفاصيل</h2>
-      <table style="width:100%; border-collapse:collapse;">
-        <thead>
-          <tr style="background:#f5f5f5;">
-            <th style="padding:8px; text-align:right; border:1px solid #ddd;">الحجم</th>
-            <th style="padding:8px; text-align:right; border:1px solid #ddd;">الماركة</th>
-            <th style="padding:8px; text-align:right; border:1px solid #ddd;">الموديل</th>
-            <th style="padding:8px; text-align:right; border:1px solid #ddd;">الكمية</th>
-            <th style="padding:8px; text-align:right; border:1px solid #ddd;">السعر</th>
-            <th style="padding:8px; text-align:right; border:1px solid #ddd;">الإجمالي</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${this.tires.map(t => `
-            <tr>
-              <td style="padding:8px; border:1px solid #ddd;">${this.esc(t.size)}</td>
-              <td style="padding:8px; border:1px solid #ddd;">${this.esc(t.brand)}</td>
-              <td style="padding:8px; border:1px solid #ddd;">${t.model}</td>
-              <td style="padding:8px; border:1px solid #ddd; text-align:center;">${t.stock}</td>
-              <td style="padding:8px; border:1px solid #ddd; text-align:center;">${this.fmtMoney(t.price)}</td>
-              <td style="padding:8px; border:1px solid #ddd; text-align:center;">${this.fmtMoney(t.stock * t.price)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <h1>تقرير شامل</h1>
+      <p>التاريخ: ${this.fmtDate(new Date().toISOString())}</p>
+      <h2>الملخص</h2>
+      <p>إجمالي الإيرادات: ${this.fmtMoney(totalRevenue)} ر.ع</p>
+      <p>عدد الفواتير: ${this.sales.length}</p>
+      <p>إجمالي الإطارات: ${totalStock}</p>
+      <p>عدد الأنواع: ${this.tires.length}</p>
     `;
-
-    try {
-      const filename = `تقرير_المخزون_${new Date().toISOString().split('T')[0]}.pdf`;
-      const blob = await html2pdf().set({ filename }).from(el).outputPdf('blob');
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      this.toast('تم تحميل التقرير');
-    } catch(err) {
-      this.toast('خطأ: ' + err.message, 'err');
-    }
+    const filename = 'تقرير_' + new Date().toISOString().split('T')[0] + '.pdf';
+    const blob = await html2pdf().set({ filename }).from(el).outputPdf('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    this.toast('تم تحميل التقرير');
   }
 
-  logHistory(type, description) {
-    const entry = {
-      type,
-      description,
-      timestamp: new Date().toISOString()
-    };
-    this.history.unshift(entry);
-    if(this.history.length > 100) this.history.pop();
+  initRevenueChart() {
+    const canvas = document.getElementById('revenueChart');
+    if(!canvas || !window.Chart) return;
+
+    const daily = {};
+    this.sales.forEach(s => {
+      const d = this.fmtDate(s.date);
+      daily[d] = (daily[d] || 0) + (s.total || 0);
+    });
+
+    const labels = Object.keys(daily).sort().slice(-7);
+    const data = labels.map(l => daily[l]);
+
+    if(canvas._chart) canvas._chart.destroy();
+    canvas._chart = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets: [{ label: 'الإيرادات', data, borderColor: '#F2A71B', backgroundColor: 'rgba(242,167,27,.1)', tension: .3, fill: true }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
   }
 
-  setupPageNavigation() {
-    // Navigation already set up in setupEventListeners
-  }
-
-  /* ---- Helpers ---- */
+  /* Helpers */
   esc(str) {
     const div = document.createElement('div');
     div.textContent = str;
@@ -994,18 +795,8 @@ class TireInventoryApp {
     return new Date(dateStr).toLocaleDateString('ar-OM');
   }
 
-  fmtDateTime(dateStr) {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('ar-OM') + ' ' + d.toLocaleTimeString('ar-OM');
-  }
-
   num(n) {
     return n.toLocaleString('ar-OM');
-  }
-
-  getOperationType(type) {
-    const types = { add: 'إضافة', sale: 'بيع', update: 'تعديل', delete: 'حذف' };
-    return types[type] || type;
   }
 
   toast(msg, type = 'ok') {
@@ -1018,7 +809,7 @@ class TireInventoryApp {
   }
 }
 
-const app = new TireInventoryApp();
+const app = new TireShopApp();
 window.app = app;
 </script>
 </body>
