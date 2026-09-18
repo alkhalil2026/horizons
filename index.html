@@ -269,8 +269,9 @@ const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFocm5vcmp6ZXprdXNnaHFxYmZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mzc5NzksImV4cCI6MjEwNTMxMzk3OX0.eFVLGMmapEgiAcueu_mV94KRcr_OcIS59BkTQPJcWbo';
 
 // Shop details printed on every invoice — edit these two lines directly if they change.
-const SHOP_NAME = 'Horizons Tire';
-const SHOP_CR_NUMBER = ''; // رقم السجل التجاري — اكتبه هنا بين القوسين لما يتوفر
+const SHOP_NAME = 'الآفاق المستقبلية المتميزة';
+const COMMERCIAL_REGISTER = '1554396';
+const SHOP_CR_NUMBER = '1554396'; // رقم السجل التجاري
 
 const WARRANTY_LABELS = { none:'لا يوجد', '1y':'سنة واحدة', '2y':'سنتان', '3y':'3 سنوات', '5y':'5 سنوات' };
 const PAYMENT_LABELS = { cash:'كاش', visa:'فيزا', transfer:'تحويل بنكي' };
@@ -543,8 +544,8 @@ class TireShopApp{
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">${icon('wheel')}</div>
-          <div class="brand-text"><h1>ورشتي</h1><p>إدارة محل الإطارات</p></div>
+          <div class="brand-mark"><img src="logo.png" alt="logo" style="width:34px;height:34px;object-fit:contain;"></div>
+          <div class="brand-text"><h1>ورشتي</h1><p>${esc(SHOP_NAME)}</p></div>
         </div>
         <nav class="side-nav" id="sideNav">
           ${items.map(([v,l,i])=>`<button class="side-link" data-view="${v}">${icon(i)}<span>${l}</span></button>`).join('')}
@@ -1312,6 +1313,7 @@ class TireShopApp{
   invoiceHeaderHtml(s){
     return `
       <div style="text-align:center;margin-bottom:14px;border-bottom:1px dashed var(--line);padding-bottom:12px;">
+        <div style="margin-bottom:10px;"><img src="logo.png" alt="logo" style="height:60px;object-fit:contain;"></div>
         <div style="font-family:'Almarai',sans-serif;font-size:20px;font-weight:800;letter-spacing:.5px;">${esc(SHOP_NAME)}</div>
         ${SHOP_CR_NUMBER?`<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">رقم السجل التجاري: ${esc(SHOP_CR_NUMBER)}</div>`:''}
       </div>
@@ -1455,6 +1457,11 @@ class TireShopApp{
     const el = document.createElement('div');
     el.style.padding='24px'; el.style.direction='rtl'; el.style.fontFamily='sans-serif';
     el.innerHTML = `
+      <div style="text-align:center;margin-bottom:20px;border-bottom:2px solid #ccc;padding-bottom:12px;">
+        <img src="logo.png" alt="logo" style="height:50px;margin-bottom:8px;">
+        <h2 style="margin:0;font-size:20px;">${esc(SHOP_NAME)}</h2>
+        <p style="margin:4px 0 0;color:#666;font-size:12px;">رقم السجل التجاري: ${esc(SHOP_CR_NUMBER)}</p>
+      </div>
       <h1>تقرير المبيعات والمخزون</h1>
       <p>التاريخ: ${fmtDate(new Date().toISOString())}</p>
       <h2>ملخص المبيعات</h2>
