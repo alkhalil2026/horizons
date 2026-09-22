@@ -431,6 +431,12 @@ input, select, textarea {
   cursor: not-allowed;
 }
 
+.btn-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .toast {
   position: fixed;
   bottom: 20px;
@@ -521,6 +527,14 @@ input, select, textarea {
   cursor: pointer;
   color: var(--text-muted);
   padding: 0;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }
 
 .table-wrap {
@@ -771,6 +785,12 @@ table tbody tr:hover {
   border-top: 2px solid var(--line);
   border-bottom: 2px solid var(--line);
 }
+
+.action-cell {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 </style>
 </head>
 <body>
@@ -800,7 +820,6 @@ let currentLang = localStorage.getItem('tireshop_lang') || 'ar';
 
 const i18n = {
   ar: {
-    // Navigation
     dashboard: 'لوحة التحكم',
     tires: 'المخزون',
     services: 'الخدمات',
@@ -812,46 +831,22 @@ const i18n = {
     tireTypes: 'أنواع الإطارات',
     supplierInvoices: 'فواتير الموردين',
     supplierPayments: 'دفعات الموردين',
-    
-    // Buttons
     add: 'إضافة',
     edit: 'تعديل',
     delete: 'حذف',
     save: 'حفظ',
     cancel: 'إلغاء',
     logout: 'تسجيل الخروج',
-    submit: 'إرسال',
-    
-    // Titles
     manager: 'مدير',
     employee: 'موظف',
-    
-    // Messages
     loading: 'جاري التحميل...',
     noData: 'لا توجد بيانات',
     saved: 'تم الحفظ بنجاح',
     error: 'حدث خطأ',
     deleted: 'تم الحذف',
-    
-    // Table headers
-    id: 'الرقم',
-    name: 'الاسم',
-    price: 'السعر',
-    quantity: 'الكمية',
-    total: 'الإجمالي',
-    date: 'التاريخ',
-    status: 'الحالة',
-    actions: 'الإجراءات',
-    
-    // Form labels
-    phone: 'الهاتف',
-    email: 'البريد الإلكتروني',
-    address: 'العنوان',
-    description: 'الوصف',
-    amount: 'المبلغ',
+    updated: 'تم التحديث بنجاح',
   },
   en: {
-    // Navigation
     dashboard: 'Dashboard',
     tires: 'Inventory',
     services: 'Services',
@@ -863,43 +858,20 @@ const i18n = {
     tireTypes: 'Tire Types',
     supplierInvoices: 'Supplier Invoices',
     supplierPayments: 'Payments',
-    
-    // Buttons
     add: 'Add',
     edit: 'Edit',
     delete: 'Delete',
     save: 'Save',
     cancel: 'Cancel',
     logout: 'Logout',
-    submit: 'Submit',
-    
-    // Titles
     manager: 'Manager',
     employee: 'Employee',
-    
-    // Messages
     loading: 'Loading...',
     noData: 'No data',
     saved: 'Saved successfully',
     error: 'An error occurred',
     deleted: 'Deleted',
-    
-    // Table headers
-    id: 'ID',
-    name: 'Name',
-    price: 'Price',
-    quantity: 'Quantity',
-    total: 'Total',
-    date: 'Date',
-    status: 'Status',
-    actions: 'Actions',
-    
-    // Form labels
-    phone: 'Phone',
-    email: 'Email',
-    address: 'Address',
-    description: 'Description',
-    amount: 'Amount',
+    updated: 'Updated successfully',
   }
 };
 
@@ -930,6 +902,7 @@ const ICONS = {
   download: '⬇️',
   phone: '📞',
   email: '📧',
+  x: '❌',
 };
 
 function icon(name) {
@@ -991,12 +964,12 @@ function showModal(title, content) {
   box.innerHTML = `
     <div class="modal-head">
       <h3>${title}</h3>
-      <button class="modal-close">${icon('x') || '✕'}</button>
+      <button class="modal-close" id="closeModalBtn">${icon('x') || '✕'}</button>
     </div>
     <div>${content}</div>
   `;
   overlay.classList.add('active');
-  box.querySelector('.modal-close').addEventListener('click', () => {
+  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
     overlay.classList.remove('active');
   });
 }
@@ -1101,7 +1074,6 @@ class TireShopApp {
   }
 
   async init() {
-    // Check for saved session
     try {
       const saved = sessionStorage.getItem('tireshop_user');
       if (saved) {
@@ -1112,7 +1084,6 @@ class TireShopApp {
       console.error('Session load failed:', e);
     }
 
-    // Initialize Supabase
     try {
       if (window.supabase) {
         this.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1123,7 +1094,6 @@ class TireShopApp {
       this.sb = null;
     }
 
-    // Load data if logged in
     if (this.currentUser) {
       await this.loadAllData();
     }
@@ -1152,7 +1122,6 @@ class TireShopApp {
 
         const mapped = data.map(row => rowFromDb(row, table));
         
-        // Map to property names
         const propName = table
           .replace('tire_types', 'tireTypes')
           .replace('supplier_invoices', 'supplierInvoices')
@@ -1168,7 +1137,6 @@ class TireShopApp {
 
   async addRecord(table, data) {
     if (!this.sb) {
-      console.warn('Supabase not available, using local storage');
       const id = uid();
       const record = { id, ...data, createdAt: new Date().toISOString() };
       this[table].unshift(record);
@@ -1210,13 +1178,16 @@ class TireShopApp {
       
       if (error) {
         console.error(`Error updating ${table}:`, error);
+        showToast(t('error'), 'error');
         return false;
       }
 
       await this.loadAllData();
+      showToast(t('updated'), 'success');
       return true;
     } catch (e) {
       console.error('Update record error:', e);
+      showToast(t('error'), 'error');
       return false;
     }
   }
@@ -1270,6 +1241,293 @@ class TireShopApp {
     this.currentView = 'login';
     sessionStorage.removeItem('tireshop_user');
     this.render();
+  }
+
+  // ===== MODAL FORMS =====
+
+  showEditServiceModal(service) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editServiceName" value="${esc(service.name)}">
+      </div>
+      <div class="form-group">
+        <label>السعر *</label>
+        <input type="number" id="editServicePrice" step="0.01" value="${service.price}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
+        <button class="btn btn-amber" id="saveEditServiceBtn">${t('save')}</button>
+      </div>
+    `;
+    showModal(`${t('edit')} - ${esc(service.name)}`, content);
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
+    document.getElementById('saveEditServiceBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editServiceName').value.trim();
+      const price = parseFloat(document.getElementById('editServicePrice').value) || 0;
+      
+      if (!name || !price) {
+        showToast(t('error'), 'error');
+        return;
+      }
+
+      this.updateRecord('services', service.id, { name, price }).then(() => {
+        hideModal();
+        this.switchView('services');
+      });
+    });
+  }
+
+  showEditCustomerModal(customer) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editCustomerName" value="${esc(customer.name)}">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="tel" id="editCustomerPhone" value="${esc(customer.phone || '')}">
+      </div>
+      <div class="form-group">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="editCustomerEmail" value="${esc(customer.email || '')}">
+      </div>
+      <div class="form-group">
+        <label>العنوان</label>
+        <input type="text" id="editCustomerAddress" value="${esc(customer.address || '')}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
+        <button class="btn btn-amber" id="saveEditCustomerBtn">${t('save')}</button>
+      </div>
+    `;
+    showModal(`${t('edit')} - ${esc(customer.name)}`, content);
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
+    document.getElementById('saveEditCustomerBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editCustomerName').value.trim();
+      
+      if (!name) {
+        showToast(t('error'), 'error');
+        return;
+      }
+
+      this.updateRecord('customers', customer.id, {
+        name,
+        phone: document.getElementById('editCustomerPhone').value,
+        email: document.getElementById('editCustomerEmail').value,
+        address: document.getElementById('editCustomerAddress').value
+      }).then(() => {
+        hideModal();
+        this.switchView('customers');
+      });
+    });
+  }
+
+  showEditTireModal(tire) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editTireName" value="${esc(tire.name)}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>سعر التكلفة</label>
+          <input type="number" id="editTireCostPrice" step="0.01" value="${tire.cost_price || 0}">
+        </div>
+        <div class="form-group">
+          <label>سعر البيع *</label>
+          <input type="number" id="editTireSellingPrice" step="0.01" value="${tire.sellingPrice}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>الكمية *</label>
+        <input type="number" id="editTireQuantity" step="1" value="${tire.quantity}">
+      </div>
+      <div class="form-group">
+        <label>النوع</label>
+        <select id="editTireTireTypeId">
+          <option value="">اختر</option>
+          ${this.tireTypes.map(t => `<option value="${t.id}" ${tire.tireTypeId === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>المورد</label>
+        <select id="editTireSupplier">
+          <option value="">اختر</option>
+          ${this.suppliers.map(s => `<option value="${s.id}" ${tire.supplierId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
+        <button class="btn btn-amber" id="saveEditTireBtn">${t('save')}</button>
+      </div>
+    `;
+    showModal(`${t('edit')} - ${esc(tire.name)}`, content);
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
+    document.getElementById('saveEditTireBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editTireName').value.trim();
+      const sellingPrice = parseFloat(document.getElementById('editTireSellingPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('editTireQuantity').value) || 0;
+      
+      if (!name || !sellingPrice) {
+        showToast(t('error'), 'error');
+        return;
+      }
+
+      this.updateRecord('tires', tire.id, {
+        name,
+        cost_price: parseFloat(document.getElementById('editTireCostPrice').value) || 0,
+        sellingPrice,
+        quantity,
+        tireTypeId: document.getElementById('editTireTireTypeId').value || null,
+        supplierId: document.getElementById('editTireSupplier').value || null
+      }).then(() => {
+        hideModal();
+        this.switchView('tires');
+      });
+    });
+  }
+
+  showEditSupplierModal(supplier) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editSupplierName" value="${esc(supplier.name)}">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="tel" id="editSupplierPhone" value="${esc(supplier.phone || '')}">
+      </div>
+      <div class="form-group">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="editSupplierEmail" value="${esc(supplier.email || '')}">
+      </div>
+      <div class="form-group">
+        <label>العنوان</label>
+        <input type="text" id="editSupplierAddress" value="${esc(supplier.address || '')}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
+        <button class="btn btn-amber" id="saveEditSupplierBtn">${t('save')}</button>
+      </div>
+    `;
+    showModal(`${t('edit')} - ${esc(supplier.name)}`, content);
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
+    document.getElementById('saveEditSupplierBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editSupplierName').value.trim();
+      
+      if (!name) {
+        showToast(t('error'), 'error');
+        return;
+      }
+
+      this.updateRecord('suppliers', supplier.id, {
+        name,
+        phone: document.getElementById('editSupplierPhone').value,
+        email: document.getElementById('editSupplierEmail').value,
+        address: document.getElementById('editSupplierAddress').value
+      }).then(() => {
+        hideModal();
+        this.switchView('suppliers');
+      });
+    });
+  }
+
+  showEditTireTypeModal(tireType) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editTireTypeName" value="${esc(tireType.name)}">
+      </div>
+      <div class="form-group">
+        <label>الوصف</label>
+        <textarea id="editTireTypeDesc" style="min-height: 80px;">${esc(tireType.description || '')}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
+        <button class="btn btn-amber" id="saveEditTireTypeBtn">${t('save')}</button>
+      </div>
+    `;
+    showModal(`${t('edit')} - ${esc(tireType.name)}`, content);
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
+    document.getElementById('saveEditTireTypeBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editTireTypeName').value.trim();
+      
+      if (!name) {
+        showToast(t('error'), 'error');
+        return;
+      }
+
+      this.updateRecord('tire_types', tireType.id, {
+        name,
+        description: document.getElementById('editTireTypeDesc').value
+      }).then(() => {
+        hideModal();
+        this.switchView('tireTypes');
+      });
+    });
+  }
+
+  showEditAppointmentModal(appointment) {
+    const content = `
+      <div class="form-group">
+        <label>العميل *</label>
+        <select id="editAppointmentCustomerId">
+          <option value="">اختر</option>
+          ${this.customers.map(c => `<option value="${c.id}" ${appointment.customerId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>الخدمة *</label>
+        <select id="editAppointmentServiceName">
+          <option value="">اختر</option>
+          ${this.services.map(s => `<option value="${s.name}" ${appointment.serviceName === s.name ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>التاريخ والوقت *</label>
+        <input type="datetime-local" id="editAppointmentDateTime" value="${appointment.appointmentTime || ''}">
+      </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <textarea id="editAppointmentNotes" style="min-height: 80px;">${esc(appointment.notes || '')}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
+        <button class="btn btn-amber" id="saveEditAppointmentBtn">${t('save')}</button>
+      </div>
+    `;
+    showModal(`${t('edit')}`, content);
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
+    document.getElementById('saveEditAppointmentBtn')?.addEventListener('click', () => {
+      const customerId = document.getElementById('editAppointmentCustomerId').value;
+      const serviceName = document.getElementById('editAppointmentServiceName').value;
+      const appointmentTime = document.getElementById('editAppointmentDateTime').value;
+      
+      if (!customerId || !serviceName || !appointmentTime) {
+        showToast(t('error'), 'error');
+        return;
+      }
+
+      const customerName = this.customers.find(c => c.id === customerId)?.name || '';
+
+      this.updateRecord('appointments', appointment.id, {
+        customer_id: customerId,
+        customer_name: customerName,
+        service_name: serviceName,
+        appointment_time: appointmentTime,
+        notes: document.getElementById('editAppointmentNotes').value
+      }).then(() => {
+        hideModal();
+        this.switchView('appointments');
+      });
+    });
   }
 
   // ===== VIEWS =====
@@ -1386,6 +1644,114 @@ class TireShopApp {
     `;
   }
 
+  renderServicesView() {
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة خدمة</h3></div>
+          <div class="form-group">
+            <label>اسم الخدمة *</label>
+            <input type="text" id="serviceName" placeholder="مثال: بنشر">
+          </div>
+          <div class="form-group">
+            <label>السعر *</label>
+            <input type="number" id="servicePrice" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <button class="btn btn-amber btn-block" id="addServiceBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>الخدمات (${this.services.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>السعر</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.services.map(s => `
+                  <tr>
+                    <td>${esc(s.name)}</td>
+                    <td class="num">${fmtMoney(s.price)}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-service="${s.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-service="${s.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد خدمات</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderCustomersView() {
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة عميل</h3></div>
+          <div class="form-group">
+            <label>اسم العميل *</label>
+            <input type="text" id="customerName" placeholder="اسم العميل">
+          </div>
+          <div class="form-group">
+            <label>رقم الهاتف</label>
+            <input type="tel" id="customerPhone" placeholder="+968 9...">
+          </div>
+          <div class="form-group">
+            <label>البريد الإلكتروني</label>
+            <input type="email" id="customerEmail" placeholder="email@example.com">
+          </div>
+          <div class="form-group">
+            <label>العنوان</label>
+            <input type="text" id="customerAddress" placeholder="العنوان">
+          </div>
+          <button class="btn btn-amber btn-block" id="addCustomerBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>العملاء (${this.customers.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الهاتف</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.customers.map(c => `
+                  <tr>
+                    <td>${esc(c.name)}</td>
+                    <td>${esc(c.phone || '-')}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-customer="${c.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-customer="${c.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد عملاء</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   renderTiresView() {
     return `
       <div class="grid-2">
@@ -1449,112 +1815,13 @@ class TireShopApp {
                     <td class="num">${t.quantity || 0}</td>
                     <td class="num">${fmtMoney(t.sellingPrice)}</td>
                     <td>
-                      <button class="btn btn-xs btn-danger" data-delete-tire="${t.id}">${icon('delete')}</button>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-tire="${t.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-tire="${t.id}">${icon('delete')}</button>
+                      </div>
                     </td>
                   </tr>
                 `).join('') || '<tr><td colspan="4" class="text-center">لا توجد إطارات</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderServicesView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>إضافة خدمة</h3></div>
-          <div class="form-group">
-            <label>اسم الخدمة *</label>
-            <input type="text" id="serviceName" placeholder="مثال: بنشر">
-          </div>
-          <div class="form-group">
-            <label>السعر *</label>
-            <input type="number" id="servicePrice" min="0" step="0.01" placeholder="0.00">
-          </div>
-          <button class="btn btn-amber btn-block" id="addServiceBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>الخدمات (${this.services.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>السعر</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.services.map(s => `
-                  <tr>
-                    <td>${esc(s.name)}</td>
-                    <td class="num">${fmtMoney(s.price)}</td>
-                    <td>
-                      <button class="btn btn-xs btn-danger" data-delete-service="${s.id}">${icon('delete')}</button>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد خدمات</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderCustomersView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>إضافة عميل</h3></div>
-          <div class="form-group">
-            <label>اسم العميل *</label>
-            <input type="text" id="customerName" placeholder="اسم العميل">
-          </div>
-          <div class="form-group">
-            <label>رقم الهاتف</label>
-            <input type="tel" id="customerPhone" placeholder="+968 9...">
-          </div>
-          <div class="form-group">
-            <label>البريد الإلكتروني</label>
-            <input type="email" id="customerEmail" placeholder="email@example.com">
-          </div>
-          <div class="form-group">
-            <label>العنوان</label>
-            <input type="text" id="customerAddress" placeholder="العنوان">
-          </div>
-          <button class="btn btn-amber btn-block" id="addCustomerBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>العملاء (${this.customers.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الهاتف</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.customers.map(c => `
-                  <tr>
-                    <td>${esc(c.name)}</td>
-                    <td>${esc(c.phone || '-')}</td>
-                    <td>
-                      <button class="btn btn-xs btn-danger" data-delete-customer="${c.id}">${icon('delete')}</button>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد عملاء</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -1614,7 +1881,10 @@ class TireShopApp {
                     <td>${esc(a.serviceName)}</td>
                     <td>${fmtDate(a.appointmentTime)}</td>
                     <td>
-                      <button class="btn btn-xs btn-danger" data-delete-appointment="${a.id}">${icon('delete')}</button>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-appointment="${a.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-appointment="${a.id}">${icon('delete')}</button>
+                      </div>
                     </td>
                   </tr>
                 `).join('') || '<tr><td colspan="4" class="text-center">لا توجد مواعيد</td></tr>'}
@@ -1626,7 +1896,189 @@ class TireShopApp {
     `;
   }
 
+  renderSuppliersView() {
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>مورد جديد</h3></div>
+          <div class="form-group">
+            <label>الاسم *</label>
+            <input type="text" id="supplierName" placeholder="اسم المورد">
+          </div>
+          <div class="form-group">
+            <label>الهاتف</label>
+            <input type="tel" id="supplierPhone" placeholder="+968 9...">
+          </div>
+          <div class="form-group">
+            <label>البريد الإلكتروني</label>
+            <input type="email" id="supplierEmail" placeholder="email@supplier.com">
+          </div>
+          <div class="form-group">
+            <label>العنوان</label>
+            <input type="text" id="supplierAddress" placeholder="العنوان">
+          </div>
+          <button class="btn btn-amber btn-block" id="addSupplierBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>الموردين (${this.suppliers.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الهاتف</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.suppliers.map(s => `
+                  <tr>
+                    <td>${esc(s.name)}</td>
+                    <td>${esc(s.phone || '-')}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-supplier="${s.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-supplier="${s.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد موردين</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderTireTypesView() {
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>نوع إطار جديد</h3></div>
+          <div class="form-group">
+            <label>الاسم *</label>
+            <input type="text" id="tireTypeName" placeholder="مثال: سيارة ركوب">
+          </div>
+          <div class="form-group">
+            <label>الوصف</label>
+            <textarea id="tireTypeDesc" placeholder="الوصف" style="min-height: 80px;"></textarea>
+          </div>
+          <button class="btn btn-amber btn-block" id="addTireTypeBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>أنواع الإطارات (${this.tireTypes.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.tireTypes.map(t => `
+                  <tr>
+                    <td>${esc(t.name)}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-tiretype="${t.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-tiretype="${t.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="2" class="text-center">لا توجد أنواع</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderDashboard() {
+    const stats = [
+      {
+        label: 'إجمالي المبيعات',
+        value: fmtMoney(this.sales.reduce((s, x) => s + (x.total || 0), 0)),
+        type: 'amber'
+      },
+      {
+        label: 'عدد العملاء',
+        value: this.customers.length,
+        type: 'blue'
+      },
+      {
+        label: 'الإطارات المتوفرة',
+        value: this.tires.reduce((s, x) => s + (x.quantity || 0), 0),
+        type: 'green'
+      },
+      {
+        label: 'المواعيد المنتظرة',
+        value: this.appointments.length,
+        type: 'info'
+      }
+    ];
+
+    return `
+      <div class="grid-4">
+        ${stats.map(s => `
+          <div class="stat ${s.type}">
+            <h4>${s.label}</h4>
+            <p class="v num">${s.value}</p>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="grid-2 mt-16">
+        <div class="card">
+          <div class="card-head"><h3>آخر الفواتير</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>العميل</th>
+                  <th>المبلغ</th>
+                  <th>التاريخ</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.sales.slice(0, 5).map(s => `
+                  <tr>
+                    <td>${esc(s.customerName)}</td>
+                    <td class="num">${fmtMoney(s.total)}</td>
+                    <td>${fmtDate(s.createdAt)}</td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>الخدمات الشهيرة</h3></div>
+          <div style="padding: 16px 0;">
+            ${this.services.slice(0, 5).map(s => `
+              <div style="padding: 10px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between;">
+                <span>${esc(s.name)}</span>
+                <span class="num" style="color: var(--text-muted);">${fmtMoney(s.price)}</span>
+              </div>
+            `).join('') || '<p class="text-center" style="color: var(--text-muted);">لا توجد خدمات</p>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   renderSalesView() {
+    if (!this.saleItems) this.saleItems = [];
+    
     return `
       <div class="card">
         <div class="card-head"><h3>فاتورة جديدة</h3></div>
@@ -1764,7 +2216,6 @@ class TireShopApp {
                 <th>المبلغ</th>
                 <th>طريقة الدفع</th>
                 <th>التاريخ</th>
-                <th>الإجراءات</th>
               </tr>
             </thead>
             <tbody>
@@ -1775,208 +2226,8 @@ class TireShopApp {
                   <td class="num">${fmtMoney(s.total)}</td>
                   <td>${esc(s.paymentMethod)}</td>
                   <td>${fmtDate(s.createdAt)}</td>
-                  <td>
-                    <button class="btn btn-xs btn-blue" data-print-invoice="${s.id}">${icon('download')}</button>
-                  </td>
                 </tr>
-              `).join('') || '<tr><td colspan="6" class="text-center">لا توجد فواتير</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  }
-
-  renderSuppliersView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>مورد جديد</h3></div>
-          <div class="form-group">
-            <label>الاسم *</label>
-            <input type="text" id="supplierName" placeholder="اسم المورد">
-          </div>
-          <div class="form-group">
-            <label>الهاتف</label>
-            <input type="tel" id="supplierPhone" placeholder="+968 9...">
-          </div>
-          <div class="form-group">
-            <label>البريد الإلكتروني</label>
-            <input type="email" id="supplierEmail" placeholder="email@supplier.com">
-          </div>
-          <div class="form-group">
-            <label>العنوان</label>
-            <input type="text" id="supplierAddress" placeholder="العنوان">
-          </div>
-          <button class="btn btn-amber btn-block" id="addSupplierBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>الموردين (${this.suppliers.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الهاتف</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.suppliers.map(s => `
-                  <tr>
-                    <td>${esc(s.name)}</td>
-                    <td>${esc(s.phone || '-')}</td>
-                    <td>
-                      <button class="btn btn-xs btn-danger" data-delete-supplier="${s.id}">${icon('delete')}</button>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد موردين</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderTireTypesView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>نوع إطار جديد</h3></div>
-          <div class="form-group">
-            <label>الاسم *</label>
-            <input type="text" id="tireTypeName" placeholder="مثال: سيارة ركوب">
-          </div>
-          <div class="form-group">
-            <label>الوصف</label>
-            <textarea id="tireTypeDesc" placeholder="الوصف" style="min-height: 80px;"></textarea>
-          </div>
-          <button class="btn btn-amber btn-block" id="addTireTypeBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>أنواع الإطارات (${this.tireTypes.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.tireTypes.map(t => `
-                  <tr>
-                    <td>${esc(t.name)}</td>
-                    <td>
-                      <button class="btn btn-xs btn-danger" data-delete-tiretype="${t.id}">${icon('delete')}</button>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="2" class="text-center">لا توجد أنواع</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderSupplierInvoicesView() {
-    const totalRemaining = this.supplierInvoices.reduce((s, inv) => s + (inv.remainingAmount || 0), 0);
-    
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>فاتورة مورد جديدة</h3></div>
-          <div class="form-group">
-            <label>المورد *</label>
-            <select id="invSupplierId">
-              <option value="">اختر مورد</option>
-              ${this.suppliers.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>رقم الفاتورة *</label>
-            <input type="text" id="invInvoiceNum" placeholder="INV-001">
-          </div>
-          <div class="form-group">
-            <label>المبلغ الإجمالي *</label>
-            <input type="number" id="invTotalAmount" min="0" step="0.01" placeholder="0.00">
-          </div>
-          <button class="btn btn-amber btn-block" id="addSupplierInvoiceBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>الفواتير | المتبقي: <span class="num">${fmtMoney(totalRemaining)}</span></h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>المورد</th>
-                  <th>الفاتورة</th>
-                  <th>المبلغ</th>
-                  <th>المتبقي</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.supplierInvoices.map(inv => {
-                  const sup = this.suppliers.find(s => s.id === inv.supplierId);
-                  return `
-                    <tr>
-                      <td>${esc(sup?.name || '')}</td>
-                      <td>${esc(inv.invoiceNumber)}</td>
-                      <td class="num">${fmtMoney(inv.totalAmount)}</td>
-                      <td class="num">${fmtMoney(inv.remainingAmount)}</td>
-                    </tr>
-                  `;
-                }).join('') || '<tr><td colspan="4" class="text-center">لا توجد فواتير</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderSupplierPaymentsView() {
-    const totalPaid = this.supplierPayments.reduce((s, p) => s + (p.paymentAmount || 0), 0);
-    
-    return `
-      <div class="card">
-        <div class="card-head">
-          <h3>دفعات الموردين | الإجمالي: <span class="num">${fmtMoney(totalPaid)}</span></h3>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>المورد</th>
-                <th>الفاتورة</th>
-                <th>المبلغ المدفوع</th>
-                <th>التاريخ</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${this.supplierPayments.map(pay => {
-                const inv = this.supplierInvoices.find(x => x.id === pay.supplierInvoiceId);
-                const sup = this.suppliers.find(s => s.id === inv?.supplierId);
-                return `
-                  <tr>
-                    <td>${esc(sup?.name || '')}</td>
-                    <td>${esc(inv?.invoiceNumber || '')}</td>
-                    <td class="num">${fmtMoney(pay.paymentAmount)}</td>
-                    <td>${fmtDate(pay.paymentDate)}</td>
-                  </tr>
-                `;
-              }).join('') || '<tr><td colspan="4" class="text-center">لا توجد دفعات</td></tr>'}
+              `).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -2082,9 +2333,9 @@ class TireShopApp {
     
     let navItems = [
       ['dashboard', t('dashboard'), 'dashboard'],
-      ['tires', t('tires'), 'tires'],
       ['services', t('services'), 'services'],
       ['customers', t('customers'), 'customers'],
+      ['tires', t('tires'), 'tires'],
       ['appointments', t('appointments'), 'appointments'],
       ['sales', t('sales'), 'sales'],
       ['reports', t('reports'), 'reports'],
@@ -2093,8 +2344,6 @@ class TireShopApp {
     if (this.currentUser.role === 'manager') {
       navItems.push(['suppliers', t('suppliers'), 'suppliers']);
       navItems.push(['tireTypes', t('tireTypes'), 'tireTypes']);
-      navItems.push(['supplierInvoices', t('supplierInvoices'), 'supplierInvoices']);
-      navItems.push(['supplierPayments', t('supplierPayments'), 'supplierPayments']);
     }
 
     return `
@@ -2141,12 +2390,10 @@ class TireShopApp {
   switchView(view) {
     this.currentView = view;
     
-    // Update sidebar
     document.querySelectorAll('.side-link').forEach(b => {
       b.classList.toggle('active', b.dataset.view === view);
     });
 
-    // Update title
     const titles = {
       dashboard: t('dashboard'),
       tires: t('tires'),
@@ -2163,7 +2410,6 @@ class TireShopApp {
     
     document.getElementById('pageTitle').textContent = titles[view] || 'صفحة';
 
-    // Render content
     const renderers = {
       dashboard: () => this.renderDashboard(),
       tires: () => this.renderTiresView(),
@@ -2174,8 +2420,6 @@ class TireShopApp {
       reports: () => this.renderReportsView(),
       suppliers: () => this.renderSuppliersView(),
       tireTypes: () => this.renderTireTypesView(),
-      supplierInvoices: () => this.renderSupplierInvoicesView(),
-      supplierPayments: () => this.renderSupplierPaymentsView(),
     };
 
     const content = document.getElementById('content');
@@ -2201,17 +2445,13 @@ class TireShopApp {
       const u = document.getElementById('username').value;
       const p = document.getElementById('password').value;
       if (u && p) {
-        // Detect role by username
         const role = u === 'admin' ? 'manager' : 'employee';
         this.login(u, p, role);
       }
     });
-
-    document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
   }
 
   bindViewEvents(view) {
-    // Global buttons
     document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
     document.getElementById('langBtn')?.addEventListener('click', () => {
       currentLang = currentLang === 'ar' ? 'en' : 'ar';
@@ -2221,59 +2461,18 @@ class TireShopApp {
       this.render();
     });
 
-    // View-specific bindings
-    if (view === 'tires') this.bindTiresEvents();
     if (view === 'services') this.bindServicesEvents();
     if (view === 'customers') this.bindCustomersEvents();
+    if (view === 'tires') this.bindTiresEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
     if (view === 'sales') this.bindSalesEvents();
     if (view === 'suppliers') this.bindSuppliersEvents();
     if (view === 'tireTypes') this.bindTireTypesEvents();
-    if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
 
-    // Navigation
     document.querySelectorAll('.side-link').forEach(link => {
       link.addEventListener('click', (e) => {
         const view = e.currentTarget.dataset.view;
         if (view) this.switchView(view);
-      });
-    });
-  }
-
-  bindTiresEvents() {
-    document.getElementById('addTireBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('tireName').value.trim();
-      const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
-      const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
-      const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
-      const tireTypeId = document.getElementById('tireTireTypeId').value;
-      const supplierId = document.getElementById('tireSupplier').value;
-
-      if (!name || !sellingPrice) {
-        showToast('أكمل البيانات المطلوبة', 'warning');
-        return;
-      }
-
-      this.addRecord('tires', {
-        name, cost_price: costPrice, sellingPrice, quantity,
-        tireTypeId: tireTypeId || null,
-        supplierId: supplierId || null
-      }).then(() => {
-        document.getElementById('tireName').value = '';
-        document.getElementById('tireCostPrice').value = '';
-        document.getElementById('tireSellingPrice').value = '';
-        document.getElementById('tireQuantity').value = '';
-        this.switchView('tires');
-      });
-    });
-
-    document.querySelectorAll('[data-delete-tire]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('هل تريد حذف هذا الإطار؟')) {
-          this.deleteRecord('tires', btn.dataset.deleteTire).then(() => {
-            this.switchView('tires');
-          });
-        }
       });
     });
   }
@@ -2284,7 +2483,7 @@ class TireShopApp {
       const price = parseFloat(document.getElementById('servicePrice').value) || 0;
 
       if (!name || !price) {
-        showToast('أكمل البيانات', 'warning');
+        showToast(t('error'), 'error');
         return;
       }
 
@@ -2292,6 +2491,13 @@ class TireShopApp {
         document.getElementById('serviceName').value = '';
         document.getElementById('servicePrice').value = '';
         this.switchView('services');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-service]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const service = this.services.find(s => s.id === btn.dataset.editService);
+        if (service) this.showEditServiceModal(service);
       });
     });
 
@@ -2311,7 +2517,7 @@ class TireShopApp {
       const name = document.getElementById('customerName').value.trim();
 
       if (!name) {
-        showToast('أدخل اسم العميل', 'warning');
+        showToast(t('error'), 'error');
         return;
       }
 
@@ -2329,11 +2535,63 @@ class TireShopApp {
       });
     });
 
+    document.querySelectorAll('[data-edit-customer]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const customer = this.customers.find(c => c.id === btn.dataset.editCustomer);
+        if (customer) this.showEditCustomerModal(customer);
+      });
+    });
+
     document.querySelectorAll('[data-delete-customer]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (confirm('حذف؟')) {
           this.deleteRecord('customers', btn.dataset.deleteCustomer).then(() => {
             this.switchView('customers');
+          });
+        }
+      });
+    });
+  }
+
+  bindTiresEvents() {
+    document.getElementById('addTireBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('tireName').value.trim();
+      const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
+      const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
+      const tireTypeId = document.getElementById('tireTireTypeId').value;
+      const supplierId = document.getElementById('tireSupplier').value;
+
+      if (!name || !sellingPrice) {
+        showToast(t('error'), 'error');
+        return;
+      }
+
+      this.addRecord('tires', {
+        name, cost_price: costPrice, sellingPrice, quantity,
+        tireTypeId: tireTypeId || null,
+        supplierId: supplierId || null
+      }).then(() => {
+        document.getElementById('tireName').value = '';
+        document.getElementById('tireCostPrice').value = '';
+        document.getElementById('tireSellingPrice').value = '';
+        document.getElementById('tireQuantity').value = '';
+        this.switchView('tires');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-tire]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tire = this.tires.find(t => t.id === btn.dataset.editTire);
+        if (tire) this.showEditTireModal(tire);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-tire]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف؟')) {
+          this.deleteRecord('tires', btn.dataset.deleteTire).then(() => {
+            this.switchView('tires');
           });
         }
       });
@@ -2349,7 +2607,7 @@ class TireShopApp {
       const notes = document.getElementById('appointmentNotes').value;
 
       if (!customerId || !serviceName || !appointmentTime) {
-        showToast('أكمل البيانات المطلوبة', 'warning');
+        showToast(t('error'), 'error');
         return;
       }
 
@@ -2368,6 +2626,13 @@ class TireShopApp {
       });
     });
 
+    document.querySelectorAll('[data-edit-appointment]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const appointment = this.appointments.find(a => a.id === btn.dataset.editAppointment);
+        if (appointment) this.showEditAppointmentModal(appointment);
+      });
+    });
+
     document.querySelectorAll('[data-delete-appointment]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (confirm('حذف؟')) {
@@ -2380,10 +2645,7 @@ class TireShopApp {
   }
 
   bindSalesEvents() {
-    // Track sale items
-    if (!this.saleItems) {
-      this.saleItems = [];
-    }
+    if (!this.saleItems) this.saleItems = [];
 
     const updateSaleTotals = () => {
       const subtotal = this.saleItems.reduce((s, item) => s + (item.price * item.quantity), 0);
@@ -2414,11 +2676,9 @@ class TireShopApp {
       const tire = this.tires.find(t => t.id === tireId);
       if (!tire) return;
 
-      // Remove empty row
       const emptyRow = document.getElementById('emptyRow');
       if (emptyRow) emptyRow.remove();
 
-      // Add item
       const item = {
         id: uid(),
         type: 'tire',
@@ -2441,7 +2701,6 @@ class TireShopApp {
       `;
       table.appendChild(row);
 
-      // Bind remove button
       row.querySelector('[data-remove-item]').addEventListener('click', () => {
         this.saleItems = this.saleItems.filter(x => x.id !== item.id);
         row.remove();
@@ -2468,11 +2727,9 @@ class TireShopApp {
       const service = this.services.find(s => s.id === serviceId);
       if (!service) return;
 
-      // Remove empty row
       const emptyRow = document.getElementById('emptyRow');
       if (emptyRow) emptyRow.remove();
 
-      // Add item
       const item = {
         id: uid(),
         type: 'service',
@@ -2495,7 +2752,6 @@ class TireShopApp {
       `;
       table.appendChild(row);
 
-      // Bind remove button
       row.querySelector('[data-remove-item]').addEventListener('click', () => {
         this.saleItems = this.saleItems.filter(x => x.id !== item.id);
         row.remove();
@@ -2512,7 +2768,7 @@ class TireShopApp {
 
     document.getElementById('saveSaleBtn')?.addEventListener('click', () => {
       if (this.saleItems.length === 0) {
-        showToast('أضف منتجات أو خدمات', 'warning');
+        showToast('أضف منتجات', 'warning');
         return;
       }
 
@@ -2523,7 +2779,7 @@ class TireShopApp {
       const discountAmount = parseFloat(document.getElementById('saleDiscountAmount').value) || 0;
 
       if (!customerName || !paymentMethod) {
-        showToast('أكمل البيانات', 'warning');
+        showToast(t('error'), 'error');
         return;
       }
 
@@ -2559,7 +2815,7 @@ class TireShopApp {
     });
 
     document.getElementById('resetSaleBtn')?.addEventListener('click', () => {
-      if (confirm('إعادة تعيين الفاتورة؟')) {
+      if (confirm('إعادة تعيين؟')) {
         this.saleItems = [];
         document.getElementById('saleCustomerId').value = '';
         document.getElementById('saleCustomerName').value = '';
@@ -2571,13 +2827,6 @@ class TireShopApp {
         updateSaleTotals();
       }
     });
-
-    document.querySelectorAll('[data-print-invoice]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const invoice = this.sales.find(s => s.id === btn.dataset.printInvoice);
-        if (invoice) this.printInvoice(invoice);
-      });
-    });
   }
 
   bindSuppliersEvents() {
@@ -2585,7 +2834,7 @@ class TireShopApp {
       const name = document.getElementById('supplierName').value.trim();
 
       if (!name) {
-        showToast('أدخل اسم المورد', 'warning');
+        showToast(t('error'), 'error');
         return;
       }
 
@@ -2600,6 +2849,13 @@ class TireShopApp {
         document.getElementById('supplierEmail').value = '';
         document.getElementById('supplierAddress').value = '';
         this.switchView('suppliers');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-supplier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const supplier = this.suppliers.find(s => s.id === btn.dataset.editSupplier);
+        if (supplier) this.showEditSupplierModal(supplier);
       });
     });
 
@@ -2619,7 +2875,7 @@ class TireShopApp {
       const name = document.getElementById('tireTypeName').value.trim();
 
       if (!name) {
-        showToast('أدخل اسم النوع', 'warning');
+        showToast(t('error'), 'error');
         return;
       }
 
@@ -2633,6 +2889,13 @@ class TireShopApp {
       });
     });
 
+    document.querySelectorAll('[data-edit-tiretype]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tireType = this.tireTypes.find(t => t.id === btn.dataset.editTiretype);
+        if (tireType) this.showEditTireTypeModal(tireType);
+      });
+    });
+
     document.querySelectorAll('[data-delete-tiretype]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (confirm('حذف؟')) {
@@ -2642,122 +2905,6 @@ class TireShopApp {
         }
       });
     });
-  }
-
-  bindSupplierInvoicesEvents() {
-    document.getElementById('addSupplierInvoiceBtn')?.addEventListener('click', () => {
-      const supplierId = document.getElementById('invSupplierId').value;
-      const invoiceNumber = document.getElementById('invInvoiceNum').value.trim();
-      const totalAmount = parseFloat(document.getElementById('invTotalAmount').value) || 0;
-
-      if (!supplierId || !invoiceNumber || totalAmount <= 0) {
-        showToast('أكمل البيانات', 'warning');
-        return;
-      }
-
-      this.addRecord('supplier_invoices', {
-        supplier_id: supplierId,
-        invoice_number: invoiceNumber,
-        total_amount: totalAmount,
-        paid_amount: 0,
-        remaining_amount: totalAmount,
-        invoice_date: new Date().toISOString()
-      }).then(() => {
-        document.getElementById('invSupplierId').value = '';
-        document.getElementById('invInvoiceNum').value = '';
-        document.getElementById('invTotalAmount').value = '';
-        this.switchView('supplierInvoices');
-      });
-    });
-  }
-
-  printInvoice(invoice) {
-    const items = invoice.items ? JSON.parse(invoice.items) : [];
-    
-    const html = `
-      <!DOCTYPE html>
-      <html dir="rtl">
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; direction: rtl; }
-          .invoice { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-          .logo { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
-          .company { font-size: 14px; color: #666; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th, td { padding: 10px; text-align: right; border-bottom: 1px solid #ddd; }
-          th { background: #f0f0f0; font-weight: bold; }
-          .total-section { background: #f9f9f9; padding: 15px; margin-top: 20px; }
-          .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 16px; font-weight: bold; }
-          .footer { margin-top: 30px; text-align: center; color: #999; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="invoice">
-          <div class="header">
-            <div class="logo">🏪 ورشتي</div>
-            <div class="company">${esc(SHOP.name)}</div>
-            <div style="font-size: 12px; color: #999;">رقم السجل: ${SHOP.cr}</div>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <p><strong>الفاتورة:</strong> ${esc(invoice.invoiceNumber)}</p>
-            <p><strong>العميل:</strong> ${esc(invoice.customerName)}</p>
-            <p><strong>التاريخ:</strong> ${fmtDate(invoice.createdAt)}</p>
-            <p><strong>طريقة الدفع:</strong> ${esc(invoice.paymentMethod)}</p>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>البند</th>
-                <th>الكمية</th>
-                <th>السعر</th>
-                <th>المجموع</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${items.map(item => `
-                <tr>
-                  <td>${esc(item.name)}</td>
-                  <td>${item.quantity}</td>
-                  <td>${fmtMoney(item.price)}</td>
-                  <td>${fmtMoney(item.price * item.quantity)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <div class="total-section">
-            <div class="total-row">
-              <span>الإجمالي:</span>
-              <span>${fmtMoney(invoice.subtotal)}</span>
-            </div>
-            ${invoice.discount_total > 0 ? `
-              <div style="margin-bottom: 8px;">
-                <strong>الخصومات:</strong> ${fmtMoney(invoice.discount_total)}
-              </div>
-            ` : ''}
-            <div class="total-row" style="border-top: 2px solid #333; padding-top: 10px;">
-              <span>المبلغ المستحق:</span>
-              <span>${fmtMoney(invoice.total)}</span>
-            </div>
-          </div>
-
-          <div class="footer">
-            <p>شكراً لك على التعامل معنا</p>
-            <p>${SHOP.phone} | ${SHOP.email}</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const newWindow = window.open('', '', 'width=800,height=600');
-    newWindow.document.write(html);
-    newWindow.document.close();
-    newWindow.print();
   }
 }
 
