@@ -1758,6 +1758,8 @@ class TireShopApp {
       </div>
     `;
   }
+
+  renderSalesWizardView() {
     if (this.saleWizard.step === 1) {
       return this.renderWizardStep1();
     } else if (this.saleWizard.step === 2) {
@@ -1770,39 +1772,6 @@ class TireShopApp {
   }
 
   renderWizardStep1() {
-    return `
-      <div class="wizard-container">
-        <div class="wizard-progress">
-          <div class="progress-dot active"></div>
-          <div class="progress-dot"></div>
-          <div class="progress-dot"></div>
-          <div class="progress-dot"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>${t('selectService')}</h3>
-          </div>
-
-          <div class="service-grid">
-            ${this.services.map(s => `
-              <div class="service-card" data-service-id="${s.id}">
-                <h4>${esc(s.name)}</h4>
-                <p class="price">${fmtMoney(s.price)} ر.ع</p>
-              </div>
-            `).join('') || '<p class="text-center">لا توجد خدمات</p>'}
-          </div>
-
-          <div class="modal-footer" style="margin-top: 30px;">
-            <button class="btn btn-ghost" id="cancelWizardBtn">${t('cancel')}</button>
-            <button class="btn btn-amber" id="nextStep1Btn" disabled>${t('save')} ✓</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderWizardStep2() {
     const service = this.services.find(s => s.id === this.saleWizard.selectedService);
     if (!service) return '<p>خدمة غير موجودة</p>';
 
