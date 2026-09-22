@@ -1123,6 +1123,7 @@ const ICONS = {
   tireTypes: '⚙️',
   supplierInvoices: '📄',
   supplierPayments: '💵',
+  supplierSummary: '📊',
   add: '➕',
   edit: '✏️',
   delete: '🗑️',
@@ -1873,6 +1874,9 @@ class TireShopApp {
     if (this.currentUser.role === 'manager') {
       navItems.push(['suppliers', t('suppliers'), 'suppliers']);
       navItems.push(['tireTypes', t('tireTypes'), 'tireTypes']);
+      navItems.push(['supplierInvoices', 'فواتير الموردين', 'supplierInvoices']);
+      navItems.push(['supplierPayments', 'دفعات الموردين', 'supplierPayments']);
+      navItems.push(['supplierSummary', 'ملخص الموردين', 'supplierSummary']);
     }
 
     return `
@@ -1933,6 +1937,9 @@ class TireShopApp {
       reports: t('reports'),
       suppliers: t('suppliers'),
       tireTypes: t('tireTypes'),
+      supplierInvoices: 'فواتير الموردين',
+      supplierPayments: 'دفعات الموردين',
+      supplierSummary: 'ملخص الموردين',
     };
     
     document.getElementById('pageTitle').textContent = titles[view] || 'صفحة';
@@ -1947,6 +1954,9 @@ class TireShopApp {
       reports: () => this.renderReportsView(),
       suppliers: () => this.renderSuppliersView(),
       tireTypes: () => this.renderTireTypesView(),
+      supplierInvoices: () => this.renderSupplierInvoicesView(),
+      supplierPayments: () => this.renderSupplierPaymentsView(),
+      supplierSummary: () => this.renderSupplierSummaryView(),
     };
 
     const content = document.getElementById('content');
@@ -1979,6 +1989,197 @@ class TireShopApp {
   }
 
   // ===== MODAL EDIT FUNCTIONS =====
+
+  showEditSupplierModal(supplier) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editSupplierName" value="${esc(supplier.name)}">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="tel" id="editSupplierPhone" value="${esc(supplier.phone || '')}">
+      </div>
+      <div class="form-group">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="editSupplierEmail" value="${esc(supplier.email || '')}">
+      </div>
+      <div class="form-group">
+        <label>العنوان</label>
+        <input type="text" id="editSupplierAddress" value="${esc(supplier.address || '')}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveEditSupplierBtn">حفظ</button>
+      </div>
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>تعديل - ${esc(supplier.name)}</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+    
+    document.getElementById('saveEditSupplierBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editSupplierName').value.trim();
+      
+      if (!name) {
+        showToast('أدخل الاسم', 'error');
+        return;
+      }
+
+      this.updateRecord('suppliers', supplier.id, {
+        name,
+        phone: document.getElementById('editSupplierPhone').value,
+        email: document.getElementById('editSupplierEmail').value,
+        address: document.getElementById('editSupplierAddress').value
+      }).then(() => {
+        overlay.classList.remove('active');
+        this.switchView('suppliers');
+      });
+    });
+  }
+
+  showEditTireTypeModal(tireType) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editTireTypeName" value="${esc(tireType.name)}">
+      </div>
+      <div class="form-group">
+        <label>الوصف</label>
+        <textarea id="editTireTypeDescription" style="min-height: 80px;">${esc(tireType.description || '')}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveEditTireTypeBtn">حفظ</button>
+      </div>
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>تعديل - ${esc(tireType.name)}</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+    
+    document.getElementById('saveEditTireTypeBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editTireTypeName').value.trim();
+      
+      if (!name) {
+        showToast('أدخل الاسم', 'error');
+        return;
+      }
+
+      this.updateRecord('tire_types', tireType.id, {
+        name,
+        description: document.getElementById('editTireTypeDescription').value
+      }).then(() => {
+        overlay.classList.remove('active');
+        this.switchView('tireTypes');
+      });
+    });
+  }
+
+  showPaymentModal(invoiceId) {
+    const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
+    if (!invoice) return;
+    
+    const supplier = this.suppliers.find(s => s.id === invoice.supplierId);
+    
+    const content = `
+      <div class="form-group">
+        <label>رقم الفاتورة</label>
+        <input type="text" disabled value="${esc(invoice.invoiceNumber)}">
+      </div>
+      <div class="form-group">
+        <label>المورد</label>
+        <input type="text" disabled value="${esc(supplier?.name || '')}">
+      </div>
+      <div class="form-group">
+        <label>المبلغ الإجمالي</label>
+        <input type="text" disabled value="${fmtMoney(invoice.totalAmount)}" style="text-align: left;">
+      </div>
+      <div class="form-group">
+        <label>المتبقي</label>
+        <input type="text" disabled value="${fmtMoney(invoice.remainingAmount)}" style="text-align: left; color: var(--brake-red);">
+      </div>
+      <div class="form-group">
+        <label>مبلغ الدفعة *</label>
+        <input type="number" id="quickPaymentAmount" min="0" step="0.01" max="${invoice.remainingAmount}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <textarea id="quickPaymentNotes" placeholder="ملاحظات" style="min-height: 60px;"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closePaymentBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveQuickPaymentBtn">حفظ الدفعة</button>
+      </div>
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>إضافة دفعة</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+    
+    document.getElementById('closePaymentBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+    
+    document.getElementById('saveQuickPaymentBtn')?.addEventListener('click', () => {
+      const amount = parseFloat(document.getElementById('quickPaymentAmount').value) || 0;
+      
+      if (!amount || amount <= 0) {
+        showToast('أدخل المبلغ', 'error');
+        return;
+      }
+
+      if (amount > invoice.remainingAmount) {
+        showToast('المبلغ أكبر من المتبقي', 'error');
+        return;
+      }
+
+      this.addRecord('supplier_payments', {
+        supplier_invoice_id: invoiceId,
+        payment_amount: amount,
+        payment_date: new Date().toISOString(),
+        notes: document.getElementById('quickPaymentNotes').value
+      }).then(() => {
+        // تحديث المبلغ المدفوع والمتبقي
+        const newPaidAmount = (invoice.paidAmount || 0) + amount;
+        const newRemainingAmount = invoice.totalAmount - newPaidAmount;
+        
+        this.updateRecord('supplier_invoices', invoiceId, {
+          paid_amount: newPaidAmount,
+          remaining_amount: newRemainingAmount
+        }).then(() => {
+          overlay.classList.remove('active');
+          this.switchView('supplierPayments');
+        });
+      });
+    });
+  }
 
   showEditServiceModal(service) {
     const content = `
@@ -2293,6 +2494,10 @@ class TireShopApp {
     if (view === 'customers') this.bindCustomersEvents();
     if (view === 'tires') this.bindTiresEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
+    if (view === 'suppliers') this.bindSuppliersEvents();
+    if (view === 'tireTypes') this.bindTireTypesEvents();
+    if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
+    if (view === 'supplierPayments') this.bindSupplierPaymentsEvents();
   }
 
   bindServicesEvents() {
@@ -2453,6 +2658,194 @@ class TireShopApp {
           this.deleteRecord('appointments', btn.dataset.deleteAppointment).then(() => {
             this.switchView('appointments');
           });
+        }
+      });
+    });
+  }
+
+  bindSuppliersEvents() {
+    document.getElementById('addSupplierBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('supplierName').value.trim();
+
+      if (!name) {
+        showToast('أدخل الاسم', 'error');
+        return;
+      }
+
+      this.addRecord('suppliers', {
+        name,
+        phone: document.getElementById('supplierPhone').value,
+        email: document.getElementById('supplierEmail').value,
+        address: document.getElementById('supplierAddress').value
+      }).then(() => {
+        document.getElementById('supplierName').value = '';
+        document.getElementById('supplierPhone').value = '';
+        document.getElementById('supplierEmail').value = '';
+        document.getElementById('supplierAddress').value = '';
+        this.switchView('suppliers');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-supplier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const supplier = this.suppliers.find(s => s.id === btn.dataset.editSupplier);
+        if (supplier) this.showEditSupplierModal(supplier);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-supplier]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف المورد؟')) {
+          this.deleteRecord('suppliers', btn.dataset.deleteSupplier).then(() => {
+            this.switchView('suppliers');
+          });
+        }
+      });
+    });
+  }
+
+  bindTireTypesEvents() {
+    document.getElementById('addTireTypeBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('tireTypeName').value.trim();
+
+      if (!name) {
+        showToast('أدخل الاسم', 'error');
+        return;
+      }
+
+      this.addRecord('tire_types', {
+        name,
+        description: document.getElementById('tireTypeDescription').value
+      }).then(() => {
+        document.getElementById('tireTypeName').value = '';
+        document.getElementById('tireTypeDescription').value = '';
+        this.switchView('tireTypes');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-tiretype]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tireType = this.tireTypes.find(t => t.id === btn.dataset.editTiretype);
+        if (tireType) this.showEditTireTypeModal(tireType);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-tiretype]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف النوع؟')) {
+          this.deleteRecord('tire_types', btn.dataset.deleteTiretype).then(() => {
+            this.switchView('tireTypes');
+          });
+        }
+      });
+    });
+  }
+
+  bindSupplierInvoicesEvents() {
+    document.getElementById('addInvoiceBtn')?.addEventListener('click', () => {
+      const supplierId = document.getElementById('invoiceSupplier').value;
+      const invoiceNumber = document.getElementById('invoiceNumber').value.trim();
+      const totalAmount = parseFloat(document.getElementById('invoiceTotal').value) || 0;
+
+      if (!supplierId || !invoiceNumber || !totalAmount) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      this.addRecord('supplier_invoices', {
+        supplier_id: supplierId,
+        invoice_number: invoiceNumber,
+        total_amount: totalAmount,
+        paid_amount: 0,
+        remaining_amount: totalAmount,
+        invoice_date: new Date().toISOString()
+      }).then(() => {
+        document.getElementById('invoiceSupplier').value = '';
+        document.getElementById('invoiceNumber').value = '';
+        document.getElementById('invoiceTotal').value = '';
+        this.switchView('supplierInvoices');
+      });
+    });
+
+    document.querySelectorAll('[data-pay-invoice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.showPaymentModal(btn.dataset.payInvoice);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-invoice]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف الفاتورة؟')) {
+          this.deleteRecord('supplier_invoices', btn.dataset.deleteInvoice).then(() => {
+            this.switchView('supplierInvoices');
+          });
+        }
+      });
+    });
+  }
+
+  bindSupplierPaymentsEvents() {
+    document.getElementById('addPaymentBtn')?.addEventListener('click', () => {
+      const invoiceId = document.getElementById('paymentInvoice').value;
+      const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+      const notes = document.getElementById('paymentNotes').value;
+      const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
+
+      if (!invoiceId || !amount || !invoice) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      if (amount > invoice.remainingAmount) {
+        showToast('المبلغ أكبر من المتبقي', 'error');
+        return;
+      }
+
+      this.addRecord('supplier_payments', {
+        supplier_invoice_id: invoiceId,
+        payment_amount: amount,
+        payment_date: new Date().toISOString(),
+        notes
+      }).then(() => {
+        // تحديث المبلغ المدفوع والمتبقي
+        const newPaidAmount = (invoice.paidAmount || 0) + amount;
+        const newRemainingAmount = invoice.totalAmount - newPaidAmount;
+        
+        this.updateRecord('supplier_invoices', invoiceId, {
+          paid_amount: newPaidAmount,
+          remaining_amount: newRemainingAmount
+        }).then(() => {
+          document.getElementById('paymentInvoice').value = '';
+          document.getElementById('paymentAmount').value = '';
+          document.getElementById('paymentNotes').value = '';
+          this.switchView('supplierPayments');
+        });
+      });
+    });
+
+    document.querySelectorAll('[data-delete-payment]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف الدفعة؟')) {
+          const paymentId = btn.dataset.deletePayment;
+          const payment = this.supplierPayments.find(p => p.id === paymentId);
+          
+          if (payment) {
+            // استرجاع المبلغ من الفاتورة
+            const invoice = this.supplierInvoices.find(i => i.id === payment.supplierInvoiceId);
+            if (invoice) {
+              const newPaidAmount = Math.max(0, (invoice.paidAmount || 0) - payment.paymentAmount);
+              const newRemainingAmount = invoice.totalAmount - newPaidAmount;
+              
+              this.updateRecord('supplier_invoices', invoice.id, {
+                paid_amount: newPaidAmount,
+                remaining_amount: newRemainingAmount
+              }).then(() => {
+                this.deleteRecord('supplier_payments', paymentId).then(() => {
+                  this.switchView('supplierPayments');
+                });
+              });
+            }
+          }
         }
       });
     });
@@ -2869,25 +3262,237 @@ class TireShopApp {
 
   renderSuppliersView() {
     return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة مورد</h3></div>
+          <div class="form-group">
+            <label>اسم المورد *</label>
+            <input type="text" id="supplierName" placeholder="اسم المورد">
+          </div>
+          <div class="form-group">
+            <label>الهاتف</label>
+            <input type="tel" id="supplierPhone" placeholder="+968 9...">
+          </div>
+          <div class="form-group">
+            <label>البريد الإلكتروني</label>
+            <input type="email" id="supplierEmail" placeholder="email@example.com">
+          </div>
+          <div class="form-group">
+            <label>العنوان</label>
+            <input type="text" id="supplierAddress" placeholder="العنوان">
+          </div>
+          <button class="btn btn-amber btn-block" id="addSupplierBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>الموردين (${this.suppliers.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الهاتف</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.suppliers.map(s => `
+                  <tr>
+                    <td>${esc(s.name)}</td>
+                    <td>${esc(s.phone || '-')}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-supplier="${s.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-supplier="${s.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد موردين</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderSupplierInvoicesView() {
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة فاتورة مورد</h3></div>
+          <div class="form-group">
+            <label>المورد *</label>
+            <select id="invoiceSupplier">
+              <option value="">اختر مورد</option>
+              ${this.suppliers.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>رقم الفاتورة *</label>
+            <input type="text" id="invoiceNumber" placeholder="مثال: INV-001">
+          </div>
+          <div class="form-group">
+            <label>المبلغ الإجمالي *</label>
+            <input type="number" id="invoiceTotal" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <button class="btn btn-amber btn-block" id="addInvoiceBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>فواتير الموردين (${this.supplierInvoices.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>المورد</th>
+                  <th>رقم الفاتورة</th>
+                  <th>المبلغ</th>
+                  <th>المتبقي</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.supplierInvoices.map(inv => {
+                  const supplier = this.suppliers.find(s => s.id === inv.supplierId);
+                  return `
+                    <tr>
+                      <td>${esc(supplier?.name || '-')}</td>
+                      <td>${esc(inv.invoiceNumber)}</td>
+                      <td class="num">${fmtMoney(inv.totalAmount)}</td>
+                      <td class="num" style="color: ${inv.remainingAmount > 0 ? 'var(--brake-red)' : 'var(--tread-green)'}">
+                        ${fmtMoney(inv.remainingAmount)}
+                      </td>
+                      <td>
+                        <div class="action-cell">
+                          <button class="btn btn-xs btn-blue" data-pay-invoice="${inv.id}">دفع</button>
+                          <button class="btn btn-xs btn-danger" data-delete-invoice="${inv.id}">${icon('delete')}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderSupplierPaymentsView() {
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة دفعة</h3></div>
+          <div class="form-group">
+            <label>الفاتورة *</label>
+            <select id="paymentInvoice">
+              <option value="">اختر فاتورة</option>
+              ${this.supplierInvoices
+                .filter(inv => inv.remainingAmount > 0)
+                .map(inv => {
+                  const supplier = this.suppliers.find(s => s.id === inv.supplierId);
+                  return `<option value="${inv.id}">${esc(supplier?.name)} - ${esc(inv.invoiceNumber)} (متبقي: ${fmtMoney(inv.remainingAmount)})</option>`;
+                }).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>مبلغ الدفعة *</label>
+            <input type="number" id="paymentAmount" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>ملاحظات</label>
+            <textarea id="paymentNotes" placeholder="ملاحظات" style="min-height: 60px;"></textarea>
+          </div>
+          <button class="btn btn-amber btn-block" id="addPaymentBtn">${icon('add')} إضافة دفعة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>سجل الدفعات (${this.supplierPayments.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الفاتورة</th>
+                  <th>المبلغ</th>
+                  <th>التاريخ</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.supplierPayments.map(pay => {
+                  const invoice = this.supplierInvoices.find(i => i.id === pay.supplierInvoiceId);
+                  return `
+                    <tr>
+                      <td>${esc(invoice?.invoiceNumber || '-')}</td>
+                      <td class="num">${fmtMoney(pay.paymentAmount)}</td>
+                      <td>${fmtDate(pay.paymentDate)}</td>
+                      <td>
+                        <div class="action-cell">
+                          <button class="btn btn-xs btn-danger" data-delete-payment="${pay.id}">${icon('delete')}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('') || '<tr><td colspan="4" class="text-center">لا توجد دفعات</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderSupplierSummaryView() {
+    const summaryData = this.suppliers.map(supplier => {
+      const invoices = this.supplierInvoices.filter(i => i.supplierId === supplier.id);
+      const totalInvoiced = invoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
+      const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
+      const totalRemaining = invoices.reduce((s, i) => s + (i.remainingAmount || 0), 0);
+      
+      return { supplier, totalInvoiced, totalPaid, totalRemaining };
+    });
+
+    const grandTotal = summaryData.reduce((s, x) => s + x.totalRemaining, 0);
+
+    return `
       <div class="card">
-        <div class="card-head"><h3>الموردين (${this.suppliers.length})</h3></div>
+        <div class="card-head"><h3>ملخص الموردين والدفعات</h3></div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>الاسم</th>
-                <th>الهاتف</th>
-                <th>البريد</th>
+                <th>المورد</th>
+                <th>الفواتير</th>
+                <th>إجمالي المبلغ</th>
+                <th>المدفوع</th>
+                <th>المتبقي</th>
               </tr>
             </thead>
             <tbody>
-              ${this.suppliers.map(s => `
+              ${summaryData.map(({ supplier, totalInvoiced, totalPaid, totalRemaining }) => `
                 <tr>
-                  <td>${esc(s.name)}</td>
-                  <td>${esc(s.phone || '-')}</td>
-                  <td>${esc(s.email || '-')}</td>
+                  <td>${esc(supplier.name)}</td>
+                  <td class="num">${this.supplierInvoices.filter(i => i.supplierId === supplier.id).length}</td>
+                  <td class="num">${fmtMoney(totalInvoiced)}</td>
+                  <td class="num" style="color: var(--tread-green);">${fmtMoney(totalPaid)}</td>
+                  <td class="num" style="color: ${totalRemaining > 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${fmtMoney(totalRemaining)}</td>
                 </tr>
-              `).join('') || '<tr><td colspan="3" class="text-center">لا توجد موردين</td></tr>'}
+              `).join('')}
+              <tr style="border-top: 2px solid var(--line); font-weight: 700;">
+                <td>الإجمالي</td>
+                <td class="num">${this.supplierInvoices.length}</td>
+                <td class="num">${fmtMoney(summaryData.reduce((s, x) => s + x.totalInvoiced, 0))}</td>
+                <td class="num" style="color: var(--tread-green);">${fmtMoney(summaryData.reduce((s, x) => s + x.totalPaid, 0))}</td>
+                <td class="num" style="color: var(--brake-red);">${fmtMoney(grandTotal)}</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -2897,25 +3502,49 @@ class TireShopApp {
 
   renderTireTypesView() {
     return `
-      <div class="card">
-        <div class="card-head"><h3>أنواع الإطارات (${this.tireTypes.length})</h3></div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>الاسم</th>
-                <th>الوصف</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${this.tireTypes.map(t => `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة نوع إطار</h3></div>
+          <div class="form-group">
+            <label>اسم النوع *</label>
+            <input type="text" id="tireTypeName" placeholder="مثال: ميشلان، دانلوب">
+          </div>
+          <div class="form-group">
+            <label>الوصف</label>
+            <textarea id="tireTypeDescription" placeholder="وصف النوع" style="min-height: 80px;"></textarea>
+          </div>
+          <button class="btn btn-amber btn-block" id="addTireTypeBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>أنواع الإطارات (${this.tireTypes.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td>${esc(t.name)}</td>
-                  <td>${esc(t.description || '-')}</td>
+                  <th>الاسم</th>
+                  <th>الوصف</th>
+                  <th>الإجراءات</th>
                 </tr>
-              `).join('') || '<tr><td colspan="2" class="text-center">لا توجد أنواع</td></tr>'}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${this.tireTypes.map(t => `
+                  <tr>
+                    <td>${esc(t.name)}</td>
+                    <td>${esc((t.description || '-').substring(0, 30))}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-tiretype="${t.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-tiretype="${t.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد أنواع</td></tr>'}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
