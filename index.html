@@ -1576,52 +1576,110 @@ class TireShopApp {
   }
 
   renderDashboard() {
+    // حسابات المبيعات
+    const totalSales = this.sales.reduce((s, x) => s + (x.total || 0), 0);
+    const invoiceCount = this.sales.length;
+    const avgInvoice = invoiceCount > 0 ? totalSales / invoiceCount : 0;
+
+    // حسابات الدفعات حسب الطريقة
+    const cashSales = this.sales
+      .filter(s => s.paymentMethod === 'cash')
+      .reduce((s, x) => s + (x.total || 0), 0);
+    
+    const creditCardSales = this.sales
+      .filter(s => s.paymentMethod === 'creditCard')
+      .reduce((s, x) => s + (x.total || 0), 0);
+    
+    const transferSales = this.sales
+      .filter(s => s.paymentMethod === 'transfer')
+      .reduce((s, x) => s + (x.total || 0), 0);
+
+    // حسابات المصروفات من الموردين
+    const totalSupplierPayments = this.supplierInvoices.reduce((s, x) => s + (x.totalAmount || 0), 0);
+
+    // صافي الربح (المبيعات - المصروفات)
+    const netProfit = totalSales - totalSupplierPayments;
+
     const stats = [
       {
         label: 'إجمالي المبيعات',
-        value: fmtMoney(this.sales.reduce((s, x) => s + (x.total || 0), 0)),
-        type: 'amber'
+        value: fmtMoney(totalSales),
+        type: 'amber',
+        icon: '💰'
       },
       {
-        label: 'عدد العملاء',
-        value: this.customers.length,
-        type: 'blue'
+        label: 'عدد الفواتير',
+        value: invoiceCount,
+        type: 'blue',
+        icon: '📋'
       },
       {
-        label: 'الخدمات',
-        value: this.services.length,
-        type: 'green'
+        label: 'متوسط الفاتورة',
+        value: fmtMoney(avgInvoice),
+        type: 'green',
+        icon: '📊'
       },
       {
-        label: 'إجمالي الفواتير',
-        value: this.sales.length,
-        type: 'info'
+        label: 'المصروفات',
+        value: fmtMoney(totalSupplierPayments),
+        type: 'red',
+        icon: '💸'
       }
     ];
 
     return `
+      <!-- الإحصائيات الرئيسية -->
       <div class="grid-4">
         ${stats.map(s => `
           <div class="stat ${s.type}">
+            <div style="font-size: 24px; margin-bottom: 8px;">${s.icon}</div>
             <h4>${s.label}</h4>
             <p class="v num">${s.value}</p>
           </div>
         `).join('')}
       </div>
 
-      <div class="card mt-16">
-        <div class="card-head">
-          <h3>${t('newSale')}</h3>
-        </div>
-        <div style="text-align: center; padding: 40px 20px;">
-          <button class="btn btn-amber btn-block" id="startNewSaleBtn" style="font-size: 16px; padding: 16px;">
-            ${icon('add')} ${t('newSale')}
-          </button>
+      <!-- صافي الربح -->
+      <div class="card mt-16" style="background: linear-gradient(135deg, #E4F3EA 0%, #fff 100%); border-left: 4px solid var(--tread-green);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h3 style="color: var(--tread-green); margin: 0 0 8px; font-size: 16px;">صافي الربح</h3>
+            <p class="num" style="color: var(--tread-green); font-size: 32px; margin: 0;">${fmtMoney(netProfit)}</p>
+          </div>
+          <div style="font-size: 48px;">📈</div>
         </div>
       </div>
 
+      <!-- تفصيل طرق الدفع -->
+      <div class="grid-3 mt-16">
+        <div class="card">
+          <div class="card-head"><h3>الكاش</h3></div>
+          <div style="text-align: center; padding: 20px 0;">
+            <p class="num" style="color: var(--tread-green); font-size: 24px;">${fmtMoney(cashSales)}</p>
+            <small style="color: var(--text-muted);">${this.sales.filter(s => s.paymentMethod === 'cash').length} فاتورة</small>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>الفيزا</h3></div>
+          <div style="text-align: center; padding: 20px 0;">
+            <p class="num" style="color: var(--info-blue); font-size: 24px;">${fmtMoney(creditCardSales)}</p>
+            <small style="color: var(--text-muted);">${this.sales.filter(s => s.paymentMethod === 'creditCard').length} فاتورة</small>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>التحويل</h3></div>
+          <div style="text-align: center; padding: 20px 0;">
+            <p class="num" style="color: var(--amber-500); font-size: 24px;">${fmtMoney(transferSales)}</p>
+            <small style="color: var(--text-muted);">${this.sales.filter(s => s.paymentMethod === 'transfer').length} فاتورة</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- آخر الفواتير -->
       <div class="card mt-16">
-        <div class="card-head"><h3>آخر الفواتير</h3></div>
+        <div class="card-head"><h3>آخر الفواتير (${this.sales.length})</h3></div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -1629,6 +1687,7 @@ class TireShopApp {
                 <th>رقم الفاتورة</th>
                 <th>العميل</th>
                 <th>المبلغ</th>
+                <th>طريقة الدفع</th>
                 <th>التاريخ</th>
               </tr>
             </thead>
@@ -1638,9 +1697,22 @@ class TireShopApp {
                   <td>${esc(s.invoiceNumber)}</td>
                   <td>${esc(s.customerName)}</td>
                   <td class="num">${fmtMoney(s.total)}</td>
+                  <td>
+                    <span style="
+                      padding: 4px 8px;
+                      border-radius: 4px;
+                      font-size: 12px;
+                      font-weight: 600;
+                      ${s.paymentMethod === 'cash' ? 'background: var(--tread-green-bg); color: var(--tread-green);' : ''}
+                      ${s.paymentMethod === 'creditCard' ? 'background: var(--info-blue-bg); color: var(--info-blue);' : ''}
+                      ${s.paymentMethod === 'transfer' ? 'background: var(--amber-100); color: var(--amber-600);' : ''}
+                    ">
+                      ${s.paymentMethod === 'cash' ? '💵 كاش' : s.paymentMethod === 'creditCard' ? '💳 فيزا' : '🏦 تحويل'}
+                    </span>
+                  </td>
                   <td>${fmtDate(s.createdAt)}</td>
                 </tr>
-              `).join('') || '<tr><td colspan="4" class="text-center">لا توجد</td></tr>'}
+              `).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -2960,9 +3032,7 @@ class TireShopApp {
   }
 
   bindDashboardEvents() {
-    document.getElementById('startNewSaleBtn')?.addEventListener('click', () => {
-      this.startNewSale();
-    });
+    // Dashboard بدون أزرار - معلومات إحصائية فقط
   }
 
   bindSalesWizardEvents() {
