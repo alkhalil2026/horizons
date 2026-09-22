@@ -2234,6 +2234,8 @@ class TireShopApp {
       return true;
     });
   }
+
+  showPaymentModal(invoiceId) {
     const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
     if (!invoice) return;
     
