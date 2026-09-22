@@ -1247,6 +1247,10 @@ const FIELD_MAP = {
     payment_amount: 'paymentAmount',
     payment_date: 'paymentDate'
   },
+  expenses: {
+    expense_type: 'expenseType',
+    expense_date: 'expenseDate'
+  },
 };
 
 function rowFromDb(row, table) {
@@ -1304,6 +1308,7 @@ class TireShopApp {
     this.tireTypes = [];
     this.supplierInvoices = [];
     this.supplierPayments = [];
+    this.expenses = [];
     
     // Sale wizard state
     this.saleWizard = {
@@ -1356,7 +1361,7 @@ class TireShopApp {
     try {
       const tables = [
         'tires', 'services', 'customers', 'appointments', 'sales',
-        'suppliers', 'tire_types', 'supplier_invoices', 'supplier_payments'
+        'suppliers', 'tire_types', 'supplier_invoices', 'supplier_payments', 'expenses'
       ];
 
       for (const table of tables) {
@@ -1596,9 +1601,20 @@ class TireShopApp {
 
     // حسابات المصروفات من الموردين
     const totalSupplierPayments = this.supplierInvoices.reduce((s, x) => s + (x.totalAmount || 0), 0);
+    
+    // حسابات المصروفات اليومية والثابتة
+    const totalDailyExpenses = this.expenses
+      .filter(e => e.expenseType === 'يومية')
+      .reduce((s, x) => s + (x.amount || 0), 0);
+    
+    const totalFixedExpenses = this.expenses
+      .filter(e => e.expenseType === 'ثابتة')
+      .reduce((s, x) => s + (x.amount || 0), 0);
+    
+    const totalAllExpenses = totalSupplierPayments + totalDailyExpenses + totalFixedExpenses;
 
-    // صافي الربح (المبيعات - المصروفات)
-    const netProfit = totalSales - totalSupplierPayments;
+    // صافي الربح (المبيعات - جميع المصروفات)
+    const netProfit = totalSales - totalAllExpenses;
 
     const stats = [
       {
@@ -1620,8 +1636,8 @@ class TireShopApp {
         icon: '📊'
       },
       {
-        label: 'المصروفات',
-        value: fmtMoney(totalSupplierPayments),
+        label: 'إجمالي المصروفات',
+        value: fmtMoney(totalAllExpenses),
         type: 'red',
         icon: '💸'
       }
@@ -1963,6 +1979,7 @@ class TireShopApp {
       ['appointments', t('appointments'), 'appointments'],
       ['sales', t('sales'), 'sales'],
       ['reports', t('reports'), 'reports'],
+      ['expenses', '💸 المصروفات', 'expenses'],
     ];
 
     if (this.currentUser.role === 'manager') {
@@ -2029,6 +2046,7 @@ class TireShopApp {
       appointments: t('appointments'),
       sales: t('sales'),
       reports: t('reports'),
+      expenses: '💸 المصروفات',
       suppliers: t('suppliers'),
       tireTypes: t('tireTypes'),
       supplierInvoices: 'فواتير الموردين',
@@ -2046,6 +2064,7 @@ class TireShopApp {
       tires: () => this.renderTiresView(),
       appointments: () => this.renderAppointmentsView(),
       reports: () => this.renderReportsView(),
+      expenses: () => this.renderExpensesView(),
       suppliers: () => this.renderSuppliersView(),
       tireTypes: () => this.renderTireTypesView(),
       supplierInvoices: () => this.renderSupplierInvoicesView(),
@@ -2633,6 +2652,7 @@ class TireShopApp {
     if (view === 'customers') this.bindCustomersEvents();
     if (view === 'tires') this.bindTiresEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
+    if (view === 'expenses') this.bindExpensesEvents();
     if (view === 'suppliers') this.bindSuppliersEvents();
     if (view === 'tireTypes') this.bindTireTypesEvents();
     if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
@@ -3741,6 +3761,171 @@ class TireShopApp {
         </div>
       </div>
     `;
+  }
+
+  renderExpensesView() {
+    const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
+    
+    // حساب إجمالي المصروفات
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const dailyExpenses = filteredExpenses.filter(e => e.expenseType === 'يومية').reduce((sum, e) => sum + (e.amount || 0), 0);
+    const fixedExpenses = filteredExpenses.filter(e => e.expenseType === 'ثابتة').reduce((sum, e) => sum + (e.amount || 0), 0);
+    
+    // حساب المبيعات
+    const totalSales = this.sales.reduce((sum, s) => s + (s.total || 0), 0);
+    
+    // صافي الربح = المبيعات - المصروفات
+    const netProfit = totalSales - totalExpenses;
+    
+    return `
+      ${this.renderDateFilterBar()}
+      
+      <div class="grid-3">
+        <div class="stat amber">
+          <h4>إجمالي المصروفات</h4>
+          <p class="v num">${fmtMoney(totalExpenses)}</p>
+        </div>
+        <div class="stat blue">
+          <h4>المصروفات اليومية</h4>
+          <p class="v num">${fmtMoney(dailyExpenses)}</p>
+        </div>
+        <div class="stat green">
+          <h4>المصروفات الثابتة</h4>
+          <p class="v num">${fmtMoney(fixedExpenses)}</p>
+        </div>
+      </div>
+
+      <div class="card" style="background: linear-gradient(135deg, #F2A71B 0%, #D6900F 100%); color: white; margin-top: 20px;">
+        <div class="card-head" style="border-bottom-color: rgba(255,255,255,0.2); margin-bottom: 12px;">
+          <h3 style="color: white;">💰 صافي الربح اليومي</h3>
+        </div>
+        <div style="font-size: 32px; font-weight: 800; text-align: center;">
+          ${fmtMoney(netProfit)} ر.ع
+        </div>
+        <div style="font-size: 12px; text-align: center; margin-top: 8px; opacity: 0.9;">
+          المبيعات (${fmtMoney(totalSales)}) - المصروفات (${fmtMoney(totalExpenses)})
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-head">
+          <h3>المصروفات (${filteredExpenses.length})</h3>
+          <button class="btn btn-amber btn-sm" id="addExpenseBtn">➕ إضافة</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>النوع</th>
+                <th>البيان</th>
+                <th>المبلغ</th>
+                <th>التاريخ</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredExpenses.map(e => `
+                <tr>
+                  <td>
+                    <span class="badge ${e.expenseType === 'يومية' ? 'badge-info' : 'badge-warning'}">
+                      ${e.expenseType}
+                    </span>
+                  </td>
+                  <td>${esc(e.description || '-')}</td>
+                  <td class="num">${fmtMoney(e.amount)}</td>
+                  <td>${fmtDate(e.expenseDate)}</td>
+                  <td>
+                    <button class="btn btn-xs btn-danger" data-delete-expense="${e.id}">🗑️ حذف</button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="5" class="text-center">لا توجد مصروفات</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  bindExpensesEvents() {
+    document.getElementById('addExpenseBtn')?.addEventListener('click', () => {
+      this.showAddExpenseModal();
+    });
+
+    document.querySelectorAll('[data-delete-expense]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.deleteExpense;
+        if (confirm('هل تريد حذف هذه المصروفة؟')) {
+          this.deleteRecord('expenses', id).then(() => {
+            this.switchView('expenses');
+          });
+        }
+      });
+    });
+  }
+
+  showAddExpenseModal() {
+    const content = `
+      <div class="form-group">
+        <label>نوع المصروفة *</label>
+        <select id="expenseTypeSelect">
+          <option value="يومية">مصروفة يومية</option>
+          <option value="ثابتة">مصروفة ثابتة</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>البيان *</label>
+        <input type="text" id="expenseDescInput" placeholder="وصف المصروفة" required>
+      </div>
+      <div class="form-group">
+        <label>المبلغ *</label>
+        <input type="number" id="expenseAmountInput" step="0.01" min="0" placeholder="0.00" required>
+      </div>
+      <div class="form-group">
+        <label>التاريخ</label>
+        <input type="date" id="expenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeExpenseModalBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveExpenseBtn">💾 حفظ</button>
+      </div>
+    `;
+
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>إضافة مصروفة</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+
+    document.getElementById('closeExpenseModalBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+
+    document.getElementById('saveExpenseBtn')?.addEventListener('click', () => {
+      const expenseType = document.getElementById('expenseTypeSelect').value;
+      const description = document.getElementById('expenseDescInput').value;
+      const amount = parseFloat(document.getElementById('expenseAmountInput').value) || 0;
+      const expenseDate = document.getElementById('expenseDateInput').value;
+
+      if (!description || !amount) {
+        showToast('أدخل جميع البيانات المطلوبة', 'error');
+        return;
+      }
+
+      this.addRecord('expenses', {
+        expense_type: expenseType,
+        description,
+        amount,
+        expense_date: new Date(expenseDate).toISOString()
+      }).then(() => {
+        overlay.classList.remove('active');
+        this.switchView('expenses');
+      });
+    });
   }
 }
 
