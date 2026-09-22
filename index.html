@@ -3351,7 +3351,8 @@ class TireShopApp {
                 <tr>
                   <th>المورد</th>
                   <th>رقم الفاتورة</th>
-                  <th>المبلغ</th>
+                  <th>المبلغ الكلي</th>
+                  <th>المدفوع</th>
                   <th>المتبقي</th>
                   <th>الإجراءات</th>
                 </tr>
@@ -3359,11 +3360,13 @@ class TireShopApp {
               <tbody>
                 ${this.supplierInvoices.map(inv => {
                   const supplier = this.suppliers.find(s => s.id === inv.supplierId);
+                  const paidAmount = inv.paidAmount || 0;
                   return `
                     <tr>
                       <td>${esc(supplier?.name || '-')}</td>
                       <td>${esc(inv.invoiceNumber)}</td>
                       <td class="num">${fmtMoney(inv.totalAmount)}</td>
+                      <td class="num" style="color: var(--tread-green);">${fmtMoney(paidAmount)}</td>
                       <td class="num" style="color: ${inv.remainingAmount > 0 ? 'var(--brake-red)' : 'var(--tread-green)'}">
                         ${fmtMoney(inv.remainingAmount)}
                       </td>
@@ -3375,7 +3378,7 @@ class TireShopApp {
                       </td>
                     </tr>
                   `;
-                }).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
+                }).join('') || '<tr><td colspan="6" class="text-center">لا توجد فواتير</td></tr>'}
               </tbody>
             </table>
           </div>
