@@ -979,6 +979,22 @@ table tbody tr:hover {
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* Date Filter Styles */
+.card[style*="info-blue-bg"] {
+  background: var(--info-blue-bg) !important;
+  border: 1px solid var(--info-blue);
+}
+
+#applyDateFilterBtn, #clearDateFilterBtn {
+  min-width: 100px;
+}
+
+@media (max-width: 768px) {
+  .card[style*="info-blue-bg"] {
+    padding: 16px;
+  }
+}
 </style>
 </head>
 <body>
@@ -1633,6 +1649,43 @@ class TireShopApp {
   }
 
   renderSalesView() {
+    const filteredSales = this.filterByDate(this.sales, 'createdAt');
+    
+    return `
+      ${this.renderDateFilterBar()}
+      <div class="card">
+        <div class="card-head">
+          <h3>الفواتير (${filteredSales.length})</h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>رقم الفاتورة</th>
+                <th>العميل</th>
+                <th>المبلغ</th>
+                <th>التاريخ</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredSales.map(s => `
+                <tr>
+                  <td>${esc(s.invoiceNumber || '-')}</td>
+                  <td>${esc(s.customerName)}</td>
+                  <td class="num">${fmtMoney(s.total || 0)}</td>
+                  <td>${fmtDate(s.createdAt)}</td>
+                  <td>
+                    <button class="btn btn-xs btn-blue" data-print-invoice="${s.id}">طباعة</button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
     if (this.saleWizard.step === 1) {
       return this.renderWizardStep1();
     } else if (this.saleWizard.step === 2) {
@@ -2096,7 +2149,50 @@ class TireShopApp {
     });
   }
 
-  showPaymentModal(invoiceId) {
+  renderDateFilterBar() {
+    return `
+      <div class="card" style="margin-bottom: 20px; background: var(--info-blue-bg);">
+        <div class="card-head"><h3>🔍 فلتر حسب التاريخ</h3></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+          <div class="form-group">
+            <label>تاريخ محدد</label>
+            <input type="date" id="filterSpecificDate">
+          </div>
+          <div class="form-group">
+            <label>من التاريخ</label>
+            <input type="date" id="filterFromDate">
+          </div>
+          <div class="form-group">
+            <label>إلى التاريخ</label>
+            <input type="date" id="filterToDate">
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end; gap: 8px;">
+            <button class="btn btn-blue" id="applyDateFilterBtn" style="flex: 1;">تطبيق الفلتر</button>
+            <button class="btn btn-ghost" id="clearDateFilterBtn" style="flex: 1;">مسح</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  filterByDate(data, dateField) {
+    const specificDate = document.getElementById('filterSpecificDate')?.value;
+    const fromDate = document.getElementById('filterFromDate')?.value;
+    const toDate = document.getElementById('filterToDate')?.value;
+
+    return data.filter(item => {
+      const itemDate = item[dateField];
+      if (!itemDate) return true;
+
+      const date = new Date(itemDate).toISOString().split('T')[0];
+
+      if (specificDate && date !== specificDate) return false;
+      if (fromDate && date < fromDate) return false;
+      if (toDate && date > toDate) return false;
+
+      return true;
+    });
+  }
     const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
     if (!invoice) return;
     
@@ -2498,6 +2594,18 @@ class TireShopApp {
     if (view === 'tireTypes') this.bindTireTypesEvents();
     if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
     if (view === 'supplierPayments') this.bindSupplierPaymentsEvents();
+
+    // ربط أحداث الفلتر
+    document.getElementById('applyDateFilterBtn')?.addEventListener('click', () => {
+      this.switchView(this.currentView);
+    });
+
+    document.getElementById('clearDateFilterBtn')?.addEventListener('click', () => {
+      document.getElementById('filterSpecificDate').value = '';
+      document.getElementById('filterFromDate').value = '';
+      document.getElementById('filterToDate').value = '';
+      this.switchView(this.currentView);
+    });
   }
 
   bindServicesEvents() {
@@ -2967,7 +3075,10 @@ class TireShopApp {
   }
 
   renderServicesView() {
+    const filteredServices = this.filterByDate(this.services, 'createdAt');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>إضافة خدمة</h3></div>
@@ -2984,7 +3095,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>الخدمات (${this.services.length})</h3>
+            <h3>الخدمات (${filteredServices.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -2992,14 +3103,16 @@ class TireShopApp {
                 <tr>
                   <th>الاسم</th>
                   <th>السعر</th>
+                  <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                ${this.services.map(s => `
+                ${filteredServices.map(s => `
                   <tr>
                     <td>${esc(s.name)}</td>
                     <td class="num">${fmtMoney(s.price)}</td>
+                    <td>${fmtDate(s.createdAt)}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-service="${s.id}">${icon('edit')}</button>
@@ -3007,7 +3120,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد خدمات</td></tr>'}
+                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد خدمات</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3017,7 +3130,10 @@ class TireShopApp {
   }
 
   renderCustomersView() {
+    const filteredCustomers = this.filterByDate(this.customers, 'createdAt');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>إضافة عميل</h3></div>
@@ -3042,7 +3158,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>العملاء (${this.customers.length})</h3>
+            <h3>العملاء (${filteredCustomers.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -3050,14 +3166,16 @@ class TireShopApp {
                 <tr>
                   <th>الاسم</th>
                   <th>الهاتف</th>
+                  <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                ${this.customers.map(c => `
+                ${filteredCustomers.map(c => `
                   <tr>
                     <td>${esc(c.name)}</td>
                     <td>${esc(c.phone || '-')}</td>
+                    <td>${fmtDate(c.createdAt)}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-customer="${c.id}">${icon('edit')}</button>
@@ -3065,7 +3183,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد عملاء</td></tr>'}
+                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد عملاء</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3075,7 +3193,10 @@ class TireShopApp {
   }
 
   renderTiresView() {
+    const filteredTires = this.filterByDate(this.tires, 'createdAt');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>إضافة إطار</h3></div>
@@ -3102,7 +3223,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>الإطارات (${this.tires.length})</h3>
+            <h3>الإطارات (${filteredTires.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -3111,15 +3232,17 @@ class TireShopApp {
                   <th>الاسم</th>
                   <th>الكمية</th>
                   <th>سعر البيع</th>
+                  <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                ${this.tires.map(t => `
+                ${filteredTires.map(t => `
                   <tr>
                     <td>${esc(t.name)}</td>
                     <td class="num">${t.quantity || 0}</td>
                     <td class="num">${fmtMoney(t.sellingPrice)}</td>
+                    <td>${fmtDate(t.createdAt)}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-tire="${t.id}">${icon('edit')}</button>
@@ -3127,7 +3250,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد إطارات</td></tr>'}
+                `).join('') || '<tr><td colspan="5" class="text-center">لا توجد إطارات</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3137,7 +3260,10 @@ class TireShopApp {
   }
 
   renderAppointmentsView() {
+    const filteredAppointments = this.filterByDate(this.appointments, 'createdAt');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>حجز موعد</h3></div>
@@ -3168,7 +3294,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>المواعيد (${this.appointments.length})</h3>
+            <h3>المواعيد (${filteredAppointments.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -3177,15 +3303,17 @@ class TireShopApp {
                   <th>العميل</th>
                   <th>الخدمة</th>
                   <th>الموعد</th>
+                  <th>التاريخ المضاف</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                ${this.appointments.map(a => `
+                ${filteredAppointments.map(a => `
                   <tr>
                     <td>${esc(a.customerName)}</td>
                     <td>${esc(a.serviceName)}</td>
                     <td>${fmtDate(a.appointmentTime)}</td>
+                    <td>${fmtDate(a.createdAt)}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-appointment="${a.id}">${icon('edit')}</button>
@@ -3193,7 +3321,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد مواعيد</td></tr>'}
+                `).join('') || '<tr><td colspan="5" class="text-center">لا توجد مواعيد</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3261,7 +3389,10 @@ class TireShopApp {
   }
 
   renderSuppliersView() {
+    const filteredSuppliers = this.filterByDate(this.suppliers, 'createdAt');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>إضافة مورد</h3></div>
@@ -3286,7 +3417,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>الموردين (${this.suppliers.length})</h3>
+            <h3>الموردين (${filteredSuppliers.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -3294,14 +3425,16 @@ class TireShopApp {
                 <tr>
                   <th>الاسم</th>
                   <th>الهاتف</th>
+                  <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                ${this.suppliers.map(s => `
+                ${filteredSuppliers.map(s => `
                   <tr>
                     <td>${esc(s.name)}</td>
                     <td>${esc(s.phone || '-')}</td>
+                    <td>${fmtDate(s.createdAt)}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-supplier="${s.id}">${icon('edit')}</button>
@@ -3309,7 +3442,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد موردين</td></tr>'}
+                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد موردين</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3319,7 +3452,10 @@ class TireShopApp {
   }
 
   renderSupplierInvoicesView() {
+    const filteredInvoices = this.filterByDate(this.supplierInvoices, 'invoiceDate');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>إضافة فاتورة مورد</h3></div>
@@ -3343,7 +3479,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>فواتير الموردين (${this.supplierInvoices.length})</h3>
+            <h3>فواتير الموردين (${filteredInvoices.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -3354,11 +3490,12 @@ class TireShopApp {
                   <th>المبلغ الكلي</th>
                   <th>المدفوع</th>
                   <th>المتبقي</th>
+                  <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                ${this.supplierInvoices.map(inv => {
+                ${filteredInvoices.map(inv => {
                   const supplier = this.suppliers.find(s => s.id === inv.supplierId);
                   const paidAmount = inv.paidAmount || 0;
                   return `
@@ -3370,6 +3507,7 @@ class TireShopApp {
                       <td class="num" style="color: ${inv.remainingAmount > 0 ? 'var(--brake-red)' : 'var(--tread-green)'}">
                         ${fmtMoney(inv.remainingAmount)}
                       </td>
+                      <td>${fmtDate(inv.invoiceDate)}</td>
                       <td>
                         <div class="action-cell">
                           <button class="btn btn-xs btn-blue" data-pay-invoice="${inv.id}">دفع</button>
@@ -3378,7 +3516,7 @@ class TireShopApp {
                       </td>
                     </tr>
                   `;
-                }).join('') || '<tr><td colspan="6" class="text-center">لا توجد فواتير</td></tr>'}
+                }).join('') || '<tr><td colspan="7" class="text-center">لا توجد فواتير</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3388,7 +3526,10 @@ class TireShopApp {
   }
 
   renderSupplierPaymentsView() {
+    const filteredPayments = this.filterByDate(this.supplierPayments, 'paymentDate');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>إضافة دفعة</h3></div>
@@ -3417,7 +3558,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>سجل الدفعات (${this.supplierPayments.length})</h3>
+            <h3>سجل الدفعات (${filteredPayments.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -3430,7 +3571,7 @@ class TireShopApp {
                 </tr>
               </thead>
               <tbody>
-                ${this.supplierPayments.map(pay => {
+                ${filteredPayments.map(pay => {
                   const invoice = this.supplierInvoices.find(i => i.id === pay.supplierInvoiceId);
                   return `
                     <tr>
@@ -3454,8 +3595,10 @@ class TireShopApp {
   }
 
   renderSupplierSummaryView() {
+    const filteredInvoices = this.filterByDate(this.supplierInvoices, 'invoiceDate');
+    
     const summaryData = this.suppliers.map(supplier => {
-      const invoices = this.supplierInvoices.filter(i => i.supplierId === supplier.id);
+      const invoices = filteredInvoices.filter(i => i.supplierId === supplier.id);
       const totalInvoiced = invoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
       const totalPaid = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
       const totalRemaining = invoices.reduce((s, i) => s + (i.remainingAmount || 0), 0);
@@ -3466,6 +3609,7 @@ class TireShopApp {
     const grandTotal = summaryData.reduce((s, x) => s + x.totalRemaining, 0);
 
     return `
+      ${this.renderDateFilterBar()}
       <div class="card">
         <div class="card-head"><h3>ملخص الموردين والدفعات</h3></div>
         <div class="table-wrap">
@@ -3483,7 +3627,7 @@ class TireShopApp {
               ${summaryData.map(({ supplier, totalInvoiced, totalPaid, totalRemaining }) => `
                 <tr>
                   <td>${esc(supplier.name)}</td>
-                  <td class="num">${this.supplierInvoices.filter(i => i.supplierId === supplier.id).length}</td>
+                  <td class="num">${filteredInvoices.filter(i => i.supplierId === supplier.id).length}</td>
                   <td class="num">${fmtMoney(totalInvoiced)}</td>
                   <td class="num" style="color: var(--tread-green);">${fmtMoney(totalPaid)}</td>
                   <td class="num" style="color: ${totalRemaining > 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${fmtMoney(totalRemaining)}</td>
@@ -3491,7 +3635,7 @@ class TireShopApp {
               `).join('')}
               <tr style="border-top: 2px solid var(--line); font-weight: 700;">
                 <td>الإجمالي</td>
-                <td class="num">${this.supplierInvoices.length}</td>
+                <td class="num">${filteredInvoices.length}</td>
                 <td class="num">${fmtMoney(summaryData.reduce((s, x) => s + x.totalInvoiced, 0))}</td>
                 <td class="num" style="color: var(--tread-green);">${fmtMoney(summaryData.reduce((s, x) => s + x.totalPaid, 0))}</td>
                 <td class="num" style="color: var(--brake-red);">${fmtMoney(grandTotal)}</td>
@@ -3504,7 +3648,10 @@ class TireShopApp {
   }
 
   renderTireTypesView() {
+    const filteredTireTypes = this.filterByDate(this.tireTypes, 'createdAt');
+    
     return `
+      ${this.renderDateFilterBar()}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>إضافة نوع إطار</h3></div>
@@ -3521,7 +3668,7 @@ class TireShopApp {
 
         <div class="card">
           <div class="card-head">
-            <h3>أنواع الإطارات (${this.tireTypes.length})</h3>
+            <h3>أنواع الإطارات (${filteredTireTypes.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -3529,14 +3676,16 @@ class TireShopApp {
                 <tr>
                   <th>الاسم</th>
                   <th>الوصف</th>
+                  <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                ${this.tireTypes.map(t => `
+                ${filteredTireTypes.map(t => `
                   <tr>
                     <td>${esc(t.name)}</td>
                     <td>${esc((t.description || '-').substring(0, 30))}</td>
+                    <td>${fmtDate(t.createdAt)}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-tiretype="${t.id}">${icon('edit')}</button>
@@ -3544,7 +3693,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد أنواع</td></tr>'}
+                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد أنواع</td></tr>'}
               </tbody>
             </table>
           </div>
