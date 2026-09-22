@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
 <title>ورشتي - نظام إدارة محل الإطارات</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -43,6 +43,14 @@
 html, body {
   height: 100%;
   width: 100%;
+  box-sizing: border-box;
+}
+
+html {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 body {
@@ -311,11 +319,185 @@ input, select, textarea {
   .sidebar { width: 220px; }
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    width: 280px;
+  }
+  
+  .sidebar.active {
+    transform: translateX(0);
+  }
+  
+  .shell {
+    position: relative;
+  }
+  
+  .main {
+    margin-right: 0;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+    padding: 12px;
+  }
+  
+  .side-link {
+    height: 80px;
+  }
+  
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    font-size: 16px;
+  }
+}
+
 @media (max-width: 600px) {
-  .shell { flex-direction: column; }
-  .sidebar { width: 100%; height: auto; }
-  .main { padding: 16px; }
-  .page-title { font-size: 24px; }
+  .shell { 
+    flex-direction: column; 
+    min-height: auto;
+  }
+  
+  .sidebar { 
+    width: 100%; 
+    height: auto; 
+    position: relative !important;
+    transform: none !important;
+    border-bottom: 1px solid var(--line);
+  }
+  
+  .sidebar.active {
+    transform: none !important;
+  }
+  
+  .side-nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .side-link {
+    padding: 10px 8px;
+    font-size: 12px;
+    flex-direction: column;
+    text-align: center;
+    gap: 4px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .side-link svg {
+    font-size: 20px;
+  }
+  
+  .side-link.active::before {
+    display: none;
+  }
+  
+  .side-foot {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px;
+  }
+  
+  .user-chip {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+  
+  .lang-btn, .logout-btn {
+    margin-bottom: 0;
+    padding: 8px;
+    font-size: 12px;
+  }
+  
+  .main { 
+    padding: 12px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+  
+  .page-title { 
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+  
+  .card {
+    margin-bottom: 12px;
+  }
+  
+  .card-head {
+    padding: 12px;
+  }
+  
+  .card-head h3 {
+    font-size: 16px;
+  }
+  
+  .table-wrap {
+    font-size: 12px;
+  }
+  
+  .btn {
+    padding: 10px 12px;
+    font-size: 14px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .btn-sm {
+    padding: 8px 10px;
+    min-height: 36px;
+    font-size: 12px;
+  }
+  
+  .grid-2, .grid-3, .grid-4 { 
+    grid-template-columns: 1fr; 
+    gap: 12px;
+  }
+  
+  .stat {
+    padding: 12px;
+  }
+  
+  .stat h4 {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  
+  .stat .v {
+    font-size: 22px;
+  }
+  
+  .form-group {
+    margin-bottom: 12px;
+  }
+  
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    font-size: 16px !important;
+    padding: 10px !important;
+  }
+  
+  .divider {
+    margin: 16px 0;
+  }
 }
 
 .form-group {
@@ -349,6 +531,23 @@ input, select, textarea {
   outline: none;
   border-color: var(--amber-500);
   box-shadow: 0 0 0 3px var(--amber-100);
+}
+
+@media (max-width: 600px) {
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    font-size: 16px !important;
+    padding: 12px;
+    border-radius: 6px;
+    min-height: 44px;
+  }
+  
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    box-shadow: 0 0 0 4px var(--amber-100);
+  }
 }
 
 .btn {
@@ -458,6 +657,27 @@ input, select, textarea {
   cursor: not-allowed;
 }
 
+@media (max-width: 600px) {
+  .btn {
+    padding: 12px 16px;
+    min-height: 44px;
+    font-size: 15px;
+    border-radius: 6px;
+  }
+  
+  .btn-sm {
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+  
+  .btn-xs {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-height: 32px;
+  }
+}
+
 .btn-group {
   display: flex;
   gap: 6px;
@@ -532,6 +752,43 @@ input, select, textarea {
   box-shadow: 0 10px 40px rgba(0,0,0,0.2);
 }
 
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 12px;
+  }
+  
+  .modal-box {
+    padding: 16px;
+    border-radius: 12px;
+    max-height: 90vh;
+  }
+  
+  .modal-head {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+  }
+  
+  .modal-head h3 {
+    font-size: 18px;
+  }
+  
+  .modal-close {
+    font-size: 28px;
+  }
+  
+  .modal-footer {
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .modal-footer .btn {
+    flex: 1;
+    min-width: 100px;
+  }
+}
+
 .modal-head {
   display: flex;
   justify-content: space-between;
@@ -566,12 +823,14 @@ input, select, textarea {
 
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  min-width: 400px;
 }
 
 table thead {
@@ -593,6 +852,22 @@ table td {
 
 table tbody tr:hover {
   background: var(--concrete-100);
+}
+
+@media (max-width: 600px) {
+  table {
+    font-size: 11px;
+    min-width: 100%;
+  }
+  
+  table th,
+  table td {
+    padding: 8px;
+  }
+  
+  table th {
+    font-size: 11px;
+  }
 }
 
 .stat {
@@ -1590,39 +1865,66 @@ class TireShopApp {
 
   renderLoginView() {
     return `
-      <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--concrete-100);">
-        <div class="card" style="max-width: 360px; width: 100%;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <div style="font-size: 48px; margin-bottom: 16px;">🏪</div>
-            <h1 style="font-size: 24px; font-weight: 800; margin: 0;">ورشتي</h1>
-            <p style="color: var(--text-muted); margin-top: 8px;">نظام إدارة محل الإطارات</p>
+      <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #E4F3EA 0%, #f5f5f5 100%); padding: 16px;">
+        <div class="card" style="max-width: 400px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+          <!-- رأس الصفحة -->
+          <div style="text-align: center; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 2px solid var(--line);">
+            <div style="font-size: 56px; margin-bottom: 16px; animation: bounce 2s infinite;">🏪</div>
+            <h1 style="font-size: 28px; font-weight: 800; margin: 0; color: var(--text-900);">ورشتي</h1>
+            <p style="color: var(--text-600); margin-top: 8px; font-size: 14px;">نظام إدارة محل الإطارات الشامل</p>
           </div>
 
-          <div class="form-group">
-            <button class="btn btn-amber btn-block" id="adminLoginBtn">👤 دخول مدير</button>
-          </div>
-          <div class="form-group">
-            <button class="btn btn-blue btn-block" id="empLoginBtn">👔 دخول موظف</button>
+          <!-- أزرار الدخول السريع -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+            <button class="btn btn-amber btn-block" id="adminLoginBtn" style="padding: 14px; font-size: 14px; height: auto; border-radius: 8px;">
+              <div style="font-size: 28px; margin-bottom: 6px;">👤</div>
+              <div style="font-weight: 600;">مدير</div>
+            </button>
+            <button class="btn btn-blue btn-block" id="empLoginBtn" style="padding: 14px; font-size: 14px; height: auto; border-radius: 8px;">
+              <div style="font-size: 28px; margin-bottom: 6px;">👔</div>
+              <div style="font-weight: 600;">موظف</div>
+            </button>
           </div>
 
           <div class="divider"></div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group" style="margin: 0;">
-              <label>المستخدم</label>
-              <input type="text" id="username" placeholder="admin" value="admin">
+          <!-- حقول الإدخال -->
+          <div style="margin-bottom: 20px;">
+            <div class="form-group">
+              <label style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                <span>👤 المستخدم</span>
+              </label>
+              <input type="text" id="username" placeholder="أدخل المستخدم" value="admin" style="font-size: 16px; padding: 12px;">
             </div>
-            <div class="form-group" style="margin: 0;">
-              <label>كلمة المرور</label>
-              <input type="password" id="password" placeholder="password" value="admin123">
+
+            <div class="form-group">
+              <label style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                <span>🔐 كلمة المرور</span>
+              </label>
+              <input type="password" id="password" placeholder="أدخل كلمة المرور" value="admin123" style="font-size: 16px; padding: 12px;">
             </div>
           </div>
 
-          <div class="form-group mt-16">
-            <button class="btn btn-green btn-block" id="doLoginBtn">✅ تسجيل الدخول</button>
+          <!-- زر الدخول الرئيسي -->
+          <button class="btn btn-green btn-block" id="doLoginBtn" style="padding: 14px; font-size: 16px; font-weight: 600; height: auto; border-radius: 8px; margin-bottom: 16px;">
+            ✅ تسجيل الدخول
+          </button>
+
+          <!-- معلومات الدخول التجريبي -->
+          <div style="background: #f0f8ff; padding: 12px; border-radius: 6px; border-right: 4px solid var(--info-blue); font-size: 12px; color: var(--text-700);">
+            <div style="font-weight: 600; margin-bottom: 6px;">🔑 معلومات التجربة:</div>
+            <div style="margin-bottom: 4px;">👤 <strong>مدير:</strong> admin / admin123</div>
+            <div>👔 <strong>موظف:</strong> employee / emp123</div>
           </div>
         </div>
       </div>
+
+      <style>
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+      </style>
     `;
   }
 
