@@ -791,6 +791,194 @@ table tbody tr:hover {
   gap: 6px;
   flex-wrap: wrap;
 }
+
+/* Wizard Steps */
+.wizard-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.wizard-step {
+  display: none;
+}
+
+.wizard-step.active {
+  display: block;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.wizard-progress {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  justify-content: center;
+}
+
+.progress-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: all 0.3s;
+}
+
+.progress-dot.active {
+  background: var(--amber-500);
+  transform: scale(1.2);
+}
+
+.progress-dot.done {
+  background: var(--tread-green);
+}
+
+/* Service Grid */
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.service-card {
+  padding: 16px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  background: #fff;
+}
+
+.service-card:hover {
+  border-color: var(--amber-500);
+  box-shadow: 0 4px 12px rgba(242,167,27,0.1);
+}
+
+.service-card.selected {
+  border-color: var(--amber-500);
+  background: var(--amber-100);
+}
+
+.service-card h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.service-card .price {
+  font-size: 12px;
+  color: var(--tread-green);
+  font-weight: 600;
+}
+
+/* Quantity Selector */
+.quantity-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.qty-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.qty-btn:hover {
+  background: var(--amber-100);
+  border-color: var(--amber-500);
+}
+
+.qty-display {
+  font-size: 24px;
+  font-weight: 800;
+  min-width: 60px;
+  text-align: center;
+}
+
+.qty-input {
+  width: 100px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 16px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Summary Box */
+.summary-box {
+  background: var(--concrete-100);
+  padding: 16px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.summary-row.total {
+  font-size: 16px;
+  font-weight: 700;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin: 8px 0;
+}
+
+/* Warranty Options */
+.warranty-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.warranty-option {
+  padding: 14px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  background: #fff;
+}
+
+.warranty-option:hover {
+  border-color: var(--amber-500);
+}
+
+.warranty-option.selected {
+  border-color: var(--amber-500);
+  background: var(--amber-100);
+}
+
+.warranty-option h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.warranty-option p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
 </style>
 </head>
 <body>
@@ -845,6 +1033,28 @@ const i18n = {
     error: 'حدث خطأ',
     deleted: 'تم الحذف',
     updated: 'تم التحديث بنجاح',
+    newSale: 'فاتورة جديدة',
+    selectService: 'اختر الخدمة',
+    selectQuantity: 'اختر العدد',
+    selectWarranty: 'اختر الضمان',
+    selectPayment: 'اختر طريقة الدفع',
+    customerInfo: 'بيانات العميل',
+    noWarranty: 'بدون ضمان',
+    warranty3M: 'ضمان 3 أشهر',
+    warranty6M: 'ضمان 6 أشهر',
+    warranty12M: 'ضمان سنة',
+    saveSale: 'حفظ الفاتورة',
+    sendWhatsapp: 'إرسال عن طريق واتساب',
+    invoiceCreated: 'تم إنشاء الفاتورة',
+    step: 'الخطوة',
+    of: 'من',
+    customerName: 'اسم العميل',
+    customerPhone: 'رقم الهاتف',
+    paymentMethod: 'طريقة الدفع',
+    cash: 'نقداً',
+    card: 'بطاقة',
+    check: 'شيك',
+    transfer: 'تحويل',
   },
   en: {
     dashboard: 'Dashboard',
@@ -872,6 +1082,28 @@ const i18n = {
     error: 'An error occurred',
     deleted: 'Deleted',
     updated: 'Updated successfully',
+    newSale: 'New Invoice',
+    selectService: 'Select Service',
+    selectQuantity: 'Select Quantity',
+    selectWarranty: 'Select Warranty',
+    selectPayment: 'Select Payment Method',
+    customerInfo: 'Customer Info',
+    noWarranty: 'No Warranty',
+    warranty3M: '3 Months Warranty',
+    warranty6M: '6 Months Warranty',
+    warranty12M: '12 Months Warranty',
+    saveSale: 'Save Invoice',
+    sendWhatsapp: 'Send via WhatsApp',
+    invoiceCreated: 'Invoice Created',
+    step: 'Step',
+    of: 'of',
+    customerName: 'Customer Name',
+    customerPhone: 'Phone Number',
+    paymentMethod: 'Payment Method',
+    cash: 'Cash',
+    card: 'Card',
+    check: 'Check',
+    transfer: 'Transfer',
   }
 };
 
@@ -903,6 +1135,8 @@ const ICONS = {
   phone: '📞',
   email: '📧',
   x: '❌',
+  whatsapp: '💬',
+  warranty: '🛡️',
 };
 
 function icon(name) {
@@ -956,22 +1190,6 @@ function showToast(msg, type = 'success') {
     el.style.transition = 'opacity 0.3s';
     setTimeout(() => el.remove(), 300);
   }, 2600);
-}
-
-function showModal(title, content) {
-  const overlay = document.getElementById('modalOverlay');
-  const box = document.getElementById('modalBox');
-  box.innerHTML = `
-    <div class="modal-head">
-      <h3>${title}</h3>
-      <button class="modal-close" id="closeModalBtn">${icon('x') || '✕'}</button>
-    </div>
-    <div>${content}</div>
-  `;
-  overlay.classList.add('active');
-  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
-    overlay.classList.remove('active');
-  });
 }
 
 function hideModal() {
@@ -1070,6 +1288,17 @@ class TireShopApp {
     this.supplierInvoices = [];
     this.supplierPayments = [];
     
+    // Sale wizard state
+    this.saleWizard = {
+      step: 1,
+      selectedService: null,
+      quantity: 1,
+      warranty: 'noWarranty',
+      paymentMethod: 'cash',
+      customerName: '',
+      customerPhone: '',
+    };
+    
     this.init();
   }
 
@@ -1163,61 +1392,6 @@ class TireShopApp {
     }
   }
 
-  async updateRecord(table, id, data) {
-    if (!this.sb) {
-      const idx = this[table].findIndex(x => x.id === id);
-      if (idx > -1) {
-        this[table][idx] = { ...this[table][idx], ...data };
-      }
-      return true;
-    }
-
-    try {
-      const dbData = rowToDb(data, table);
-      const { error } = await this.sb.from(table).update(dbData).eq('id', id);
-      
-      if (error) {
-        console.error(`Error updating ${table}:`, error);
-        showToast(t('error'), 'error');
-        return false;
-      }
-
-      await this.loadAllData();
-      showToast(t('updated'), 'success');
-      return true;
-    } catch (e) {
-      console.error('Update record error:', e);
-      showToast(t('error'), 'error');
-      return false;
-    }
-  }
-
-  async deleteRecord(table, id) {
-    if (!this.sb) {
-      const idx = this[table].findIndex(x => x.id === id);
-      if (idx > -1) {
-        this[table].splice(idx, 1);
-      }
-      return true;
-    }
-
-    try {
-      const { error } = await this.sb.from(table).delete().eq('id', id);
-      
-      if (error) {
-        console.error(`Error deleting from ${table}:`, error);
-        return false;
-      }
-
-      await this.loadAllData();
-      showToast(t('deleted'), 'success');
-      return true;
-    } catch (e) {
-      console.error('Delete record error:', e);
-      return false;
-    }
-  }
-
   login(username, password, role) {
     const creds = {
       manager: { u: 'admin', p: 'admin123', name: 'المدير' },
@@ -1243,291 +1417,105 @@ class TireShopApp {
     this.render();
   }
 
-  // ===== MODAL FORMS =====
+  // ===== SALES WIZARD =====
 
-  showEditServiceModal(service) {
-    const content = `
-      <div class="form-group">
-        <label>الاسم *</label>
-        <input type="text" id="editServiceName" value="${esc(service.name)}">
-      </div>
-      <div class="form-group">
-        <label>السعر *</label>
-        <input type="number" id="editServicePrice" step="0.01" value="${service.price}">
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
-        <button class="btn btn-amber" id="saveEditServiceBtn">${t('save')}</button>
-      </div>
-    `;
-    showModal(`${t('edit')} - ${esc(service.name)}`, content);
-    
-    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
-    document.getElementById('saveEditServiceBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editServiceName').value.trim();
-      const price = parseFloat(document.getElementById('editServicePrice').value) || 0;
-      
-      if (!name || !price) {
-        showToast(t('error'), 'error');
-        return;
-      }
+  startNewSale() {
+    this.saleWizard = {
+      step: 1,
+      selectedService: null,
+      quantity: 1,
+      warranty: 'noWarranty',
+      paymentMethod: 'cash',
+      customerName: '',
+      customerPhone: '',
+    };
+    this.switchView('sales');
+  }
 
-      this.updateRecord('services', service.id, { name, price }).then(() => {
-        hideModal();
-        this.switchView('services');
-      });
+  nextWizardStep() {
+    if (this.saleWizard.step < 4) {
+      this.saleWizard.step++;
+      this.switchView('sales');
+    }
+  }
+
+  prevWizardStep() {
+    if (this.saleWizard.step > 1) {
+      this.saleWizard.step--;
+      this.switchView('sales');
+    }
+  }
+
+  saveSale() {
+    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
+    if (!service) {
+      showToast(t('error'), 'error');
+      return;
+    }
+
+    const total = service.price * this.saleWizard.quantity;
+
+    this.addRecord('sales', {
+      invoice_number: 'INV-' + Date.now(),
+      customer_name: this.saleWizard.customerName,
+      customer_phone: this.saleWizard.customerPhone,
+      payment_method: this.saleWizard.paymentMethod,
+      warranty: this.saleWizard.warranty,
+      service_name: service.name,
+      quantity: this.saleWizard.quantity,
+      unit_price: service.price,
+      total: total,
+      subtotal: total
+    }).then(() => {
+      showToast(t('invoiceCreated'), 'success');
+      this.saleWizard = {
+        step: 1,
+        selectedService: null,
+        quantity: 1,
+        warranty: 'noWarranty',
+        paymentMethod: 'cash',
+        customerName: '',
+        customerPhone: '',
+      };
+      setTimeout(() => this.switchView('sales'), 1000);
     });
   }
 
-  showEditCustomerModal(customer) {
-    const content = `
-      <div class="form-group">
-        <label>الاسم *</label>
-        <input type="text" id="editCustomerName" value="${esc(customer.name)}">
-      </div>
-      <div class="form-group">
-        <label>الهاتف</label>
-        <input type="tel" id="editCustomerPhone" value="${esc(customer.phone || '')}">
-      </div>
-      <div class="form-group">
-        <label>البريد الإلكتروني</label>
-        <input type="email" id="editCustomerEmail" value="${esc(customer.email || '')}">
-      </div>
-      <div class="form-group">
-        <label>العنوان</label>
-        <input type="text" id="editCustomerAddress" value="${esc(customer.address || '')}">
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
-        <button class="btn btn-amber" id="saveEditCustomerBtn">${t('save')}</button>
-      </div>
-    `;
-    showModal(`${t('edit')} - ${esc(customer.name)}`, content);
-    
-    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
-    document.getElementById('saveEditCustomerBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editCustomerName').value.trim();
-      
-      if (!name) {
-        showToast(t('error'), 'error');
-        return;
-      }
+  sendWhatsApp() {
+    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
+    if (!service) {
+      showToast(t('error'), 'error');
+      return;
+    }
 
-      this.updateRecord('customers', customer.id, {
-        name,
-        phone: document.getElementById('editCustomerPhone').value,
-        email: document.getElementById('editCustomerEmail').value,
-        address: document.getElementById('editCustomerAddress').value
-      }).then(() => {
-        hideModal();
-        this.switchView('customers');
-      });
-    });
-  }
+    const total = service.price * this.saleWizard.quantity;
+    const invoiceNumber = 'INV-' + Date.now();
 
-  showEditTireModal(tire) {
-    const content = `
-      <div class="form-group">
-        <label>الاسم *</label>
-        <input type="text" id="editTireName" value="${esc(tire.name)}">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>سعر التكلفة</label>
-          <input type="number" id="editTireCostPrice" step="0.01" value="${tire.cost_price || 0}">
-        </div>
-        <div class="form-group">
-          <label>سعر البيع *</label>
-          <input type="number" id="editTireSellingPrice" step="0.01" value="${tire.sellingPrice}">
-        </div>
-      </div>
-      <div class="form-group">
-        <label>الكمية *</label>
-        <input type="number" id="editTireQuantity" step="1" value="${tire.quantity}">
-      </div>
-      <div class="form-group">
-        <label>النوع</label>
-        <select id="editTireTireTypeId">
-          <option value="">اختر</option>
-          ${this.tireTypes.map(t => `<option value="${t.id}" ${tire.tireTypeId === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>المورد</label>
-        <select id="editTireSupplier">
-          <option value="">اختر</option>
-          ${this.suppliers.map(s => `<option value="${s.id}" ${tire.supplierId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
-        <button class="btn btn-amber" id="saveEditTireBtn">${t('save')}</button>
-      </div>
-    `;
-    showModal(`${t('edit')} - ${esc(tire.name)}`, content);
-    
-    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
-    document.getElementById('saveEditTireBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editTireName').value.trim();
-      const sellingPrice = parseFloat(document.getElementById('editTireSellingPrice').value) || 0;
-      const quantity = parseInt(document.getElementById('editTireQuantity').value) || 0;
-      
-      if (!name || !sellingPrice) {
-        showToast(t('error'), 'error');
-        return;
-      }
+    const message = `
+🏪 *${SHOP.name}*
+📋 *فاتورة خدمة*
 
-      this.updateRecord('tires', tire.id, {
-        name,
-        cost_price: parseFloat(document.getElementById('editTireCostPrice').value) || 0,
-        sellingPrice,
-        quantity,
-        tireTypeId: document.getElementById('editTireTireTypeId').value || null,
-        supplierId: document.getElementById('editTireSupplier').value || null
-      }).then(() => {
-        hideModal();
-        this.switchView('tires');
-      });
-    });
-  }
+*رقم الفاتورة:* ${invoiceNumber}
+*اسم العميل:* ${this.saleWizard.customerName}
+*الهاتف:* ${this.saleWizard.customerPhone}
 
-  showEditSupplierModal(supplier) {
-    const content = `
-      <div class="form-group">
-        <label>الاسم *</label>
-        <input type="text" id="editSupplierName" value="${esc(supplier.name)}">
-      </div>
-      <div class="form-group">
-        <label>الهاتف</label>
-        <input type="tel" id="editSupplierPhone" value="${esc(supplier.phone || '')}">
-      </div>
-      <div class="form-group">
-        <label>البريد الإلكتروني</label>
-        <input type="email" id="editSupplierEmail" value="${esc(supplier.email || '')}">
-      </div>
-      <div class="form-group">
-        <label>العنوان</label>
-        <input type="text" id="editSupplierAddress" value="${esc(supplier.address || '')}">
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
-        <button class="btn btn-amber" id="saveEditSupplierBtn">${t('save')}</button>
-      </div>
-    `;
-    showModal(`${t('edit')} - ${esc(supplier.name)}`, content);
-    
-    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
-    document.getElementById('saveEditSupplierBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editSupplierName').value.trim();
-      
-      if (!name) {
-        showToast(t('error'), 'error');
-        return;
-      }
+*الخدمة:* ${service.name}
+*العدد:* ${this.saleWizard.quantity}
+*السعر الواحد:* ${fmtMoney(service.price)}
+*المجموع:* ${fmtMoney(total)}
 
-      this.updateRecord('suppliers', supplier.id, {
-        name,
-        phone: document.getElementById('editSupplierPhone').value,
-        email: document.getElementById('editSupplierEmail').value,
-        address: document.getElementById('editSupplierAddress').value
-      }).then(() => {
-        hideModal();
-        this.switchView('suppliers');
-      });
-    });
-  }
+*الضمان:* ${t(this.saleWizard.warranty)}
+*طريقة الدفع:* ${t(this.saleWizard.paymentMethod)}
 
-  showEditTireTypeModal(tireType) {
-    const content = `
-      <div class="form-group">
-        <label>الاسم *</label>
-        <input type="text" id="editTireTypeName" value="${esc(tireType.name)}">
-      </div>
-      <div class="form-group">
-        <label>الوصف</label>
-        <textarea id="editTireTypeDesc" style="min-height: 80px;">${esc(tireType.description || '')}</textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
-        <button class="btn btn-amber" id="saveEditTireTypeBtn">${t('save')}</button>
-      </div>
-    `;
-    showModal(`${t('edit')} - ${esc(tireType.name)}`, content);
-    
-    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
-    document.getElementById('saveEditTireTypeBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editTireTypeName').value.trim();
-      
-      if (!name) {
-        showToast(t('error'), 'error');
-        return;
-      }
+شكراً لك 🙏
+`;
 
-      this.updateRecord('tire_types', tireType.id, {
-        name,
-        description: document.getElementById('editTireTypeDesc').value
-      }).then(() => {
-        hideModal();
-        this.switchView('tireTypes');
-      });
-    });
-  }
+    const encodedMsg = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/?text=${encodedMsg}`;
+    window.open(whatsappUrl, '_blank');
 
-  showEditAppointmentModal(appointment) {
-    const content = `
-      <div class="form-group">
-        <label>العميل *</label>
-        <select id="editAppointmentCustomerId">
-          <option value="">اختر</option>
-          ${this.customers.map(c => `<option value="${c.id}" ${appointment.customerId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>الخدمة *</label>
-        <select id="editAppointmentServiceName">
-          <option value="">اختر</option>
-          ${this.services.map(s => `<option value="${s.name}" ${appointment.serviceName === s.name ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>التاريخ والوقت *</label>
-        <input type="datetime-local" id="editAppointmentDateTime" value="${appointment.appointmentTime || ''}">
-      </div>
-      <div class="form-group">
-        <label>ملاحظات</label>
-        <textarea id="editAppointmentNotes" style="min-height: 80px;">${esc(appointment.notes || '')}</textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="closeEditBtn">${t('cancel')}</button>
-        <button class="btn btn-amber" id="saveEditAppointmentBtn">${t('save')}</button>
-      </div>
-    `;
-    showModal(`${t('edit')}`, content);
-    
-    document.getElementById('closeEditBtn')?.addEventListener('click', hideModal);
-    document.getElementById('saveEditAppointmentBtn')?.addEventListener('click', () => {
-      const customerId = document.getElementById('editAppointmentCustomerId').value;
-      const serviceName = document.getElementById('editAppointmentServiceName').value;
-      const appointmentTime = document.getElementById('editAppointmentDateTime').value;
-      
-      if (!customerId || !serviceName || !appointmentTime) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      const customerName = this.customers.find(c => c.id === customerId)?.name || '';
-
-      this.updateRecord('appointments', appointment.id, {
-        customer_id: customerId,
-        customer_name: customerName,
-        service_name: serviceName,
-        appointment_time: appointmentTime,
-        notes: document.getElementById('editAppointmentNotes').value
-      }).then(() => {
-        hideModal();
-        this.switchView('appointments');
-      });
-    });
+    // Still save the invoice
+    this.saveSale();
   }
 
   // ===== VIEWS =====
@@ -1583,13 +1571,13 @@ class TireShopApp {
         type: 'blue'
       },
       {
-        label: 'الإطارات المتوفرة',
-        value: this.tires.reduce((s, x) => s + (x.quantity || 0), 0),
+        label: 'الخدمات',
+        value: this.services.length,
         type: 'green'
       },
       {
-        label: 'المواعيد المنتظرة',
-        value: this.appointments.length,
+        label: 'إجمالي الفواتير',
+        value: this.sales.length,
         type: 'info'
       }
     ];
@@ -1604,630 +1592,38 @@ class TireShopApp {
         `).join('')}
       </div>
 
-      <div class="grid-2 mt-16">
-        <div class="card">
-          <div class="card-head"><h3>آخر الفواتير</h3></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>العميل</th>
-                  <th>المبلغ</th>
-                  <th>التاريخ</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.sales.slice(0, 5).map(s => `
-                  <tr>
-                    <td>${esc(s.customerName)}</td>
-                    <td class="num">${fmtMoney(s.total)}</td>
-                    <td>${fmtDate(s.createdAt)}</td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد</td></tr>'}
-              </tbody>
-            </table>
-          </div>
+      <div class="card mt-16">
+        <div class="card-head">
+          <h3>${t('newSale')}</h3>
         </div>
-
-        <div class="card">
-          <div class="card-head"><h3>الخدمات الشهيرة</h3></div>
-          <div style="padding: 16px 0;">
-            ${this.services.slice(0, 5).map(s => `
-              <div style="padding: 10px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between;">
-                <span>${esc(s.name)}</span>
-                <span class="num" style="color: var(--text-muted);">${fmtMoney(s.price)}</span>
-              </div>
-            `).join('') || '<p class="text-center" style="color: var(--text-muted);">لا توجد خدمات</p>'}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderServicesView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>إضافة خدمة</h3></div>
-          <div class="form-group">
-            <label>اسم الخدمة *</label>
-            <input type="text" id="serviceName" placeholder="مثال: بنشر">
-          </div>
-          <div class="form-group">
-            <label>السعر *</label>
-            <input type="number" id="servicePrice" min="0" step="0.01" placeholder="0.00">
-          </div>
-          <button class="btn btn-amber btn-block" id="addServiceBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>الخدمات (${this.services.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>السعر</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.services.map(s => `
-                  <tr>
-                    <td>${esc(s.name)}</td>
-                    <td class="num">${fmtMoney(s.price)}</td>
-                    <td>
-                      <div class="action-cell">
-                        <button class="btn btn-xs btn-blue" data-edit-service="${s.id}">${icon('edit')}</button>
-                        <button class="btn btn-xs btn-danger" data-delete-service="${s.id}">${icon('delete')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد خدمات</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderCustomersView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>إضافة عميل</h3></div>
-          <div class="form-group">
-            <label>اسم العميل *</label>
-            <input type="text" id="customerName" placeholder="اسم العميل">
-          </div>
-          <div class="form-group">
-            <label>رقم الهاتف</label>
-            <input type="tel" id="customerPhone" placeholder="+968 9...">
-          </div>
-          <div class="form-group">
-            <label>البريد الإلكتروني</label>
-            <input type="email" id="customerEmail" placeholder="email@example.com">
-          </div>
-          <div class="form-group">
-            <label>العنوان</label>
-            <input type="text" id="customerAddress" placeholder="العنوان">
-          </div>
-          <button class="btn btn-amber btn-block" id="addCustomerBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>العملاء (${this.customers.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الهاتف</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.customers.map(c => `
-                  <tr>
-                    <td>${esc(c.name)}</td>
-                    <td>${esc(c.phone || '-')}</td>
-                    <td>
-                      <div class="action-cell">
-                        <button class="btn btn-xs btn-blue" data-edit-customer="${c.id}">${icon('edit')}</button>
-                        <button class="btn btn-xs btn-danger" data-delete-customer="${c.id}">${icon('delete')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد عملاء</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderTiresView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>إضافة إطار</h3></div>
-          <div class="form-group">
-            <label>اسم الإطار *</label>
-            <input type="text" id="tireName" placeholder="مثال: ميشلان 16">
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>سعر التكلفة *</label>
-              <input type="number" id="tireCostPrice" min="0" step="0.01" placeholder="0.00">
-            </div>
-            <div class="form-group">
-              <label>سعر البيع *</label>
-              <input type="number" id="tireSellingPrice" min="0" step="0.01" placeholder="0.00">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>الكمية *</label>
-              <input type="number" id="tireQuantity" min="0" step="1" placeholder="0">
-            </div>
-            <div class="form-group">
-              <label>النوع</label>
-              <select id="tireTireTypeId">
-                <option value="">اختر نوع</option>
-                ${this.tireTypes.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>المورد</label>
-            <select id="tireSupplier">
-              <option value="">اختر مورد</option>
-              ${this.suppliers.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
-            </select>
-          </div>
-          <button class="btn btn-amber btn-block" id="addTireBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>الإطارات (${this.tires.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الكمية</th>
-                  <th>سعر البيع</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.tires.map(t => `
-                  <tr>
-                    <td>${esc(t.name)}</td>
-                    <td class="num">${t.quantity || 0}</td>
-                    <td class="num">${fmtMoney(t.sellingPrice)}</td>
-                    <td>
-                      <div class="action-cell">
-                        <button class="btn btn-xs btn-blue" data-edit-tire="${t.id}">${icon('edit')}</button>
-                        <button class="btn btn-xs btn-danger" data-delete-tire="${t.id}">${icon('delete')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد إطارات</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderAppointmentsView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>حجز موعد</h3></div>
-          <div class="form-group">
-            <label>العميل *</label>
-            <select id="appointmentCustomerId">
-              <option value="">اختر عميل</option>
-              ${this.customers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>الخدمة *</label>
-            <select id="appointmentServiceName">
-              <option value="">اختر خدمة</option>
-              ${this.services.map(s => `<option value="${s.name}">${esc(s.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>التاريخ والوقت *</label>
-            <input type="datetime-local" id="appointmentDateTime">
-          </div>
-          <div class="form-group">
-            <label>ملاحظات</label>
-            <textarea id="appointmentNotes" placeholder="ملاحظات" style="min-height: 80px;"></textarea>
-          </div>
-          <button class="btn btn-amber btn-block" id="addAppointmentBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>المواعيد (${this.appointments.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>العميل</th>
-                  <th>الخدمة</th>
-                  <th>الموعد</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.appointments.map(a => `
-                  <tr>
-                    <td>${esc(a.customerName)}</td>
-                    <td>${esc(a.serviceName)}</td>
-                    <td>${fmtDate(a.appointmentTime)}</td>
-                    <td>
-                      <div class="action-cell">
-                        <button class="btn btn-xs btn-blue" data-edit-appointment="${a.id}">${icon('edit')}</button>
-                        <button class="btn btn-xs btn-danger" data-delete-appointment="${a.id}">${icon('delete')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد مواعيد</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderSuppliersView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>مورد جديد</h3></div>
-          <div class="form-group">
-            <label>الاسم *</label>
-            <input type="text" id="supplierName" placeholder="اسم المورد">
-          </div>
-          <div class="form-group">
-            <label>الهاتف</label>
-            <input type="tel" id="supplierPhone" placeholder="+968 9...">
-          </div>
-          <div class="form-group">
-            <label>البريد الإلكتروني</label>
-            <input type="email" id="supplierEmail" placeholder="email@supplier.com">
-          </div>
-          <div class="form-group">
-            <label>العنوان</label>
-            <input type="text" id="supplierAddress" placeholder="العنوان">
-          </div>
-          <button class="btn btn-amber btn-block" id="addSupplierBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>الموردين (${this.suppliers.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الهاتف</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.suppliers.map(s => `
-                  <tr>
-                    <td>${esc(s.name)}</td>
-                    <td>${esc(s.phone || '-')}</td>
-                    <td>
-                      <div class="action-cell">
-                        <button class="btn btn-xs btn-blue" data-edit-supplier="${s.id}">${icon('edit')}</button>
-                        <button class="btn btn-xs btn-danger" data-delete-supplier="${s.id}">${icon('delete')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد موردين</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderTireTypesView() {
-    return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>نوع إطار جديد</h3></div>
-          <div class="form-group">
-            <label>الاسم *</label>
-            <input type="text" id="tireTypeName" placeholder="مثال: سيارة ركوب">
-          </div>
-          <div class="form-group">
-            <label>الوصف</label>
-            <textarea id="tireTypeDesc" placeholder="الوصف" style="min-height: 80px;"></textarea>
-          </div>
-          <button class="btn btn-amber btn-block" id="addTireTypeBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>أنواع الإطارات (${this.tireTypes.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.tireTypes.map(t => `
-                  <tr>
-                    <td>${esc(t.name)}</td>
-                    <td>
-                      <div class="action-cell">
-                        <button class="btn btn-xs btn-blue" data-edit-tiretype="${t.id}">${icon('edit')}</button>
-                        <button class="btn btn-xs btn-danger" data-delete-tiretype="${t.id}">${icon('delete')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="2" class="text-center">لا توجد أنواع</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderDashboard() {
-    const stats = [
-      {
-        label: 'إجمالي المبيعات',
-        value: fmtMoney(this.sales.reduce((s, x) => s + (x.total || 0), 0)),
-        type: 'amber'
-      },
-      {
-        label: 'عدد العملاء',
-        value: this.customers.length,
-        type: 'blue'
-      },
-      {
-        label: 'الإطارات المتوفرة',
-        value: this.tires.reduce((s, x) => s + (x.quantity || 0), 0),
-        type: 'green'
-      },
-      {
-        label: 'المواعيد المنتظرة',
-        value: this.appointments.length,
-        type: 'info'
-      }
-    ];
-
-    return `
-      <div class="grid-4">
-        ${stats.map(s => `
-          <div class="stat ${s.type}">
-            <h4>${s.label}</h4>
-            <p class="v num">${s.value}</p>
-          </div>
-        `).join('')}
-      </div>
-
-      <div class="grid-2 mt-16">
-        <div class="card">
-          <div class="card-head"><h3>آخر الفواتير</h3></div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>العميل</th>
-                  <th>المبلغ</th>
-                  <th>التاريخ</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.sales.slice(0, 5).map(s => `
-                  <tr>
-                    <td>${esc(s.customerName)}</td>
-                    <td class="num">${fmtMoney(s.total)}</td>
-                    <td>${fmtDate(s.createdAt)}</td>
-                  </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h3>الخدمات الشهيرة</h3></div>
-          <div style="padding: 16px 0;">
-            ${this.services.slice(0, 5).map(s => `
-              <div style="padding: 10px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between;">
-                <span>${esc(s.name)}</span>
-                <span class="num" style="color: var(--text-muted);">${fmtMoney(s.price)}</span>
-              </div>
-            `).join('') || '<p class="text-center" style="color: var(--text-muted);">لا توجد خدمات</p>'}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderSalesView() {
-    if (!this.saleItems) this.saleItems = [];
-    
-    return `
-      <div class="card">
-        <div class="card-head"><h3>فاتورة جديدة</h3></div>
-        
-        <div class="grid-2">
-          <div>
-            <div class="form-group">
-              <label>العميل *</label>
-              <select id="saleCustomerId">
-                <option value="">جديد</option>
-                ${this.customers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>اسم العميل *</label>
-              <input type="text" id="saleCustomerName" placeholder="اسم">
-            </div>
-            <div class="form-group">
-              <label>الهاتف</label>
-              <input type="tel" id="saleCustomerPhone" placeholder="+968 9...">
-            </div>
-          </div>
-
-          <div>
-            <div class="form-group">
-              <label>طريقة الدفع *</label>
-              <select id="salePaymentMethod">
-                <option value="cash">نقداً</option>
-                <option value="card">بطاقة</option>
-                <option value="check">شيك</option>
-                <option value="transfer">تحويل</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>نسبة الخصم (%)</label>
-              <input type="number" id="saleDiscountPercent" min="0" max="100" step="0.01" placeholder="0">
-            </div>
-            <div class="form-group">
-              <label>خصم إضافي (المبلغ)</label>
-              <input type="number" id="saleDiscountAmount" min="0" step="0.01" placeholder="0.00">
-            </div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 12px;">المنتجات والخدمات</h4>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>البند</th>
-                  <th>النوع</th>
-                  <th>السعر</th>
-                  <th>الكمية</th>
-                  <th>المجموع</th>
-                  <th>حذف</th>
-                </tr>
-              </thead>
-              <tbody id="saleItemsTable">
-                <tr id="emptyRow"><td colspan="6" class="text-center">لم يتم إضافة بنود بعد</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div>
-            <label>اختر إطار</label>
-            <select id="saleTireSelect">
-              <option value="">اختر إطار</option>
-              ${this.tires.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label>الكمية</label>
-            <input type="number" id="saleTireQty" min="1" value="1" style="width: 100%;">
-          </div>
-          <div style="display: flex; align-items: flex-end;">
-            <button class="btn btn-blue" id="addTireToSaleBtn" style="width: 100%;">${icon('add')} إطار</button>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div>
-            <label>اختر خدمة</label>
-            <select id="saleServiceSelect">
-              <option value="">اختر خدمة</option>
-              ${this.services.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label>الكمية</label>
-            <input type="number" id="saleServiceQty" min="1" value="1" style="width: 100%;">
-          </div>
-          <div style="display: flex; align-items: flex-end;">
-            <button class="btn btn-green" id="addServiceToSaleBtn" style="width: 100%;">${icon('add')} خدمة</button>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="grid-2">
-          <div style="background: var(--concrete-100); padding: 16px; border-radius: 6px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span>المجموع الفرعي:</span>
-              <span class="num" id="saleSubtotal">0.00</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-              <span>الخصم:</span>
-              <span class="num" id="saleTotalDiscount">0.00</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 700;">
-              <span>الإجمالي:</span>
-              <span class="num" id="saleTotal">0.00</span>
-            </div>
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button class="btn btn-amber btn-block" id="saveSaleBtn">${icon('save')} حفظ الفاتورة</button>
-            <button class="btn btn-ghost btn-block" id="resetSaleBtn">إعادة تعيين</button>
-          </div>
+        <div style="text-align: center; padding: 40px 20px;">
+          <button class="btn btn-amber btn-block" id="startNewSaleBtn" style="font-size: 16px; padding: 16px;">
+            ${icon('add')} ${t('newSale')}
+          </button>
         </div>
       </div>
 
       <div class="card mt-16">
-        <div class="card-head"><h3>الفواتير الأخيرة</h3></div>
+        <div class="card-head"><h3>آخر الفواتير</h3></div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>الرقم</th>
+                <th>رقم الفاتورة</th>
                 <th>العميل</th>
                 <th>المبلغ</th>
-                <th>طريقة الدفع</th>
                 <th>التاريخ</th>
               </tr>
             </thead>
             <tbody>
-              ${this.sales.map(s => `
+              ${this.sales.slice(0, 5).map(s => `
                 <tr>
                   <td>${esc(s.invoiceNumber)}</td>
                   <td>${esc(s.customerName)}</td>
                   <td class="num">${fmtMoney(s.total)}</td>
-                  <td>${esc(s.paymentMethod)}</td>
                   <td>${fmtDate(s.createdAt)}</td>
                 </tr>
-              `).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
+              `).join('') || '<tr><td colspan="4" class="text-center">لا توجد</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -2235,85 +1631,218 @@ class TireShopApp {
     `;
   }
 
-  renderReportsView() {
+  renderSalesView() {
+    if (this.saleWizard.step === 1) {
+      return this.renderWizardStep1();
+    } else if (this.saleWizard.step === 2) {
+      return this.renderWizardStep2();
+    } else if (this.saleWizard.step === 3) {
+      return this.renderWizardStep3();
+    } else if (this.saleWizard.step === 4) {
+      return this.renderWizardStep4();
+    }
+  }
+
+  renderWizardStep1() {
     return `
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>ملخص المبيعات</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>إجمالي الفواتير:</span>
-              <span class="num">${this.sales.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>إجمالي المبيعات:</span>
-              <span class="num">${fmtMoney(this.sales.reduce((s, x) => s + (x.total || 0), 0))}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>إجمالي الخصومات:</span>
-              <span class="num">${fmtMoney(this.sales.reduce((s, x) => s + (x.discountTotal || 0), 0))}</span>
-            </div>
-          </div>
+      <div class="wizard-container">
+        <div class="wizard-progress">
+          <div class="progress-dot active"></div>
+          <div class="progress-dot"></div>
+          <div class="progress-dot"></div>
+          <div class="progress-dot"></div>
         </div>
 
         <div class="card">
-          <div class="card-head"><h3>ملخص المخزون</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>عدد الأنواع:</span>
-              <span class="num">${this.tires.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>إجمالي الكمية:</span>
-              <span class="num">${this.tires.reduce((s, t) => s + (t.quantity || 0), 0)}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>قيمة المخزون:</span>
-              <span class="num">${fmtMoney(this.tires.reduce((s, t) => s + (t.sellingPrice * t.quantity || 0), 0))}</span>
-            </div>
+          <div class="card-head">
+            <h3>${t('selectService')}</h3>
           </div>
-        </div>
 
-        <div class="card">
-          <div class="card-head"><h3>ملخص العملاء</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>إجمالي العملاء:</span>
-              <span class="num">${this.customers.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>المواعيد المنتظرة:</span>
-              <span class="num">${this.appointments.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>إجمالي الخدمات:</span>
-              <span class="num">${this.services.length}</span>
-            </div>
+          <div class="service-grid">
+            ${this.services.map(s => `
+              <div class="service-card" data-service-id="${s.id}">
+                <h4>${esc(s.name)}</h4>
+                <p class="price">${fmtMoney(s.price)} ر.ع</p>
+              </div>
+            `).join('') || '<p class="text-center">لا توجد خدمات</p>'}
           </div>
-        </div>
 
-        <div class="card">
-          <div class="card-head"><h3>ملخص الموردين</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>عدد الموردين:</span>
-              <span class="num">${this.suppliers.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>عدد الفواتير:</span>
-              <span class="num">${this.supplierInvoices.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>المتبقي للموردين:</span>
-              <span class="num">${fmtMoney(this.supplierInvoices.reduce((s, x) => s + (x.remainingAmount || 0), 0))}</span>
-            </div>
+          <div class="modal-footer" style="margin-top: 30px;">
+            <button class="btn btn-ghost" id="cancelWizardBtn">${t('cancel')}</button>
+            <button class="btn btn-amber" id="nextStep1Btn" disabled>${t('save')} ✓</button>
           </div>
         </div>
       </div>
     `;
   }
 
-  // ===== RENDERING =====
+  renderWizardStep2() {
+    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
+    if (!service) return '<p>خدمة غير موجودة</p>';
+
+    return `
+      <div class="wizard-container">
+        <div class="wizard-progress">
+          <div class="progress-dot done"></div>
+          <div class="progress-dot active"></div>
+          <div class="progress-dot"></div>
+          <div class="progress-dot"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>${t('selectQuantity')}</h3>
+          </div>
+
+          <div style="text-align: center; margin: 40px 0;">
+            <h2 style="margin-bottom: 20px; color: var(--text-muted);">${esc(service.name)}</h2>
+            
+            <div class="quantity-selector">
+              <button class="qty-btn" id="qtyMinus">−</button>
+              <div class="qty-display" id="qtyDisplay">${this.saleWizard.quantity}</div>
+              <button class="qty-btn" id="qtyPlus">+</button>
+            </div>
+
+            <div style="margin-top: 20px;">
+              <label style="display: block; margin-bottom: 8px;">أو أدخل العدد مباشرة:</label>
+              <input type="number" class="qty-input" id="qtyInput" min="1" value="${this.saleWizard.quantity}">
+            </div>
+          </div>
+
+          <div class="summary-box">
+            <div class="summary-row">
+              <span>السعر الواحد:</span>
+              <span class="num">${fmtMoney(service.price)}</span>
+            </div>
+            <div class="summary-row total">
+              <span>المجموع:</span>
+              <span class="num">${fmtMoney(service.price * this.saleWizard.quantity)}</span>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-ghost" id="prevStep2Btn">${t('cancel')}</button>
+            <button class="btn btn-amber" id="nextStep2Btn">${t('save')} ✓</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderWizardStep3() {
+    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
+    if (!service) return '<p>خدمة غير موجودة</p>';
+
+    return `
+      <div class="wizard-container">
+        <div class="wizard-progress">
+          <div class="progress-dot done"></div>
+          <div class="progress-dot done"></div>
+          <div class="progress-dot active"></div>
+          <div class="progress-dot"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>اختر الضمان وطريقة الدفع</h3>
+          </div>
+
+          <h4 style="margin: 20px 0 12px; font-weight: 700;">الضمان:</h4>
+          <div class="warranty-grid">
+            <div class="warranty-option" data-warranty="noWarranty">
+              <h4>${t('noWarranty')}</h4>
+              <p>بدون ضمان</p>
+            </div>
+            <div class="warranty-option" data-warranty="warranty3M">
+              <h4>${t('warranty3M')}</h4>
+              <p>3 أشهر</p>
+            </div>
+            <div class="warranty-option" data-warranty="warranty6M">
+              <h4>${t('warranty6M')}</h4>
+              <p>6 أشهر</p>
+            </div>
+            <div class="warranty-option" data-warranty="warranty12M">
+              <h4>${t('warranty12M')}</h4>
+              <p>سنة كاملة</p>
+            </div>
+          </div>
+
+          <h4 style="margin: 24px 0 12px; font-weight: 700;">طريقة الدفع:</h4>
+          <div class="form-group">
+            <select id="paymentMethodSelect">
+              <option value="cash">${t('cash')}</option>
+              <option value="card">${t('card')}</option>
+              <option value="check">${t('check')}</option>
+              <option value="transfer">${t('transfer')}</option>
+            </select>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-ghost" id="prevStep3Btn">${t('cancel')}</button>
+            <button class="btn btn-amber" id="nextStep3Btn">${t('save')} ✓</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderWizardStep4() {
+    return `
+      <div class="wizard-container">
+        <div class="wizard-progress">
+          <div class="progress-dot done"></div>
+          <div class="progress-dot done"></div>
+          <div class="progress-dot done"></div>
+          <div class="progress-dot active"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>${t('customerInfo')}</h3>
+          </div>
+
+          <div class="form-group">
+            <label>${t('customerName')} *</label>
+            <input type="text" id="customerNameInput" value="${esc(this.saleWizard.customerName)}" placeholder="اسم العميل">
+          </div>
+
+          <div class="form-group">
+            <label>${t('customerPhone')} *</label>
+            <input type="tel" id="customerPhoneInput" value="${esc(this.saleWizard.customerPhone)}" placeholder="+968 9...">
+          </div>
+
+          <div class="summary-box">
+            <div class="summary-row">
+              <span>الخدمة:</span>
+              <span>${esc(this.services.find(s => s.id === this.saleWizard.selectedService)?.name)}</span>
+            </div>
+            <div class="summary-row">
+              <span>العدد:</span>
+              <span class="num">${this.saleWizard.quantity}</span>
+            </div>
+            <div class="summary-row">
+              <span>الضمان:</span>
+              <span>${t(this.saleWizard.warranty)}</span>
+            </div>
+            <div class="summary-row">
+              <span>طريقة الدفع:</span>
+              <span>${t(this.saleWizard.paymentMethod)}</span>
+            </div>
+            <div class="summary-row total">
+              <span>الإجمالي:</span>
+              <span class="num">${fmtMoney(this.services.find(s => s.id === this.saleWizard.selectedService)?.price * this.saleWizard.quantity)}</span>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-ghost" id="prevStep4Btn">${t('cancel')}</button>
+            <button class="btn btn-blue" id="saveInvoiceBtn" style="flex: 1;">${icon('save')} ${t('saveSale')}</button>
+            <button class="btn btn-green" id="sendWhatsappBtn" style="flex: 1;">${icon('whatsapp')} ${t('sendWhatsapp')}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   render() {
     const app = document.getElementById('app');
@@ -2404,19 +1933,17 @@ class TireShopApp {
       reports: t('reports'),
       suppliers: t('suppliers'),
       tireTypes: t('tireTypes'),
-      supplierInvoices: t('supplierInvoices'),
-      supplierPayments: t('supplierPayments'),
     };
     
     document.getElementById('pageTitle').textContent = titles[view] || 'صفحة';
 
     const renderers = {
       dashboard: () => this.renderDashboard(),
-      tires: () => this.renderTiresView(),
+      sales: () => this.renderSalesView(),
       services: () => this.renderServicesView(),
       customers: () => this.renderCustomersView(),
+      tires: () => this.renderTiresView(),
       appointments: () => this.renderAppointmentsView(),
-      sales: () => this.renderSalesView(),
       reports: () => this.renderReportsView(),
       suppliers: () => this.renderSuppliersView(),
       tireTypes: () => this.renderTireTypesView(),
@@ -2461,451 +1988,168 @@ class TireShopApp {
       this.render();
     });
 
-    if (view === 'services') this.bindServicesEvents();
-    if (view === 'customers') this.bindCustomersEvents();
-    if (view === 'tires') this.bindTiresEvents();
-    if (view === 'appointments') this.bindAppointmentsEvents();
-    if (view === 'sales') this.bindSalesEvents();
-    if (view === 'suppliers') this.bindSuppliersEvents();
-    if (view === 'tireTypes') this.bindTireTypesEvents();
-
     document.querySelectorAll('.side-link').forEach(link => {
       link.addEventListener('click', (e) => {
         const view = e.currentTarget.dataset.view;
         if (view) this.switchView(view);
       });
     });
+
+    if (view === 'dashboard') this.bindDashboardEvents();
+    if (view === 'sales') this.bindSalesWizardEvents();
+    if (view === 'services') this.bindServicesEvents();
+    if (view === 'customers') this.bindCustomersEvents();
+    if (view === 'tires') this.bindTiresEvents();
+    if (view === 'appointments') this.bindAppointmentsEvents();
   }
 
-  bindServicesEvents() {
-    document.getElementById('addServiceBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('serviceName').value.trim();
-      const price = parseFloat(document.getElementById('servicePrice').value) || 0;
-
-      if (!name || !price) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      this.addRecord('services', { name, price }).then(() => {
-        document.getElementById('serviceName').value = '';
-        document.getElementById('servicePrice').value = '';
-        this.switchView('services');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-service]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const service = this.services.find(s => s.id === btn.dataset.editService);
-        if (service) this.showEditServiceModal(service);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-service]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف؟')) {
-          this.deleteRecord('services', btn.dataset.deleteService).then(() => {
-            this.switchView('services');
-          });
-        }
-      });
+  bindDashboardEvents() {
+    document.getElementById('startNewSaleBtn')?.addEventListener('click', () => {
+      this.startNewSale();
     });
   }
 
-  bindCustomersEvents() {
-    document.getElementById('addCustomerBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('customerName').value.trim();
-
-      if (!name) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      this.addRecord('customers', {
-        name,
-        phone: document.getElementById('customerPhone').value,
-        email: document.getElementById('customerEmail').value,
-        address: document.getElementById('customerAddress').value
-      }).then(() => {
-        document.getElementById('customerName').value = '';
-        document.getElementById('customerPhone').value = '';
-        document.getElementById('customerEmail').value = '';
-        document.getElementById('customerAddress').value = '';
-        this.switchView('customers');
+  bindSalesWizardEvents() {
+    // Step 1: Service Selection
+    if (this.saleWizard.step === 1) {
+      document.querySelectorAll('.service-card').forEach(card => {
+        card.addEventListener('click', () => {
+          document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          this.saleWizard.selectedService = card.dataset.serviceId;
+          document.getElementById('nextStep1Btn').disabled = false;
+        });
       });
-    });
 
-    document.querySelectorAll('[data-edit-customer]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const customer = this.customers.find(c => c.id === btn.dataset.editCustomer);
-        if (customer) this.showEditCustomerModal(customer);
+      document.getElementById('nextStep1Btn')?.addEventListener('click', () => {
+        this.nextWizardStep();
       });
-    });
-
-    document.querySelectorAll('[data-delete-customer]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف؟')) {
-          this.deleteRecord('customers', btn.dataset.deleteCustomer).then(() => {
-            this.switchView('customers');
-          });
-        }
-      });
-    });
-  }
-
-  bindTiresEvents() {
-    document.getElementById('addTireBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('tireName').value.trim();
-      const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
-      const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
-      const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
-      const tireTypeId = document.getElementById('tireTireTypeId').value;
-      const supplierId = document.getElementById('tireSupplier').value;
-
-      if (!name || !sellingPrice) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      this.addRecord('tires', {
-        name, cost_price: costPrice, sellingPrice, quantity,
-        tireTypeId: tireTypeId || null,
-        supplierId: supplierId || null
-      }).then(() => {
-        document.getElementById('tireName').value = '';
-        document.getElementById('tireCostPrice').value = '';
-        document.getElementById('tireSellingPrice').value = '';
-        document.getElementById('tireQuantity').value = '';
-        this.switchView('tires');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-tire]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tire = this.tires.find(t => t.id === btn.dataset.editTire);
-        if (tire) this.showEditTireModal(tire);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-tire]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف؟')) {
-          this.deleteRecord('tires', btn.dataset.deleteTire).then(() => {
-            this.switchView('tires');
-          });
-        }
-      });
-    });
-  }
-
-  bindAppointmentsEvents() {
-    document.getElementById('addAppointmentBtn')?.addEventListener('click', () => {
-      const customerId = document.getElementById('appointmentCustomerId').value;
-      const customerName = this.customers.find(c => c.id === customerId)?.name || '';
-      const serviceName = document.getElementById('appointmentServiceName').value;
-      const appointmentTime = document.getElementById('appointmentDateTime').value;
-      const notes = document.getElementById('appointmentNotes').value;
-
-      if (!customerId || !serviceName || !appointmentTime) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      this.addRecord('appointments', {
-        customer_id: customerId,
-        customer_name: customerName,
-        service_name: serviceName,
-        appointment_time: appointmentTime,
-        notes
-      }).then(() => {
-        document.getElementById('appointmentCustomerId').value = '';
-        document.getElementById('appointmentServiceName').value = '';
-        document.getElementById('appointmentDateTime').value = '';
-        document.getElementById('appointmentNotes').value = '';
-        this.switchView('appointments');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-appointment]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const appointment = this.appointments.find(a => a.id === btn.dataset.editAppointment);
-        if (appointment) this.showEditAppointmentModal(appointment);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-appointment]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف؟')) {
-          this.deleteRecord('appointments', btn.dataset.deleteAppointment).then(() => {
-            this.switchView('appointments');
-          });
-        }
-      });
-    });
-  }
-
-  bindSalesEvents() {
-    if (!this.saleItems) this.saleItems = [];
-
-    const updateSaleTotals = () => {
-      const subtotal = this.saleItems.reduce((s, item) => s + (item.price * item.quantity), 0);
-      const discountPercent = parseFloat(document.getElementById('saleDiscountPercent').value) || 0;
-      const discountAmount = parseFloat(document.getElementById('saleDiscountAmount').value) || 0;
       
-      const percentDiscount = subtotal * (discountPercent / 100);
-      const totalDiscount = percentDiscount + discountAmount;
-      const total = subtotal - totalDiscount;
+      document.getElementById('cancelWizardBtn')?.addEventListener('click', () => {
+        this.switchView('dashboard');
+      });
+    }
 
-      document.getElementById('saleSubtotal').textContent = fmtMoney(subtotal);
-      document.getElementById('saleTotalDiscount').textContent = fmtMoney(totalDiscount);
-      document.getElementById('saleTotal').textContent = fmtMoney(total);
-    };
-
-    document.getElementById('saleDiscountPercent')?.addEventListener('change', updateSaleTotals);
-    document.getElementById('saleDiscountAmount')?.addEventListener('change', updateSaleTotals);
-
-    document.getElementById('addTireToSaleBtn')?.addEventListener('click', () => {
-      const tireId = document.getElementById('saleTireSelect').value;
-      const qty = parseInt(document.getElementById('saleTireQty').value) || 1;
-
-      if (!tireId) {
-        showToast('اختر إطار', 'warning');
-        return;
-      }
-
-      const tire = this.tires.find(t => t.id === tireId);
-      if (!tire) return;
-
-      const emptyRow = document.getElementById('emptyRow');
-      if (emptyRow) emptyRow.remove();
-
-      const item = {
-        id: uid(),
-        type: 'tire',
-        name: tire.name,
-        price: tire.sellingPrice,
-        quantity: qty
+    // Step 2: Quantity Selection
+    if (this.saleWizard.step === 2) {
+      const updateDisplay = () => {
+        const val = parseInt(document.getElementById('qtyInput').value) || 1;
+        this.saleWizard.quantity = Math.max(1, val);
+        document.getElementById('qtyDisplay').textContent = this.saleWizard.quantity;
+        document.getElementById('qtyInput').value = this.saleWizard.quantity;
       };
-      this.saleItems.push(item);
 
-      const table = document.getElementById('saleItemsTable');
-      const row = document.createElement('tr');
-      row.id = `item-${item.id}`;
-      row.innerHTML = `
-        <td>${esc(item.name)}</td>
-        <td>إطار</td>
-        <td class="num">${fmtMoney(item.price)}</td>
-        <td>${item.quantity}</td>
-        <td class="num">${fmtMoney(item.price * item.quantity)}</td>
-        <td><button class="btn btn-xs btn-danger" data-remove-item="${item.id}">${icon('delete')}</button></td>
-      `;
-      table.appendChild(row);
+      document.getElementById('qtyMinus')?.addEventListener('click', () => {
+        this.saleWizard.quantity = Math.max(1, this.saleWizard.quantity - 1);
+        updateDisplay();
+      });
 
-      row.querySelector('[data-remove-item]').addEventListener('click', () => {
-        this.saleItems = this.saleItems.filter(x => x.id !== item.id);
-        row.remove();
-        if (this.saleItems.length === 0) {
-          document.getElementById('saleItemsTable').innerHTML = '<tr id="emptyRow"><td colspan="6" class="text-center">لم يتم إضافة بنود بعد</td></tr>';
+      document.getElementById('qtyPlus')?.addEventListener('click', () => {
+        this.saleWizard.quantity++;
+        updateDisplay();
+      });
+
+      document.getElementById('qtyInput')?.addEventListener('change', updateDisplay);
+
+      document.getElementById('nextStep2Btn')?.addEventListener('click', () => {
+        this.nextWizardStep();
+      });
+
+      document.getElementById('prevStep2Btn')?.addEventListener('click', () => {
+        this.prevWizardStep();
+      });
+    }
+
+    // Step 3: Warranty & Payment
+    if (this.saleWizard.step === 3) {
+      document.querySelectorAll('.warranty-option').forEach(opt => {
+        if (opt.dataset.warranty === this.saleWizard.warranty) {
+          opt.classList.add('selected');
         }
-        updateSaleTotals();
+        opt.addEventListener('click', () => {
+          document.querySelectorAll('.warranty-option').forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          this.saleWizard.warranty = opt.dataset.warranty;
+        });
       });
 
-      document.getElementById('saleTireSelect').value = '';
-      document.getElementById('saleTireQty').value = '1';
-      updateSaleTotals();
-    });
+      document.getElementById('paymentMethodSelect')?.addEventListener('change', (e) => {
+        this.saleWizard.paymentMethod = e.target.value;
+      });
 
-    document.getElementById('addServiceToSaleBtn')?.addEventListener('click', () => {
-      const serviceId = document.getElementById('saleServiceSelect').value;
-      const qty = parseInt(document.getElementById('saleServiceQty').value) || 1;
+      document.getElementById('nextStep3Btn')?.addEventListener('click', () => {
+        this.nextWizardStep();
+      });
 
-      if (!serviceId) {
-        showToast('اختر خدمة', 'warning');
-        return;
-      }
+      document.getElementById('prevStep3Btn')?.addEventListener('click', () => {
+        this.prevWizardStep();
+      });
+    }
 
-      const service = this.services.find(s => s.id === serviceId);
-      if (!service) return;
+    // Step 4: Customer Info
+    if (this.saleWizard.step === 4) {
+      document.getElementById('customerNameInput')?.addEventListener('input', (e) => {
+        this.saleWizard.customerName = e.target.value;
+      });
 
-      const emptyRow = document.getElementById('emptyRow');
-      if (emptyRow) emptyRow.remove();
+      document.getElementById('customerPhoneInput')?.addEventListener('input', (e) => {
+        this.saleWizard.customerPhone = e.target.value;
+      });
 
-      const item = {
-        id: uid(),
-        type: 'service',
-        name: service.name,
-        price: service.price,
-        quantity: qty
-      };
-      this.saleItems.push(item);
-
-      const table = document.getElementById('saleItemsTable');
-      const row = document.createElement('tr');
-      row.id = `item-${item.id}`;
-      row.innerHTML = `
-        <td>${esc(item.name)}</td>
-        <td>خدمة</td>
-        <td class="num">${fmtMoney(item.price)}</td>
-        <td>${item.quantity}</td>
-        <td class="num">${fmtMoney(item.price * item.quantity)}</td>
-        <td><button class="btn btn-xs btn-danger" data-remove-item="${item.id}">${icon('delete')}</button></td>
-      `;
-      table.appendChild(row);
-
-      row.querySelector('[data-remove-item]').addEventListener('click', () => {
-        this.saleItems = this.saleItems.filter(x => x.id !== item.id);
-        row.remove();
-        if (this.saleItems.length === 0) {
-          document.getElementById('saleItemsTable').innerHTML = '<tr id="emptyRow"><td colspan="6" class="text-center">لم يتم إضافة بنود بعد</td></tr>';
+      document.getElementById('saveInvoiceBtn')?.addEventListener('click', () => {
+        if (!this.saleWizard.customerName || !this.saleWizard.customerPhone) {
+          showToast('أدخل بيانات العميل', 'warning');
+          return;
         }
-        updateSaleTotals();
+        this.saveSale();
       });
 
-      document.getElementById('saleServiceSelect').value = '';
-      document.getElementById('saleServiceQty').value = '1';
-      updateSaleTotals();
-    });
-
-    document.getElementById('saveSaleBtn')?.addEventListener('click', () => {
-      if (this.saleItems.length === 0) {
-        showToast('أضف منتجات', 'warning');
-        return;
-      }
-
-      const customerName = document.getElementById('saleCustomerName').value.trim();
-      const customerPhone = document.getElementById('saleCustomerPhone').value;
-      const paymentMethod = document.getElementById('salePaymentMethod').value;
-      const discountPercent = parseFloat(document.getElementById('saleDiscountPercent').value) || 0;
-      const discountAmount = parseFloat(document.getElementById('saleDiscountAmount').value) || 0;
-
-      if (!customerName || !paymentMethod) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      const subtotal = this.saleItems.reduce((s, item) => s + (item.price * item.quantity), 0);
-      const percentDiscount = subtotal * (discountPercent / 100);
-      const totalDiscount = percentDiscount + discountAmount;
-      const total = subtotal - totalDiscount;
-
-      this.addRecord('sales', {
-        invoice_number: 'INV-' + Date.now(),
-        customer_id: document.getElementById('saleCustomerId').value || null,
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        payment_method: paymentMethod,
-        discount_percent: discountPercent,
-        discount_amount: discountAmount,
-        discount_total: totalDiscount,
-        subtotal,
-        total,
-        items: JSON.stringify(this.saleItems)
-      }).then(() => {
-        this.saleItems = [];
-        document.getElementById('saleCustomerId').value = '';
-        document.getElementById('saleCustomerName').value = '';
-        document.getElementById('saleCustomerPhone').value = '';
-        document.getElementById('salePaymentMethod').value = 'cash';
-        document.getElementById('saleDiscountPercent').value = '';
-        document.getElementById('saleDiscountAmount').value = '';
-        document.getElementById('saleItemsTable').innerHTML = '<tr id="emptyRow"><td colspan="6" class="text-center">لم يتم إضافة بنود بعد</td></tr>';
-        updateSaleTotals();
-        this.switchView('sales');
+      document.getElementById('sendWhatsappBtn')?.addEventListener('click', () => {
+        if (!this.saleWizard.customerName || !this.saleWizard.customerPhone) {
+          showToast('أدخل بيانات العميل', 'warning');
+          return;
+        }
+        this.sendWhatsApp();
       });
-    });
 
-    document.getElementById('resetSaleBtn')?.addEventListener('click', () => {
-      if (confirm('إعادة تعيين؟')) {
-        this.saleItems = [];
-        document.getElementById('saleCustomerId').value = '';
-        document.getElementById('saleCustomerName').value = '';
-        document.getElementById('saleCustomerPhone').value = '';
-        document.getElementById('salePaymentMethod').value = 'cash';
-        document.getElementById('saleDiscountPercent').value = '';
-        document.getElementById('saleDiscountAmount').value = '';
-        document.getElementById('saleItemsTable').innerHTML = '<tr id="emptyRow"><td colspan="6" class="text-center">لم يتم إضافة بنود بعد</td></tr>';
-        updateSaleTotals();
-      }
-    });
+      document.getElementById('prevStep4Btn')?.addEventListener('click', () => {
+        this.prevWizardStep();
+      });
+    }
   }
 
-  bindSuppliersEvents() {
-    document.getElementById('addSupplierBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('supplierName').value.trim();
-
-      if (!name) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      this.addRecord('suppliers', {
-        name,
-        phone: document.getElementById('supplierPhone').value,
-        email: document.getElementById('supplierEmail').value,
-        address: document.getElementById('supplierAddress').value
-      }).then(() => {
-        document.getElementById('supplierName').value = '';
-        document.getElementById('supplierPhone').value = '';
-        document.getElementById('supplierEmail').value = '';
-        document.getElementById('supplierAddress').value = '';
-        this.switchView('suppliers');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-supplier]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const supplier = this.suppliers.find(s => s.id === btn.dataset.editSupplier);
-        if (supplier) this.showEditSupplierModal(supplier);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-supplier]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف؟')) {
-          this.deleteRecord('suppliers', btn.dataset.deleteSupplier).then(() => {
-            this.switchView('suppliers');
-          });
-        }
-      });
-    });
+  renderServicesView() {
+    return '<p>خدمات</p>';
   }
 
-  bindTireTypesEvents() {
-    document.getElementById('addTireTypeBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('tireTypeName').value.trim();
-
-      if (!name) {
-        showToast(t('error'), 'error');
-        return;
-      }
-
-      this.addRecord('tire_types', {
-        name,
-        description: document.getElementById('tireTypeDesc').value
-      }).then(() => {
-        document.getElementById('tireTypeName').value = '';
-        document.getElementById('tireTypeDesc').value = '';
-        this.switchView('tireTypes');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-tiretype]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tireType = this.tireTypes.find(t => t.id === btn.dataset.editTiretype);
-        if (tireType) this.showEditTireTypeModal(tireType);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-tiretype]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف؟')) {
-          this.deleteRecord('tire_types', btn.dataset.deleteTiretype).then(() => {
-            this.switchView('tireTypes');
-          });
-        }
-      });
-    });
+  renderCustomersView() {
+    return '<p>عملاء</p>';
   }
+
+  renderTiresView() {
+    return '<p>إطارات</p>';
+  }
+
+  renderAppointmentsView() {
+    return '<p>مواعيد</p>';
+  }
+
+  renderReportsView() {
+    return '<p>تقارير</p>';
+  }
+
+  renderSuppliersView() {
+    return '<p>موردين</p>';
+  }
+
+  renderTireTypesView() {
+    return '<p>أنواع الإطارات</p>';
+  }
+
+  bindServicesEvents() {}
+  bindCustomersEvents() {}
+  bindTiresEvents() {}
+  bindAppointmentsEvents() {}
 }
 
 // =====================================================================
