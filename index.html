@@ -1599,8 +1599,8 @@ class TireShopApp {
       .filter(s => s.paymentMethod === 'transfer')
       .reduce((s, x) => s + (x.total || 0), 0);
 
-    // حسابات المصروفات من الموردين
-    const totalSupplierPayments = this.supplierInvoices.reduce((s, x) => s + (x.totalAmount || 0), 0);
+    // حسابات الدفعات الجزئية المدفوعة للموردين
+    const totalSupplierPartialPayments = this.supplierPayments.reduce((s, x) => s + (x.paymentAmount || 0), 0);
     
     // حسابات المصروفات اليومية والثابتة
     const totalDailyExpenses = this.expenses
@@ -1610,11 +1610,9 @@ class TireShopApp {
     const totalFixedExpenses = this.expenses
       .filter(e => e.expenseType === 'ثابتة')
       .reduce((s, x) => s + (x.amount || 0), 0);
-    
-    const totalAllExpenses = totalSupplierPayments + totalDailyExpenses + totalFixedExpenses;
 
-    // صافي الربح (المبيعات - جميع المصروفات)
-    const netProfit = totalSales - totalAllExpenses;
+    // صافي الربح = المبيعات - المصروفات اليومية - المصاريف الثابتة - الدفعة الجزئية للموردين
+    const netProfit = totalSales - totalDailyExpenses - totalFixedExpenses - totalSupplierPartialPayments;
 
     const stats = [
       {
@@ -1637,7 +1635,7 @@ class TireShopApp {
       },
       {
         label: 'إجمالي المصروفات',
-        value: fmtMoney(totalAllExpenses),
+        value: fmtMoney(totalDailyExpenses + totalFixedExpenses + totalSupplierPartialPayments),
         type: 'red',
         icon: '💸'
       }
@@ -3766,16 +3764,19 @@ class TireShopApp {
   renderExpensesView() {
     const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
     
-    // حساب إجمالي المصروفات
+    // حساب المصروفات اليومية والثابتة
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const dailyExpenses = filteredExpenses.filter(e => e.expenseType === 'يومية').reduce((sum, e) => sum + (e.amount || 0), 0);
     const fixedExpenses = filteredExpenses.filter(e => e.expenseType === 'ثابتة').reduce((sum, e) => sum + (e.amount || 0), 0);
     
-    // حساب المبيعات
-    const totalSales = this.sales.reduce((sum, s) => s + (s.total || 0), 0);
+    // حساب الدفعات الجزئية للموردين
+    const totalSupplierPartialPayments = this.supplierPayments.reduce((sum, p) => sum + (p.paymentAmount || 0), 0);
     
-    // صافي الربح = المبيعات - المصروفات
-    const netProfit = totalSales - totalExpenses;
+    // حساب المبيعات
+    const totalSales = this.sales.reduce((sum, s) => sum + (s.total || 0), 0);
+    
+    // صافي الربح = المبيعات - المصروفات اليومية - المصاريف الثابتة - الدفعة الجزئية للموردين
+    const netProfit = totalSales - dailyExpenses - fixedExpenses - totalSupplierPartialPayments;
     
     return `
       ${this.renderDateFilterBar()}
@@ -3783,7 +3784,7 @@ class TireShopApp {
       <div class="grid-3">
         <div class="stat amber">
           <h4>إجمالي المصروفات</h4>
-          <p class="v num">${fmtMoney(totalExpenses)}</p>
+          <p class="v num">${fmtMoney(dailyExpenses + fixedExpenses + totalSupplierPartialPayments)}</p>
         </div>
         <div class="stat blue">
           <h4>المصروفات اليومية</h4>
@@ -3792,6 +3793,10 @@ class TireShopApp {
         <div class="stat green">
           <h4>المصروفات الثابتة</h4>
           <p class="v num">${fmtMoney(fixedExpenses)}</p>
+        </div>
+        <div class="stat red">
+          <h4>دفعات الموردين</h4>
+          <p class="v num">${fmtMoney(totalSupplierPartialPayments)}</p>
         </div>
       </div>
 
@@ -3803,7 +3808,7 @@ class TireShopApp {
           ${fmtMoney(netProfit)} ر.ع
         </div>
         <div style="font-size: 12px; text-align: center; margin-top: 8px; opacity: 0.9;">
-          المبيعات (${fmtMoney(totalSales)}) - المصروفات (${fmtMoney(totalExpenses)})
+          المبيعات (${fmtMoney(totalSales)}) - يومية (${fmtMoney(dailyExpenses)}) - ثابتة (${fmtMoney(fixedExpenses)}) - موردين (${fmtMoney(totalSupplierPartialPayments)})
         </div>
       </div>
 
