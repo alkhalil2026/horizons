@@ -1364,6 +1364,8 @@ class TireShopApp {
     
     // Sales period filter
     this.currentSalesPeriod = 'today';
+    this.currentCustomFromDate = null;
+    this.currentCustomToDate = null;
     
     this.init();
   }
@@ -1625,7 +1627,18 @@ class TireShopApp {
   }
 
   renderDashboard() {
-    // حسابات المبيعات
+    // حساب المبيعات لكل فترة
+    const todaySales = this.getSalesByPeriod('today');
+    const yesterdaySales = this.getSalesByPeriod('yesterday');
+    const weekSales = this.getSalesByPeriod('week');
+    const monthSales = this.getSalesByPeriod('month');
+    
+    const todayTotal = todaySales.reduce((s, x) => s + (x.total || 0), 0);
+    const yesterdayTotal = yesterdaySales.reduce((s, x) => s + (x.total || 0), 0);
+    const weekTotal = weekSales.reduce((s, x) => s + (x.total || 0), 0);
+    const monthTotal = monthSales.reduce((s, x) => s + (x.total || 0), 0);
+
+    // حسابات المبيعات الإجمالية
     const totalSales = this.sales.reduce((s, x) => s + (x.total || 0), 0);
     const invoiceCount = this.sales.length;
     const avgInvoice = invoiceCount > 0 ? totalSales / invoiceCount : 0;
@@ -1686,8 +1699,55 @@ class TireShopApp {
     ];
 
     return `
-      <!-- الإحصائيات الرئيسية -->
+      <!-- أزرار التصفية السريعة -->
+      <div style="margin-bottom: 20px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;">
+          <button class="btn btn-sm btn-blue" data-dashboard-period="today">📅 اليوم</button>
+          <button class="btn btn-sm btn-purple" data-dashboard-period="yesterday">📆 أمس</button>
+          <button class="btn btn-sm btn-green" data-dashboard-period="week">📊 الأسبوع</button>
+          <button class="btn btn-sm btn-orange" data-dashboard-period="month">📈 الشهر</button>
+          <button class="btn btn-sm btn-amber" data-dashboard-period="custom">🎯 فترة محددة</button>
+        </div>
+
+        <div id="dashboardCustomDatePicker" style="display: none; flex-direction: row; gap: 15px; padding: 15px; background: #f5f5f5; border-radius: 8px; margin-bottom: 15px; align-items: flex-end;">
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">من:</label>
+            <input type="date" id="dashboardCustomFromDate" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">إلى:</label>
+            <input type="date" id="dashboardCustomToDate" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+          </div>
+          <button class="btn btn-sm btn-success" id="applyDashboardCustomPeriod">✓ تطبيق</button>
+        </div>
+      </div>
+
+      <!-- إحصائيات الفترة الزمنية -->
       <div class="grid-4">
+        <div class="stat blue">
+          <h4>مبيعات اليوم</h4>
+          <p class="v num">${fmtMoney(todayTotal)}</p>
+          <p class="text-xs">(${todaySales.length} فاتورة)</p>
+        </div>
+        <div class="stat purple">
+          <h4>مبيعات أمس</h4>
+          <p class="v num">${fmtMoney(yesterdayTotal)}</p>
+          <p class="text-xs">(${yesterdaySales.length} فاتورة)</p>
+        </div>
+        <div class="stat green">
+          <h4>مبيعات الأسبوع</h4>
+          <p class="v num">${fmtMoney(weekTotal)}</p>
+          <p class="text-xs">(${weekSales.length} فاتورة)</p>
+        </div>
+        <div class="stat orange">
+          <h4>مبيعات الشهر</h4>
+          <p class="v num">${fmtMoney(monthTotal)}</p>
+          <p class="text-xs">(${monthSales.length} فاتورة)</p>
+        </div>
+      </div>
+
+      <!-- الإحصائيات الرئيسية -->
+      <div class="grid-4 mt-16">
         ${stats.map(s => `
           <div class="stat ${s.type}">
             <div style="font-size: 24px; margin-bottom: 8px;">${s.icon}</div>
@@ -2333,7 +2393,7 @@ class TireShopApp {
     `;
   }
 
-  getSalesByPeriod(period) {
+  getSalesByPeriod(period, customFromDate = null, customToDate = null) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -2349,20 +2409,19 @@ class TireShopApp {
     } else if (period === 'week') {
       fromDate = new Date(today);
       fromDate.setDate(today.getDate() - 6);
+      toDate = new Date(today);
+      toDate.setHours(23, 59, 59, 999);
     } else if (period === 'month') {
       fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
-    } else if (period === 'custom') {
-      const fromInput = document.getElementById('customFromDate')?.value;
-      const toInput = document.getElementById('customToDate')?.value;
-      
-      if (!fromInput || !toInput) {
-        return [];
-      }
-      
-      fromDate = new Date(fromInput);
-      fromDate.setHours(0, 0, 0, 0);
-      toDate = new Date(toInput);
+      toDate = new Date(today);
       toDate.setHours(23, 59, 59, 999);
+    } else if (period === 'custom' && customFromDate && customToDate) {
+      fromDate = new Date(customFromDate);
+      fromDate.setHours(0, 0, 0, 0);
+      toDate = new Date(customToDate);
+      toDate.setHours(23, 59, 59, 999);
+    } else if (period === 'custom') {
+      return [];
     }
 
     return this.sales.filter(sale => {
@@ -3159,7 +3218,33 @@ class TireShopApp {
   }
 
   bindDashboardEvents() {
-    // Dashboard بدون أزرار - معلومات إحصائية فقط
+    // معالجات التصفية السريعة للوحة التحكم
+    document.querySelectorAll('[data-dashboard-period]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const period = btn.dataset.dashboardPeriod;
+        
+        if (period === 'custom') {
+          const picker = document.getElementById('dashboardCustomDatePicker');
+          if (picker) {
+            picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+          }
+        } else {
+          this.switchView('dashboard');
+        }
+      });
+    });
+
+    document.getElementById('applyDashboardCustomPeriod')?.addEventListener('click', () => {
+      const fromInput = document.getElementById('dashboardCustomFromDate')?.value;
+      const toInput = document.getElementById('dashboardCustomToDate')?.value;
+      
+      if (!fromInput || !toInput) {
+        showToast('اختر التاريخين', 'warning');
+        return;
+      }
+      
+      this.switchView('dashboard');
+    });
   }
 
   bindSalesWizardEvents() {
@@ -3282,6 +3367,8 @@ class TireShopApp {
           }
         } else {
           this.currentSalesPeriod = period;
+          this.currentCustomFromDate = null;
+          this.currentCustomToDate = null;
           this.switchView('sales');
         }
       });
@@ -3297,6 +3384,8 @@ class TireShopApp {
       }
       
       this.currentSalesPeriod = 'custom';
+      this.currentCustomFromDate = fromInput;
+      this.currentCustomToDate = toInput;
       this.switchView('sales');
     });
   }
