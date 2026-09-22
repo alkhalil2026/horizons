@@ -1978,6 +1978,298 @@ class TireShopApp {
     });
   }
 
+  // ===== MODAL EDIT FUNCTIONS =====
+
+  showEditServiceModal(service) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editServiceName" value="${esc(service.name)}">
+      </div>
+      <div class="form-group">
+        <label>السعر *</label>
+        <input type="number" id="editServicePrice" step="0.01" value="${service.price}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveEditServiceBtn">حفظ</button>
+      </div>
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>تعديل - ${esc(service.name)}</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+    
+    document.getElementById('saveEditServiceBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editServiceName').value.trim();
+      const price = parseFloat(document.getElementById('editServicePrice').value) || 0;
+      
+      if (!name || !price) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      this.updateRecord('services', service.id, { name, price }).then(() => {
+        overlay.classList.remove('active');
+        this.switchView('services');
+      });
+    });
+  }
+
+  showEditCustomerModal(customer) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editCustomerName" value="${esc(customer.name)}">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="tel" id="editCustomerPhone" value="${esc(customer.phone || '')}">
+      </div>
+      <div class="form-group">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="editCustomerEmail" value="${esc(customer.email || '')}">
+      </div>
+      <div class="form-group">
+        <label>العنوان</label>
+        <input type="text" id="editCustomerAddress" value="${esc(customer.address || '')}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveEditCustomerBtn">حفظ</button>
+      </div>
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>تعديل - ${esc(customer.name)}</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+    
+    document.getElementById('saveEditCustomerBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editCustomerName').value.trim();
+      
+      if (!name) {
+        showToast('أدخل الاسم', 'error');
+        return;
+      }
+
+      this.updateRecord('customers', customer.id, {
+        name,
+        phone: document.getElementById('editCustomerPhone').value,
+        email: document.getElementById('editCustomerEmail').value,
+        address: document.getElementById('editCustomerAddress').value
+      }).then(() => {
+        overlay.classList.remove('active');
+        this.switchView('customers');
+      });
+    });
+  }
+
+  showEditTireModal(tire) {
+    const content = `
+      <div class="form-group">
+        <label>الاسم *</label>
+        <input type="text" id="editTireName" value="${esc(tire.name)}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>سعر التكلفة</label>
+          <input type="number" id="editTireCostPrice" step="0.01" value="${tire.cost_price || 0}">
+        </div>
+        <div class="form-group">
+          <label>سعر البيع *</label>
+          <input type="number" id="editTireSellingPrice" step="0.01" value="${tire.sellingPrice}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>الكمية *</label>
+        <input type="number" id="editTireQuantity" step="1" value="${tire.quantity}">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveEditTireBtn">حفظ</button>
+      </div>
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>تعديل - ${esc(tire.name)}</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+    
+    document.getElementById('saveEditTireBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('editTireName').value.trim();
+      const sellingPrice = parseFloat(document.getElementById('editTireSellingPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('editTireQuantity').value) || 0;
+      
+      if (!name || !sellingPrice) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      this.updateRecord('tires', tire.id, {
+        name,
+        cost_price: parseFloat(document.getElementById('editTireCostPrice').value) || 0,
+        sellingPrice,
+        quantity
+      }).then(() => {
+        overlay.classList.remove('active');
+        this.switchView('tires');
+      });
+    });
+  }
+
+  showEditAppointmentModal(appointment) {
+    const content = `
+      <div class="form-group">
+        <label>العميل *</label>
+        <select id="editAppointmentCustomerId">
+          <option value="">اختر</option>
+          ${this.customers.map(c => `<option value="${c.id}" ${appointment.customerId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>الخدمة *</label>
+        <select id="editAppointmentServiceName">
+          <option value="">اختر</option>
+          ${this.services.map(s => `<option value="${s.name}" ${appointment.serviceName === s.name ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>التاريخ والوقت *</label>
+        <input type="datetime-local" id="editAppointmentDateTime" value="${appointment.appointmentTime || ''}">
+      </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <textarea id="editAppointmentNotes" style="min-height: 80px;">${esc(appointment.notes || '')}</textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
+        <button class="btn btn-amber" id="saveEditAppointmentBtn">حفظ</button>
+      </div>
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>تعديل الموعد</h3>
+        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
+      </div>
+      <div>${content}</div>
+    `;
+    overlay.classList.add('active');
+    
+    document.getElementById('closeEditBtn')?.addEventListener('click', () => {
+      overlay.classList.remove('active');
+    });
+    
+    document.getElementById('saveEditAppointmentBtn')?.addEventListener('click', () => {
+      const customerId = document.getElementById('editAppointmentCustomerId').value;
+      const serviceName = document.getElementById('editAppointmentServiceName').value;
+      const appointmentTime = document.getElementById('editAppointmentDateTime').value;
+      
+      if (!customerId || !serviceName || !appointmentTime) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      const customerName = this.customers.find(c => c.id === customerId)?.name || '';
+
+      this.updateRecord('appointments', appointment.id, {
+        customer_id: customerId,
+        customer_name: customerName,
+        service_name: serviceName,
+        appointment_time: appointmentTime,
+        notes: document.getElementById('editAppointmentNotes').value
+      }).then(() => {
+        overlay.classList.remove('active');
+        this.switchView('appointments');
+      });
+    });
+  }
+
+  async updateRecord(table, id, data) {
+    if (!this.sb) {
+      const idx = this[table].findIndex(x => x.id === id);
+      if (idx > -1) {
+        this[table][idx] = { ...this[table][idx], ...data };
+      }
+      return true;
+    }
+
+    try {
+      const dbData = rowToDb(data, table);
+      const { error } = await this.sb.from(table).update(dbData).eq('id', id);
+      
+      if (error) {
+        console.error(`Error updating ${table}:`, error);
+        showToast('خطأ في التحديث', 'error');
+        return false;
+      }
+
+      await this.loadAllData();
+      showToast('تم التحديث', 'success');
+      return true;
+    } catch (e) {
+      console.error('Update record error:', e);
+      showToast('خطأ', 'error');
+      return false;
+    }
+  }
+
+  async deleteRecord(table, id) {
+    if (!this.sb) {
+      const idx = this[table].findIndex(x => x.id === id);
+      if (idx > -1) {
+        this[table].splice(idx, 1);
+      }
+      return true;
+    }
+
+    try {
+      const { error } = await this.sb.from(table).delete().eq('id', id);
+      
+      if (error) {
+        console.error(`Error deleting from ${table}:`, error);
+        return false;
+      }
+
+      await this.loadAllData();
+      showToast('تم الحذف', 'success');
+      return true;
+    } catch (e) {
+      console.error('Delete record error:', e);
+      return false;
+    }
+  }
+
   bindViewEvents(view) {
     document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
     document.getElementById('langBtn')?.addEventListener('click', () => {
@@ -2001,6 +2293,169 @@ class TireShopApp {
     if (view === 'customers') this.bindCustomersEvents();
     if (view === 'tires') this.bindTiresEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
+  }
+
+  bindServicesEvents() {
+    document.getElementById('addServiceBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('serviceName').value.trim();
+      const price = parseFloat(document.getElementById('servicePrice').value) || 0;
+
+      if (!name || !price) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      this.addRecord('services', { name, price }).then(() => {
+        document.getElementById('serviceName').value = '';
+        document.getElementById('servicePrice').value = '';
+        this.switchView('services');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-service]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const service = this.services.find(s => s.id === btn.dataset.editService);
+        if (service) this.showEditServiceModal(service);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-service]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف الخدمة؟')) {
+          this.deleteRecord('services', btn.dataset.deleteService).then(() => {
+            this.switchView('services');
+          });
+        }
+      });
+    });
+  }
+
+  bindCustomersEvents() {
+    document.getElementById('addCustomerBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('customerName').value.trim();
+
+      if (!name) {
+        showToast('أدخل الاسم', 'error');
+        return;
+      }
+
+      this.addRecord('customers', {
+        name,
+        phone: document.getElementById('customerPhone').value,
+        email: document.getElementById('customerEmail').value,
+        address: document.getElementById('customerAddress').value
+      }).then(() => {
+        document.getElementById('customerName').value = '';
+        document.getElementById('customerPhone').value = '';
+        document.getElementById('customerEmail').value = '';
+        document.getElementById('customerAddress').value = '';
+        this.switchView('customers');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-customer]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const customer = this.customers.find(c => c.id === btn.dataset.editCustomer);
+        if (customer) this.showEditCustomerModal(customer);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-customer]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف العميل؟')) {
+          this.deleteRecord('customers', btn.dataset.deleteCustomer).then(() => {
+            this.switchView('customers');
+          });
+        }
+      });
+    });
+  }
+
+  bindTiresEvents() {
+    document.getElementById('addTireBtn')?.addEventListener('click', () => {
+      const name = document.getElementById('tireName').value.trim();
+      const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
+      const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
+
+      if (!name || !sellingPrice) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      this.addRecord('tires', {
+        name, cost_price: costPrice, sellingPrice, quantity
+      }).then(() => {
+        document.getElementById('tireName').value = '';
+        document.getElementById('tireCostPrice').value = '';
+        document.getElementById('tireSellingPrice').value = '';
+        document.getElementById('tireQuantity').value = '';
+        this.switchView('tires');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-tire]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tire = this.tires.find(t => t.id === btn.dataset.editTire);
+        if (tire) this.showEditTireModal(tire);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-tire]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف الإطار؟')) {
+          this.deleteRecord('tires', btn.dataset.deleteTire).then(() => {
+            this.switchView('tires');
+          });
+        }
+      });
+    });
+  }
+
+  bindAppointmentsEvents() {
+    document.getElementById('addAppointmentBtn')?.addEventListener('click', () => {
+      const customerId = document.getElementById('appointmentCustomerId').value;
+      const customerName = this.customers.find(c => c.id === customerId)?.name || '';
+      const serviceName = document.getElementById('appointmentServiceName').value;
+      const appointmentTime = document.getElementById('appointmentDateTime').value;
+      const notes = document.getElementById('appointmentNotes').value;
+
+      if (!customerId || !serviceName || !appointmentTime) {
+        showToast('أدخل البيانات', 'error');
+        return;
+      }
+
+      this.addRecord('appointments', {
+        customer_id: customerId,
+        customer_name: customerName,
+        service_name: serviceName,
+        appointment_time: appointmentTime,
+        notes
+      }).then(() => {
+        document.getElementById('appointmentCustomerId').value = '';
+        document.getElementById('appointmentServiceName').value = '';
+        document.getElementById('appointmentDateTime').value = '';
+        document.getElementById('appointmentNotes').value = '';
+        this.switchView('appointments');
+      });
+    });
+
+    document.querySelectorAll('[data-edit-appointment]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const appointment = this.appointments.find(a => a.id === btn.dataset.editAppointment);
+        if (appointment) this.showEditAppointmentModal(appointment);
+      });
+    });
+
+    document.querySelectorAll('[data-delete-appointment]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('حذف الموعد؟')) {
+          this.deleteRecord('appointments', btn.dataset.deleteAppointment).then(() => {
+            this.switchView('appointments');
+          });
+        }
+      });
+    });
   }
 
   bindDashboardEvents() {
@@ -2119,37 +2574,352 @@ class TireShopApp {
   }
 
   renderServicesView() {
-    return '<p>خدمات</p>';
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة خدمة</h3></div>
+          <div class="form-group">
+            <label>اسم الخدمة *</label>
+            <input type="text" id="serviceName" placeholder="مثال: بنشر">
+          </div>
+          <div class="form-group">
+            <label>السعر *</label>
+            <input type="number" id="servicePrice" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <button class="btn btn-amber btn-block" id="addServiceBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>الخدمات (${this.services.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>السعر</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.services.map(s => `
+                  <tr>
+                    <td>${esc(s.name)}</td>
+                    <td class="num">${fmtMoney(s.price)}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-service="${s.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-service="${s.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد خدمات</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   renderCustomersView() {
-    return '<p>عملاء</p>';
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة عميل</h3></div>
+          <div class="form-group">
+            <label>اسم العميل *</label>
+            <input type="text" id="customerName" placeholder="اسم العميل">
+          </div>
+          <div class="form-group">
+            <label>رقم الهاتف</label>
+            <input type="tel" id="customerPhone" placeholder="+968 9...">
+          </div>
+          <div class="form-group">
+            <label>البريد الإلكتروني</label>
+            <input type="email" id="customerEmail" placeholder="email@example.com">
+          </div>
+          <div class="form-group">
+            <label>العنوان</label>
+            <input type="text" id="customerAddress" placeholder="العنوان">
+          </div>
+          <button class="btn btn-amber btn-block" id="addCustomerBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>العملاء (${this.customers.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الهاتف</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.customers.map(c => `
+                  <tr>
+                    <td>${esc(c.name)}</td>
+                    <td>${esc(c.phone || '-')}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-customer="${c.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-customer="${c.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="3" class="text-center">لا توجد عملاء</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   renderTiresView() {
-    return '<p>إطارات</p>';
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>إضافة إطار</h3></div>
+          <div class="form-group">
+            <label>اسم الإطار *</label>
+            <input type="text" id="tireName" placeholder="مثال: ميشلان 16">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>سعر التكلفة *</label>
+              <input type="number" id="tireCostPrice" min="0" step="0.01" placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label>سعر البيع *</label>
+              <input type="number" id="tireSellingPrice" min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>الكمية *</label>
+            <input type="number" id="tireQuantity" min="0" step="1" placeholder="0">
+          </div>
+          <button class="btn btn-amber btn-block" id="addTireBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>الإطارات (${this.tires.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الكمية</th>
+                  <th>سعر البيع</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.tires.map(t => `
+                  <tr>
+                    <td>${esc(t.name)}</td>
+                    <td class="num">${t.quantity || 0}</td>
+                    <td class="num">${fmtMoney(t.sellingPrice)}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-tire="${t.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-tire="${t.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد إطارات</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   renderAppointmentsView() {
-    return '<p>مواعيد</p>';
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>حجز موعد</h3></div>
+          <div class="form-group">
+            <label>العميل *</label>
+            <select id="appointmentCustomerId">
+              <option value="">اختر عميل</option>
+              ${this.customers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>الخدمة *</label>
+            <select id="appointmentServiceName">
+              <option value="">اختر خدمة</option>
+              ${this.services.map(s => `<option value="${s.name}">${esc(s.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>التاريخ والوقت *</label>
+            <input type="datetime-local" id="appointmentDateTime">
+          </div>
+          <div class="form-group">
+            <label>ملاحظات</label>
+            <textarea id="appointmentNotes" placeholder="ملاحظات" style="min-height: 80px;"></textarea>
+          </div>
+          <button class="btn btn-amber btn-block" id="addAppointmentBtn">${icon('add')} إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>المواعيد (${this.appointments.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>العميل</th>
+                  <th>الخدمة</th>
+                  <th>الموعد</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.appointments.map(a => `
+                  <tr>
+                    <td>${esc(a.customerName)}</td>
+                    <td>${esc(a.serviceName)}</td>
+                    <td>${fmtDate(a.appointmentTime)}</td>
+                    <td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-appointment="${a.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-appointment="${a.id}">${icon('delete')}</button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد مواعيد</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   renderReportsView() {
-    return '<p>تقارير</p>';
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>ملخص المبيعات</h3></div>
+          <div style="padding: 16px 0;">
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
+              <span>إجمالي الفواتير:</span>
+              <span class="num">${this.sales.length}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
+              <span>إجمالي المبيعات:</span>
+              <span class="num">${fmtMoney(this.sales.reduce((s, x) => s + (x.total || 0), 0))}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>ملخص المخزون</h3></div>
+          <div style="padding: 16px 0;">
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
+              <span>عدد الأنواع:</span>
+              <span class="num">${this.tires.length}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
+              <span>إجمالي الكمية:</span>
+              <span class="num">${this.tires.reduce((s, t) => s + (t.quantity || 0), 0)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>ملخص العملاء والخدمات</h3></div>
+          <div style="padding: 16px 0;">
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
+              <span>إجمالي العملاء:</span>
+              <span class="num">${this.customers.length}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
+              <span>عدد الخدمات:</span>
+              <span class="num">${this.services.length}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>المواعيد</h3></div>
+          <div style="padding: 16px 0;">
+            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
+              <span>المواعيد المنتظرة:</span>
+              <span class="num">${this.appointments.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   renderSuppliersView() {
-    return '<p>موردين</p>';
+    return `
+      <div class="card">
+        <div class="card-head"><h3>الموردين (${this.suppliers.length})</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الاسم</th>
+                <th>الهاتف</th>
+                <th>البريد</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.suppliers.map(s => `
+                <tr>
+                  <td>${esc(s.name)}</td>
+                  <td>${esc(s.phone || '-')}</td>
+                  <td>${esc(s.email || '-')}</td>
+                </tr>
+              `).join('') || '<tr><td colspan="3" class="text-center">لا توجد موردين</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
   }
 
   renderTireTypesView() {
-    return '<p>أنواع الإطارات</p>';
+    return `
+      <div class="card">
+        <div class="card-head"><h3>أنواع الإطارات (${this.tireTypes.length})</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الاسم</th>
+                <th>الوصف</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.tireTypes.map(t => `
+                <tr>
+                  <td>${esc(t.name)}</td>
+                  <td>${esc(t.description || '-')}</td>
+                </tr>
+              `).join('') || '<tr><td colspan="2" class="text-center">لا توجد أنواع</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
   }
-
-  bindServicesEvents() {}
-  bindCustomersEvents() {}
-  bindTiresEvents() {}
-  bindAppointmentsEvents() {}
 }
 
 // =====================================================================
