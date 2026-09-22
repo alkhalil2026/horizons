@@ -307,7 +307,7 @@ input, select, textarea {
 }
 
 @media (max-width: 900px) {
-  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .sidebar { width: 220px; }
 }
 
@@ -373,6 +373,33 @@ input, select, textarea {
 
 .btn-amber:hover {
   background: var(--amber-600);
+}
+
+.btn-purple {
+  background: #9c27b0;
+  color: #fff;
+}
+
+.btn-purple:hover {
+  background: #7b1fa2;
+}
+
+.btn-orange {
+  background: #ff9800;
+  color: #fff;
+}
+
+.btn-orange:hover {
+  background: #e68900;
+}
+
+.btn-success {
+  background: var(--tread-green);
+  color: #fff;
+}
+
+.btn-success:hover {
+  background: #2d6a45;
 }
 
 .btn-blue {
@@ -599,11 +626,25 @@ table tbody tr:hover {
   border-left: 4px solid var(--amber-500);
 }
 
+.stat.purple {
+  border-left: 4px solid #9c27b0;
+}
+
+.stat.orange {
+  border-left: 4px solid #ff9800;
+}
+
 .stat .v {
   font-size: 28px;
   font-weight: 800;
   color: var(--text-900);
   margin: 0;
+}
+
+.text-xs {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
 }
 
 .empty-state {
@@ -1321,6 +1362,9 @@ class TireShopApp {
       customerPhone: '',
     };
     
+    // Sales period filter
+    this.currentSalesPeriod = 'today';
+    
     this.init();
   }
 
@@ -1737,7 +1781,63 @@ class TireShopApp {
   renderSalesView() {
     const filteredSales = this.filterByDate(this.sales, 'createdAt');
     
+    // حساب المبيعات لكل فترة
+    const todaySales = this.getSalesByPeriod('today');
+    const yesterdaySales = this.getSalesByPeriod('yesterday');
+    const weekSales = this.getSalesByPeriod('week');
+    const monthSales = this.getSalesByPeriod('month');
+    
+    const todayTotal = todaySales.reduce((s, x) => s + (x.total || 0), 0);
+    const yesterdayTotal = yesterdaySales.reduce((s, x) => s + (x.total || 0), 0);
+    const weekTotal = weekSales.reduce((s, x) => s + (x.total || 0), 0);
+    const monthTotal = monthSales.reduce((s, x) => s + (x.total || 0), 0);
+    
     return `
+      <div style="margin-bottom: 20px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;">
+          <button class="btn btn-sm btn-blue" data-period-filter="today">📅 اليوم</button>
+          <button class="btn btn-sm btn-purple" data-period-filter="yesterday">📆 أمس</button>
+          <button class="btn btn-sm btn-green" data-period-filter="week">📊 الأسبوع</button>
+          <button class="btn btn-sm btn-orange" data-period-filter="month">📈 الشهر</button>
+          <button class="btn btn-sm btn-amber" data-period-filter="custom">🎯 فترة محددة</button>
+        </div>
+
+        <div id="customDatePicker" style="display: none; flex-direction: row; gap: 15px; padding: 15px; background: #f5f5f5; border-radius: 8px; margin-bottom: 15px; align-items: flex-end;">
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">من:</label>
+            <input type="date" id="customFromDate" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">إلى:</label>
+            <input type="date" id="customToDate" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+          </div>
+          <button class="btn btn-sm btn-success" id="applyCustomPeriod">✓ تطبيق</button>
+        </div>
+      </div>
+
+      <div class="grid-4">
+        <div class="stat blue">
+          <h4>مبيعات اليوم</h4>
+          <p class="v num">${fmtMoney(todayTotal)}</p>
+          <p class="text-xs">(${todaySales.length} فاتورة)</p>
+        </div>
+        <div class="stat purple">
+          <h4>مبيعات أمس</h4>
+          <p class="v num">${fmtMoney(yesterdayTotal)}</p>
+          <p class="text-xs">(${yesterdaySales.length} فاتورة)</p>
+        </div>
+        <div class="stat green">
+          <h4>مبيعات الأسبوع</h4>
+          <p class="v num">${fmtMoney(weekTotal)}</p>
+          <p class="text-xs">(${weekSales.length} فاتورة)</p>
+        </div>
+        <div class="stat orange">
+          <h4>مبيعات الشهر</h4>
+          <p class="v num">${fmtMoney(monthTotal)}</p>
+          <p class="text-xs">(${monthSales.length} فاتورة)</p>
+        </div>
+      </div>
+
       ${this.renderDateFilterBar()}
       <div class="card">
         <div class="card-head">
@@ -2231,6 +2331,44 @@ class TireShopApp {
         </div>
       </div>
     `;
+  }
+
+  getSalesByPeriod(period) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let fromDate = new Date(today);
+    let toDate = new Date(today);
+    toDate.setHours(23, 59, 59, 999);
+
+    if (period === 'yesterday') {
+      fromDate = new Date(today);
+      fromDate.setDate(today.getDate() - 1);
+      toDate = new Date(fromDate);
+      toDate.setHours(23, 59, 59, 999);
+    } else if (period === 'week') {
+      fromDate = new Date(today);
+      fromDate.setDate(today.getDate() - 6);
+    } else if (period === 'month') {
+      fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    } else if (period === 'custom') {
+      const fromInput = document.getElementById('customFromDate')?.value;
+      const toInput = document.getElementById('customToDate')?.value;
+      
+      if (!fromInput || !toInput) {
+        return [];
+      }
+      
+      fromDate = new Date(fromInput);
+      fromDate.setHours(0, 0, 0, 0);
+      toDate = new Date(toInput);
+      toDate.setHours(23, 59, 59, 999);
+    }
+
+    return this.sales.filter(sale => {
+      const saleDate = new Date(sale.createdAt);
+      return saleDate >= fromDate && saleDate <= toDate;
+    });
   }
 
   filterByDate(data, dateField) {
@@ -3131,6 +3269,36 @@ class TireShopApp {
         this.prevWizardStep();
       });
     }
+
+    // معالجات التصفية السريعة للمبيعات
+    document.querySelectorAll('[data-period-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const period = btn.dataset.periodFilter;
+        
+        if (period === 'custom') {
+          const picker = document.getElementById('customDatePicker');
+          if (picker) {
+            picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+          }
+        } else {
+          this.currentSalesPeriod = period;
+          this.switchView('sales');
+        }
+      });
+    });
+
+    document.getElementById('applyCustomPeriod')?.addEventListener('click', () => {
+      const fromInput = document.getElementById('customFromDate')?.value;
+      const toInput = document.getElementById('customToDate')?.value;
+      
+      if (!fromInput || !toInput) {
+        showToast('اختر التاريخين', 'warning');
+        return;
+      }
+      
+      this.currentSalesPeriod = 'custom';
+      this.switchView('sales');
+    });
   }
 
   renderServicesView() {
