@@ -2338,7 +2338,9 @@ class TireShopApp {
                   <td class="num">${fmtMoney(s.total || 0)}</td>
                   <td>${fmtDate(s.createdAt)}</td>
                   <td>
-                    <button class="btn btn-xs btn-blue" data-print-invoice="${s.id}">طباعة</button>
+                    <button class="btn btn-xs btn-blue" data-print-invoice="${s.id}">🖨️ طباعة</button>
+                    <button class="btn btn-xs btn-green" data-whatsapp-invoice="${s.id}" data-customer-phone="${s.customerPhone || ''}">📱 واتس</button>
+                    <button class="btn btn-xs btn-danger" data-delete-sale="${s.id}">🗑️</button>
                   </td>
                 </tr>
               `).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
@@ -2820,6 +2822,113 @@ class TireShopApp {
     });
   }
 
+  printSaleInvoice(sale) {
+    const items = this.saleItems?.filter(si => si.saleId === sale.id) || [];
+    const printWindow = window.open('', '', 'width=800,height=600');
+    const content = `
+      <!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="UTF-8">
+        <title>فاتورة - ${sale.invoiceNumber}</title>
+        <style>
+          * { margin: 0; padding: 0; }
+          body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+          .invoice { border: 1px solid #333; padding: 20px; }
+          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+          .shop-info { font-size: 18px; font-weight: bold; }
+          .invoice-number { margin-top: 10px; color: #666; }
+          .details { display: flex; justify-content: space-between; margin: 20px 0; }
+          .details-box { flex: 1; }
+          .details-box label { font-weight: bold; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+          th { background: #f0f0f0; font-weight: bold; }
+          .total-row { background: #f9f9f9; font-weight: bold; }
+          .footer { margin-top: 30px; text-align: center; color: #666; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="invoice">
+          <div class="header">
+            <div class="shop-info">${SHOP_NAME}</div>
+            <div class="invoice-number">الفاتورة رقم: ${sale.invoiceNumber}</div>
+          </div>
+          
+          <div class="details">
+            <div class="details-box">
+              <label>العميل:</label> ${sale.customerName}<br>
+              <label>الهاتف:</label> ${sale.customerPhone || '-'}<br>
+            </div>
+            <div class="details-box">
+              <label>التاريخ:</label> ${fmtDate(sale.createdAt)}<br>
+              <label>المبلغ الإجمالي:</label> ${fmtMoney(sale.total || 0)}<br>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>الوصف</th>
+                <th>الكمية</th>
+                <th>السعر</th>
+                <th>المجموع</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(item => `
+                <tr>
+                  <td>${item.description || '-'}</td>
+                  <td>${item.quantity}</td>
+                  <td>${fmtMoney(item.unitPrice)}</td>
+                  <td>${fmtMoney(item.quantity * item.unitPrice)}</td>
+                </tr>
+              `).join('')}
+              <tr class="total-row">
+                <td colspan="3">المجموع النهائي</td>
+                <td>${fmtMoney(sale.total || 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>شكراً لتعاملك معنا</p>
+            <p>${new Date().toLocaleDateString('ar-SA')}</p>
+          </div>
+        </div>
+        <script>
+          window.onload = function() { window.print(); };
+        </script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(content);
+    printWindow.document.close();
+  }
+
+  sendInvoiceViaWhatsApp(sale, phone) {
+    const items = this.saleItems?.filter(si => si.saleId === sale.id) || [];
+    let message = `*فاتورة من ${SHOP_NAME}*\n\n`;
+    message += `رقم الفاتورة: ${sale.invoiceNumber}\n`;
+    message += `التاريخ: ${fmtDate(sale.createdAt)}\n`;
+    message += `العميل: ${sale.customerName}\n\n`;
+    
+    message += `*التفاصيل:*\n`;
+    items.forEach(item => {
+      message += `• ${item.description}: ${item.quantity} × ${fmtMoney(item.unitPrice)} = ${fmtMoney(item.quantity * item.unitPrice)}\n`;
+    });
+    
+    message += `\n*المبلغ الإجمالي: ${fmtMoney(sale.total || 0)}*\n`;
+    message += `\nشكراً لتعاملك معنا ✅`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const cleanPhone = phone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    
+    window.open(whatsappUrl, '_blank');
+  }
+
   showPaymentModal(invoiceId) {
     const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
     if (!invoice) return;
@@ -2965,6 +3074,10 @@ class TireShopApp {
         <label>البريد الإلكتروني</label>
         <input type="email" id="editCustomerEmail" value="${esc(customer.email || '')}">
       </div>
+      <div class="form-group">
+        <label>العنوان <span style="color: #999;">(اختياري)</span></label>
+        <textarea id="editCustomerAddress" style="min-height: 60px;">${esc(customer.address || '')}</textarea>
+      </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
         <button class="btn btn-amber" id="saveEditCustomerBtn">حفظ</button>
@@ -2996,7 +3109,8 @@ class TireShopApp {
       this.updateRecord('customers', customer.id, {
         name,
         phone: document.getElementById('editCustomerPhone').value,
-        email: document.getElementById('editCustomerEmail').value
+        email: document.getElementById('editCustomerEmail').value,
+        address: document.getElementById('editCustomerAddress').value
       }).then(() => {
         overlay.classList.remove('active');
         this.switchView('customers');
@@ -3313,6 +3427,27 @@ class TireShopApp {
           }
         }
 
+        // معالجات المبيعات
+        if (e.target.matches('[data-delete-sale]')) {
+          const id = e.target.dataset.deleteSale;
+          if (confirm('حذف الفاتورة؟ هذا الإجراء غير قابل للتراجع')) {
+            this.deleteRecord('sales', id).then(() => this.switchView('sales'));
+          }
+        }
+
+        if (e.target.matches('[data-print-invoice]')) {
+          const id = e.target.dataset.printInvoice;
+          const sale = this.sales.find(s => s.id === id);
+          if (sale) this.printSaleInvoice(sale);
+        }
+
+        if (e.target.matches('[data-whatsapp-invoice]')) {
+          const id = e.target.dataset.whatsappInvoice;
+          const phone = e.target.dataset.customerPhone;
+          const sale = this.sales.find(s => s.id === id);
+          if (sale && phone) this.sendInvoiceViaWhatsApp(sale, phone);
+        }
+
         // معالجات التعديل
         if (e.target.matches('[data-edit-service]')) {
           const service = this.services.find(s => s.id === e.target.dataset.editService);
@@ -3410,11 +3545,13 @@ class TireShopApp {
         this.addRecord('customers', {
           name,
           phone: document.getElementById('customerPhone').value,
-          email: document.getElementById('customerEmail').value
+          email: document.getElementById('customerEmail').value,
+          address: document.getElementById('customerAddress').value
         }).then(() => {
           document.getElementById('customerName').value = '';
           document.getElementById('customerPhone').value = '';
           document.getElementById('customerEmail').value = '';
+          document.getElementById('customerAddress').value = '';
           this.switchView('customers');
         });
       });
@@ -3525,6 +3662,24 @@ class TireShopApp {
   }
 
   bindSupplierInvoicesEvents() {
+    // معالجة رفع صورة الفاتورة
+    const imageInput = document.getElementById('invoiceImageInput');
+    if (imageInput && !imageInput.hasListener) {
+      imageInput.hasListener = true;
+      imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            this.invoiceImage = event.target.result;
+            document.getElementById('invoiceImagePreview').style.display = 'block';
+            document.getElementById('invoiceImg').src = this.invoiceImage;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
     const addBtn = document.getElementById('addInvoiceBtn');
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
@@ -3538,17 +3693,26 @@ class TireShopApp {
           return;
         }
 
-        this.addRecord('supplier_invoices', {
+        const recordData = {
           supplier_id: supplierId,
           invoice_number: invoiceNumber,
           total_amount: totalAmount,
           paid_amount: 0,
           remaining_amount: totalAmount,
           invoice_date: new Date().toISOString()
-        }).then(() => {
+        };
+
+        if (this.invoiceImage) {
+          recordData.invoice_image = this.invoiceImage;
+        }
+
+        this.addRecord('supplier_invoices', recordData).then(() => {
           document.getElementById('invoiceSupplier').value = '';
           document.getElementById('invoiceNumber').value = '';
           document.getElementById('invoiceTotal').value = '';
+          document.getElementById('invoiceImageInput').value = '';
+          document.getElementById('invoiceImagePreview').style.display = 'none';
+          this.invoiceImage = null;
           this.switchView('supplierInvoices');
         });
       });
@@ -3846,6 +4010,10 @@ class TireShopApp {
           <div class="form-group">
             <label>البريد الإلكتروني</label>
             <input type="email" id="customerEmail" placeholder="email@example.com">
+          </div>
+          <div class="form-group">
+            <label>العنوان <span style="color: #999;">(اختياري)</span></label>
+            <textarea id="customerAddress" placeholder="العنوان الكامل..." style="min-height: 60px;"></textarea>
           </div>
           <button class="btn btn-amber btn-block" id="addCustomerBtn">${icon('add')} إضافة</button>
         </div>
@@ -4198,6 +4366,13 @@ class TireShopApp {
             <label>المبلغ الإجمالي *</label>
             <input type="number" id="invoiceTotal" min="0" step="0.01" placeholder="0.00">
           </div>
+          <div class="form-group">
+            <label>صورة الفاتورة <span style="color: #999;">(اختياري)</span></label>
+            <input type="file" id="invoiceImageInput" accept="image/*">
+            <div id="invoiceImagePreview" style="margin-top: 10px; display: none;">
+              <img id="invoiceImg" style="max-width: 100%; max-height: 200px; border-radius: 4px;">
+            </div>
+          </div>
           <button class="btn btn-amber btn-block" id="addInvoiceBtn">${icon('add')} إضافة</button>
         </div>
 
@@ -4496,6 +4671,13 @@ class TireShopApp {
             <label>التاريخ</label>
             <input type="date" id="dailyExpenseDateInput" value="${new Date().toISOString().split('T')[0]}">
           </div>
+          <div class="form-group">
+            <label>الصورة <span style="color: #999;">(اختياري)</span></label>
+            <input type="file" id="dailyExpenseImageInput" accept="image/*">
+            <div id="dailyExpenseImagePreview" style="margin-top: 10px; display: none;">
+              <img id="dailyExpenseImg" style="max-width: 100%; max-height: 200px; border-radius: 4px;">
+            </div>
+          </div>
           <button class="btn btn-blue btn-block" id="addDailyExpenseBtn">💾 إضافة</button>
         </div>
 
@@ -4651,6 +4833,24 @@ class TireShopApp {
   }
 
   bindDailyExpensesEvents() {
+    // معالجة رفع الصورة
+    const imageInput = document.getElementById('dailyExpenseImageInput');
+    if (imageInput && !imageInput.hasListener) {
+      imageInput.hasListener = true;
+      imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            this.dailyExpenseImage = event.target.result;
+            document.getElementById('dailyExpenseImagePreview').style.display = 'block';
+            document.getElementById('dailyExpenseImg').src = this.dailyExpenseImage;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
     const addBtn = document.getElementById('addDailyExpenseBtn');
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
@@ -4664,12 +4864,23 @@ class TireShopApp {
           return;
         }
 
-        this.addRecord('expenses', {
+        const recordData = {
           expense_type: 'يومية',
           description,
           amount,
           expense_date: new Date(expenseDate).toISOString()
-        }).then(() => {
+        };
+
+        if (this.dailyExpenseImage) {
+          recordData.image = this.dailyExpenseImage;
+        }
+
+        this.addRecord('expenses', recordData).then(() => {
+          document.getElementById('dailyExpenseDescInput').value = '';
+          document.getElementById('dailyExpenseAmountInput').value = '';
+          document.getElementById('dailyExpenseImageInput').value = '';
+          document.getElementById('dailyExpenseImagePreview').style.display = 'none';
+          this.dailyExpenseImage = null;
           this.switchView('dailyExpenses');
         });
       });
