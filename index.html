@@ -1582,7 +1582,12 @@ function hideModal() {
 // =====================================================================
 
 const FIELD_MAP = {
-  tires: { selling_price: 'sellingPrice', tire_type_id: 'tireTypeId', supplier_id: 'supplierId' },
+  tires: { 
+    selling_price: 'sellingPrice', 
+    cost_price: 'costPrice',
+    tire_type_id: 'tireTypeId', 
+    supplier_id: 'supplierId'
+  },
   services: {},
   customers: {},
   appointments: { customer_id: 'customerId', customer_name: 'customerName', service_name: 'serviceName' },
@@ -2990,10 +2995,40 @@ class TireShopApp {
 
   showEditTireModal(tire) {
     const content = `
+      <!-- الاسم -->
       <div class="form-group">
         <label>الاسم *</label>
         <input type="text" id="editTireName" value="${esc(tire.name)}">
       </div>
+
+      <!-- المقاس والبراند -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>المقاس *</label>
+          <input type="text" id="editTireSize" value="${esc(tire.size || '')}">
+        </div>
+        <div class="form-group">
+          <label>البراند *</label>
+          <input type="text" id="editTireBrand" value="${esc(tire.brand || '')}">
+        </div>
+      </div>
+
+      <!-- الموديل والمورد -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>الموديل</label>
+          <input type="text" id="editTireModel" value="${esc(tire.model || '')}">
+        </div>
+        <div class="form-group">
+          <label>المورد *</label>
+          <select id="editTireSupplier">
+            <option value="">-- اختر مورد --</option>
+            ${this.suppliers.map(s => `<option value="${s.id}" ${tire.supplier_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- الأسعار -->
       <div class="form-row">
         <div class="form-group">
           <label>سعر التكلفة</label>
@@ -3004,10 +3039,13 @@ class TireShopApp {
           <input type="number" id="editTireSellingPrice" step="0.01" value="${tire.sellingPrice}">
         </div>
       </div>
+
+      <!-- الكمية -->
       <div class="form-group">
         <label>الكمية *</label>
         <input type="number" id="editTireQuantity" step="1" value="${tire.quantity}">
       </div>
+
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
         <button class="btn btn-amber" id="saveEditTireBtn">حفظ</button>
@@ -3030,18 +3068,26 @@ class TireShopApp {
     
     document.getElementById('saveEditTireBtn')?.addEventListener('click', () => {
       const name = document.getElementById('editTireName').value.trim();
+      const size = document.getElementById('editTireSize').value.trim();
+      const brand = document.getElementById('editTireBrand').value.trim();
+      const model = document.getElementById('editTireModel').value.trim();
+      const supplierId = document.getElementById('editTireSupplier').value;
       const sellingPrice = parseFloat(document.getElementById('editTireSellingPrice').value) || 0;
       const quantity = parseInt(document.getElementById('editTireQuantity').value) || 0;
       
-      if (!name || !sellingPrice) {
-        showToast('أدخل البيانات', 'error');
+      if (!name || !size || !brand || !supplierId || !sellingPrice) {
+        showToast('أدخل البيانات المطلوبة', 'error');
         return;
       }
 
       this.updateRecord('tires', tire.id, {
         name,
+        size,
+        brand,
+        model,
+        supplier_id: supplierId,
         cost_price: parseFloat(document.getElementById('editTireCostPrice').value) || 0,
-        sellingPrice,
+        selling_price: sellingPrice,
         quantity
       }).then(() => {
         overlay.classList.remove('active');
@@ -3295,19 +3341,34 @@ class TireShopApp {
   bindTiresEvents() {
     document.getElementById('addTireBtn')?.addEventListener('click', () => {
       const name = document.getElementById('tireName').value.trim();
+      const size = document.getElementById('tireSize').value.trim();
+      const brand = document.getElementById('tireBrand').value.trim();
+      const model = document.getElementById('tireModel').value.trim();
+      const supplierId = document.getElementById('tireSupplier').value;
       const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
       const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
       const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
 
-      if (!name || !sellingPrice) {
-        showToast('أدخل البيانات', 'error');
+      if (!name || !size || !brand || !supplierId || !sellingPrice) {
+        showToast('أدخل البيانات المطلوبة', 'error');
         return;
       }
 
       this.addRecord('tires', {
-        name, cost_price: costPrice, sellingPrice, quantity
+        name, 
+        size, 
+        brand, 
+        model,
+        supplier_id: supplierId,
+        cost_price: costPrice, 
+        selling_price: sellingPrice, 
+        quantity
       }).then(() => {
         document.getElementById('tireName').value = '';
+        document.getElementById('tireSize').value = '';
+        document.getElementById('tireBrand').value = '';
+        document.getElementById('tireModel').value = '';
+        document.getElementById('tireSupplier').value = '';
         document.getElementById('tireCostPrice').value = '';
         document.getElementById('tireSellingPrice').value = '';
         document.getElementById('tireQuantity').value = '';
@@ -3866,10 +3927,41 @@ class TireShopApp {
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>${t('addTire')}</h3></div>
+          
+          <!-- الاسم -->
           <div class="form-group">
-            <label>اسم الإطار *</label>
-            <input type="text" id="tireName" placeholder="مثال: ميشلان 16">
+            <label>الاسم *</label>
+            <input type="text" id="tireName" placeholder="مثال: ميشلان">
           </div>
+
+          <!-- المقاس والبراند -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>المقاس *</label>
+              <input type="text" id="tireSize" placeholder="مثال: 16 or 205/55R16">
+            </div>
+            <div class="form-group">
+              <label>البراند *</label>
+              <input type="text" id="tireBrand" placeholder="مثال: Michelin">
+            </div>
+          </div>
+
+          <!-- الموديل والمورد -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>الموديل</label>
+              <input type="text" id="tireModel" placeholder="مثال: Primacy">
+            </div>
+            <div class="form-group">
+              <label>المورد *</label>
+              <select id="tireSupplier">
+                <option value="">-- اختر مورد --</option>
+                ${this.suppliers.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+
+          <!-- الأسعار -->
           <div class="form-row">
             <div class="form-group">
               <label>سعر التكلفة *</label>
@@ -3880,10 +3972,13 @@ class TireShopApp {
               <input type="number" id="tireSellingPrice" min="0" step="0.01" placeholder="0.00">
             </div>
           </div>
+
+          <!-- الكمية -->
           <div class="form-group">
             <label>الكمية *</label>
             <input type="number" id="tireQuantity" min="0" step="1" placeholder="0">
           </div>
+
           <button class="btn btn-amber btn-block" id="addTireBtn">${icon('add')} إضافة</button>
         </div>
 
@@ -3896,9 +3991,11 @@ class TireShopApp {
               <thead>
                 <tr>
                   <th>الاسم</th>
+                  <th>المقاس</th>
+                  <th>البراند</th>
                   <th>الكمية</th>
                   <th>سعر البيع</th>
-                  <th>التاريخ</th>
+                  <th>المورد</th>
                   <th>الإجراءات</th>
                 </tr>
               </thead>
@@ -3906,9 +4003,11 @@ class TireShopApp {
                 ${filteredTires.map(t => `
                   <tr>
                     <td>${esc(t.name)}</td>
+                    <td>${esc(t.size || '-')}</td>
+                    <td>${esc(t.brand || '-')}</td>
                     <td class="num">${t.quantity || 0}</td>
                     <td class="num">${fmtMoney(t.sellingPrice)}</td>
-                    <td>${fmtDate(t.createdAt)}</td>
+                    <td>${this.suppliers.find(s => s.id === t.supplier_id)?.name || '-'}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-tire="${t.id}">${icon('edit')}</button>
@@ -3916,7 +4015,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="5" class="text-center">لا توجد إطارات</td></tr>'}
+                `).join('') || '<tr><td colspan="7" class="text-center">لا توجد إطارات</td></tr>'}
               </tbody>
             </table>
           </div>
