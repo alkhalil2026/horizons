@@ -1,9 +1,10 @@
 <!DOCTYPE html>
+<!-- VERSION: 1.0.0 | DIRECT TIRE IMPORT TOOL -->
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>أداة استيراد الإطارات</title>
+  <title>استيراد الإطارات - المخزون</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -26,8 +27,23 @@
     }
     h1 {
       color: #333;
-      margin-bottom: 30px;
+      margin-bottom: 10px;
       text-align: center;
+    }
+    .subtitle {
+      color: #999;
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #1976d2;
     }
     .form-group {
       margin-bottom: 20px;
@@ -38,7 +54,7 @@
       margin-bottom: 8px;
       font-weight: bold;
     }
-    input[type="text"], input[type="number"], select {
+    input[type="number"] {
       width: 100%;
       padding: 12px;
       border: 1px solid #ddd;
@@ -46,18 +62,29 @@
       font-size: 14px;
       font-family: 'Almarai', sans-serif;
     }
+    .button-group {
+      display: flex;
+      gap: 10px;
+    }
     button {
-      width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      flex: 1;
+      padding: 14px;
       border: none;
       border-radius: 5px;
       font-size: 16px;
       font-weight: bold;
       cursor: pointer;
-      margin-top: 10px;
       transition: opacity 0.3s;
+      font-family: 'Almarai', sans-serif;
+    }
+    .btn-import {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-preview {
+      background: #f5f5f5;
+      color: #333;
+      border: 2px solid #ddd;
     }
     button:hover { opacity: 0.9; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -84,66 +111,132 @@
       color: white;
       display: block;
     }
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #ddd;
+      border-radius: 4px;
+      margin-top: 15px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .progress-text {
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
     .tires-preview {
       background: #f5f5f5;
       border: 1px solid #ddd;
       border-radius: 5px;
       padding: 15px;
       margin-top: 20px;
-      max-height: 300px;
+      max-height: 400px;
       overflow-y: auto;
+      display: none;
+    }
+    .tires-preview.show {
+      display: block;
+    }
+    .preview-header {
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 10px;
     }
     .tire-item {
       padding: 8px;
       background: white;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       border-radius: 3px;
       border-left: 3px solid #667eea;
-      font-size: 13px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
     }
-    .progress-bar {
-      width: 100%;
-      height: 6px;
-      background: #ddd;
-      border-radius: 3px;
-      margin-top: 10px;
-      overflow: hidden;
+    .tire-name {
+      flex: 1;
     }
-    .progress-fill {
-      height: 100%;
-      background: #4caf50;
-      width: 0%;
-      transition: width 0.3s;
+    .tire-qty {
+      color: #f44336;
+      font-weight: bold;
+      margin: 0 10px;
     }
+    .tire-price {
+      color: #4caf50;
+      font-weight: bold;
+    }
+    .stats {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      border-radius: 5px;
+      margin-top: 20px;
+      display: none;
+    }
+    .stats.show {
+      display: block;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      font-size: 14px;
+    }
+    .stat-label { color: #666; }
+    .stat-value { font-weight: bold; color: #333; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🔧 أداة استيراد الإطارات</h1>
+    <h1>📦 استيراد المخزون</h1>
+    <p class="subtitle">إضافة 30 إطار مباشرة من الملف</p>
     
-    <div class="form-group">
-      <label>اختر المورد:</label>
-      <select id="supplierSelect">
-        <option value="">جاري تحميل الموردين...</option>
-      </select>
+    <div class="info-box">
+      ℹ️ سيتم إضافة الإطارات بسعر البيع المحدد والكمية المتوفرة
     </div>
 
     <div class="form-group">
-      <label>سعر التكلفة (اختياري - للجميع):</label>
-      <input type="number" id="costPrice" step="0.01" placeholder="اترك فارغاً للقيمة الافتراضية">
+      <label>💰 سعر التكلفة (اختياري - للجميع):</label>
+      <input type="number" id="costPrice" step="0.01" placeholder="اترك فارغاً للقيمة الافتراضية (0)">
     </div>
 
-    <button onclick="importTires()">📥 استيراد 30 إطار</button>
+    <div class="button-group">
+      <button class="btn-preview" onclick="showPreview()">👁️ معاينة</button>
+      <button class="btn-import" onclick="importTires()" id="importBtn">📥 استيراد الآن</button>
+    </div>
     
     <div id="status" class="status"></div>
     
-    <div class="progress-bar" id="progressBar" style="display:none;">
+    <div class="progress-bar" id="progressBar">
       <div class="progress-fill" id="progressFill"></div>
+      <div class="progress-text" id="progressText">0/30</div>
     </div>
 
-    <div id="tiresPreview" class="tires-preview" style="display:none;">
-      <h3>📋 البيانات التي ستُضاف:</h3>
+    <div id="tiresPreview" class="tires-preview">
+      <div class="preview-header">📋 البيانات التي ستُضاف:</div>
       <div id="tiresList"></div>
+    </div>
+
+    <div id="stats" class="stats">
+      <div class="stat-row">
+        <span class="stat-label">📊 إجمالي الإطارات:</span>
+        <span class="stat-value" id="totalTires">30</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">📦 الكمية الإجمالية:</span>
+        <span class="stat-value" id="totalQuantity">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">💵 متوسط السعر:</span>
+        <span class="stat-value" id="avgPrice">0</span>
+      </div>
     </div>
   </div>
 
@@ -187,37 +280,45 @@
       {"name": "ATLANDER  275/60/R20", "size": "275/60/R20", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 44.0}
     ];
 
-    // تحميل الموردين عند فتح الصفحة
-    async function loadSuppliers() {
-      try {
-        const { data } = await sb.from('suppliers').select('id, name');
-        const select = document.getElementById('supplierSelect');
-        select.innerHTML = '<option value="">اختر المورد:</option>';
+    function showPreview() {
+      const previewEl = document.getElementById('tiresPreview');
+      const listEl = document.getElementById('tiresList');
+      const statsEl = document.getElementById('stats');
+      
+      if (previewEl.classList.contains('show')) {
+        previewEl.classList.remove('show');
+        statsEl.classList.remove('show');
+      } else {
+        let html = '';
+        let totalQty = 0;
+        let totalPrice = 0;
         
-        if (data && data.length > 0) {
-          data.forEach(supplier => {
-            const option = document.createElement('option');
-            option.value = supplier.id;
-            option.textContent = supplier.name;
-            select.appendChild(option);
-          });
-        } else {
-          select.innerHTML += '<option disabled>لا توجد موردين - أضف مورد أولاً</option>';
-        }
-      } catch (error) {
-        showStatus('❌ خطأ في تحميل الموردين: ' + error.message, 'error');
+        tiresData.forEach(tire => {
+          html += `
+            <div class="tire-item">
+              <span class="tire-name">${tire.name}</span>
+              <span class="tire-qty">×${tire.quantity}</span>
+              <span class="tire-price">${tire.selling_price.toFixed(2)}</span>
+            </div>
+          `;
+          totalQty += tire.quantity;
+          totalPrice += tire.selling_price;
+        });
+        
+        listEl.innerHTML = html;
+        document.getElementById('totalQuantity').textContent = totalQty;
+        document.getElementById('avgPrice').textContent = (totalPrice / tiresData.length).toFixed(2);
+        
+        previewEl.classList.add('show');
+        statsEl.classList.add('show');
       }
     }
 
     async function importTires() {
-      const supplierId = document.getElementById('supplierSelect').value;
       const costPrice = parseFloat(document.getElementById('costPrice').value) || 0;
-
-      if (!supplierId) {
-        showStatus('❌ يرجى اختيار مورد أولاً', 'error');
-        return;
-      }
-
+      const importBtn = document.getElementById('importBtn');
+      
+      importBtn.disabled = true;
       showStatus('⏳ جاري الاستيراد...', 'loading');
       document.getElementById('progressBar').style.display = 'block';
       
@@ -236,7 +337,7 @@
             quantity: tire.quantity,
             selling_price: tire.selling_price,
             cost_price: costPrice,
-            supplier_id: supplierId
+            supplier_id: null
           }]);
 
           if (error) {
@@ -253,14 +354,16 @@
         // تحديث شريط التقدم
         const progress = ((i + 1) / tiresData.length) * 100;
         document.getElementById('progressFill').style.width = progress + '%';
+        document.getElementById('progressText').textContent = `${i + 1}/${tiresData.length}`;
       }
 
       document.getElementById('progressBar').style.display = 'none';
+      importBtn.disabled = false;
       
       if (failed === 0) {
         showStatus(`✅ تم استيراد ${successful} إطار بنجاح!`, 'success');
       } else {
-        showStatus(`⚠️ تم استيراد ${successful} إطار | فشل: ${failed}`, 'error');
+        showStatus(`⚠️ تم استيراد ${successful} | فشل: ${failed}`, 'error');
       }
     }
 
@@ -269,9 +372,6 @@
       statusEl.textContent = message;
       statusEl.className = 'status ' + type;
     }
-
-    // تحميل الموردين عند فتح الصفحة
-    window.addEventListener('load', loadSuppliers);
   </script>
 </body>
 </html>
