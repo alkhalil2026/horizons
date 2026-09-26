@@ -1387,6 +1387,17 @@ const i18n = {
     check: 'شيك',
     transfer: 'تحويل',
     expenses: 'المصروفات',
+    fixedExpenses: 'المصروفات الثابتة',
+    dailyExpenses: 'المصروفات اليومية',
+    expenseType: 'نوع المصروفة',
+    expenseTypeFixed: 'نوع المصروف الثابت',
+    rent: 'الإيجار',
+    electricity: 'الكهرباء',
+    water: 'الماء',
+    salary: 'الراتب',
+    maintenance: 'الصيانة',
+    insurance: 'التأمين',
+    other: 'أخرى',
     supplierSummary: 'ملخص الموردين',
     addService: 'إضافة خدمة',
     addCustomer: 'إضافة عميل',
@@ -1461,6 +1472,17 @@ const i18n = {
     check: 'Check',
     transfer: 'Transfer',
     expenses: 'Expenses',
+    fixedExpenses: 'Fixed Expenses',
+    dailyExpenses: 'Daily Expenses',
+    expenseType: 'Expense Type',
+    expenseTypeFixed: 'Fixed Expense Type',
+    rent: 'Rent',
+    electricity: 'Electricity',
+    water: 'Water',
+    salary: 'Salary',
+    maintenance: 'Maintenance',
+    insurance: 'Insurance',
+    other: 'Other',
     supplierSummary: 'Supplier Summary',
     today: 'Today',
     yesterday: 'Yesterday',
@@ -2486,7 +2508,8 @@ class TireShopApp {
       ['appointments', t('appointments'), 'appointments'],
       ['sales', t('sales'), 'sales'],
       ['reports', t('reports'), 'reports'],
-      ['expenses', `💸 ${t('expenses')}`, 'expenses'],
+      ['fixedExpenses', `💰 ${t('fixedExpenses')}`, 'fixedExpenses'],
+      ['dailyExpenses', `💸 ${t('dailyExpenses')}`, 'dailyExpenses'],
     ];
 
     if (this.currentUser.role === 'manager') {
@@ -2552,7 +2575,8 @@ class TireShopApp {
       appointments: t('appointments'),
       sales: t('sales'),
       reports: t('reports'),
-      expenses: `💸 ${t('expenses')}`,
+      fixedExpenses: `💰 ${t('fixedExpenses')}`,
+      dailyExpenses: `💸 ${t('dailyExpenses')}`,
       suppliers: t('suppliers'),
       supplierInvoices: t('supplierInvoices'),
       supplierPayments: t('supplierPayments'),
@@ -2569,7 +2593,8 @@ class TireShopApp {
       tires: () => this.renderTiresView(),
       appointments: () => this.renderAppointmentsView(),
       reports: () => this.renderReportsView(),
-      expenses: () => this.renderExpensesView(),
+      fixedExpenses: () => this.renderFixedExpensesView(),
+      dailyExpenses: () => this.renderDailyExpensesView(),
       suppliers: () => this.renderSuppliersView(),
       supplierInvoices: () => this.renderSupplierInvoicesView(),
       supplierPayments: () => this.renderSupplierPaymentsView(),
@@ -3186,7 +3211,8 @@ class TireShopApp {
     if (view === 'customers') this.bindCustomersEvents();
     if (view === 'tires') this.bindTiresEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
-    if (view === 'expenses') this.bindExpensesEvents();
+    if (view === 'fixedExpenses') this.bindFixedExpensesEvents();
+    if (view === 'dailyExpenses') this.bindDailyExpensesEvents();
     if (view === 'suppliers') this.bindSuppliersEvents();
     if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
     if (view === 'supplierPayments') this.bindSupplierPaymentsEvents();
@@ -4317,6 +4343,167 @@ class TireShopApp {
     `;
   }
 
+  renderFixedExpensesView() {
+    const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
+    const fixedExpenses = filteredExpenses.filter(e => e.expenseType === 'ثابتة');
+    const totalFixed = fixedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    
+    const fixedTypeOptions = [
+      { value: 'rent', label: t('rent') },
+      { value: 'electricity', label: t('electricity') },
+      { value: 'water', label: t('water') },
+      { value: 'salary', label: t('salary') },
+      { value: 'maintenance', label: t('maintenance') },
+      { value: 'insurance', label: t('insurance') },
+      { value: 'other', label: t('other') }
+    ];
+
+    return `
+      ${this.renderDateFilterBar()}
+      
+      <div class="card" style="background: linear-gradient(135deg, #10A881 0%, #0D8B6F 100%); color: white; margin-bottom: 20px;">
+        <div class="card-head" style="border-bottom-color: rgba(255,255,255,0.2);">
+          <h3 style="color: white;">💰 ${t('fixedExpenses')}</h3>
+        </div>
+        <div style="font-size: 32px; font-weight: 800; text-align: center;">
+          ${fmtMoney(totalFixed)} ر.ع
+        </div>
+        <div style="font-size: 12px; text-align: center; margin-top: 8px; opacity: 0.9;">
+          عدد المصروفات: ${fixedExpenses.length}
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>➕ إضافة مصروف ثابت</h3></div>
+          <div class="form-group">
+            <label>${t('expenseTypeFixed')} *</label>
+            <select id="fixedExpenseTypeSelect">
+              <option value="">-- اختر النوع --</option>
+              ${fixedTypeOptions.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>البيان *</label>
+            <input type="text" id="fixedExpenseDescInput" placeholder="وصف تفصيلي (اختياري)">
+          </div>
+          <div class="form-group">
+            <label>المبلغ *</label>
+            <input type="number" id="fixedExpenseAmountInput" step="0.01" min="0" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>التاريخ</label>
+            <input type="date" id="fixedExpenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+          </div>
+          <button class="btn btn-green btn-block" id="addFixedExpenseBtn">💾 إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>${t('fixedExpenses')} (${fixedExpenses.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>النوع</th>
+                  <th>البيان</th>
+                  <th>المبلغ</th>
+                  <th>التاريخ</th>
+                  <th>الإجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${fixedExpenses.map(e => `
+                  <tr>
+                    <td><span class="badge badge-success">${e.description || 'أخرى'}</span></td>
+                    <td>${esc(e.notes || '-')}</td>
+                    <td class="num">${fmtMoney(e.amount)}</td>
+                    <td>${fmtDate(e.expenseDate)}</td>
+                    <td>
+                      <button class="btn btn-xs btn-danger" data-delete-fixed-expense="${e.id}">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="5" class="text-center">لا توجد مصروفات ثابتة</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderDailyExpensesView() {
+    const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
+    const dailyExpenses = filteredExpenses.filter(e => e.expenseType === 'يومية');
+    const totalDaily = dailyExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    return `
+      ${this.renderDateFilterBar()}
+      
+      <div class="card" style="background: linear-gradient(135deg, #4A90E2 0%, #2E5BCC 100%); color: white; margin-bottom: 20px;">
+        <div class="card-head" style="border-bottom-color: rgba(255,255,255,0.2);">
+          <h3 style="color: white;">💸 ${t('dailyExpenses')}</h3>
+        </div>
+        <div style="font-size: 32px; font-weight: 800; text-align: center;">
+          ${fmtMoney(totalDaily)} ر.ع
+        </div>
+        <div style="font-size: 12px; text-align: center; margin-top: 8px; opacity: 0.9;">
+          عدد المصروفات: ${dailyExpenses.length}
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>➕ إضافة مصروف يومي</h3></div>
+          <div class="form-group">
+            <label>البيان *</label>
+            <input type="text" id="dailyExpenseDescInput" placeholder="مثال: وقود، أدوات، إلخ" required>
+          </div>
+          <div class="form-group">
+            <label>المبلغ *</label>
+            <input type="number" id="dailyExpenseAmountInput" step="0.01" min="0" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label>التاريخ</label>
+            <input type="date" id="dailyExpenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+          </div>
+          <button class="btn btn-blue btn-block" id="addDailyExpenseBtn">💾 إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>${t('dailyExpenses')} (${dailyExpenses.length})</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>البيان</th>
+                  <th>المبلغ</th>
+                  <th>التاريخ</th>
+                  <th>الإجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${dailyExpenses.map(e => `
+                  <tr>
+                    <td>${esc(e.description || '-')}</td>
+                    <td class="num">${fmtMoney(e.amount)}</td>
+                    <td>${fmtDate(e.expenseDate)}</td>
+                    <td>
+                      <button class="btn btn-xs btn-danger" data-delete-daily-expense="${e.id}">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد مصروفات يومية</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   renderExpensesView() {
     const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
     
@@ -4405,6 +4592,74 @@ class TireShopApp {
         </div>
       </div>
     `;
+  }
+
+  bindFixedExpensesEvents() {
+    document.getElementById('addFixedExpenseBtn')?.addEventListener('click', () => {
+      const type = document.getElementById('fixedExpenseTypeSelect').value;
+      const description = document.getElementById('fixedExpenseDescInput').value.trim();
+      const amount = parseFloat(document.getElementById('fixedExpenseAmountInput').value) || 0;
+      const expenseDate = document.getElementById('fixedExpenseDateInput').value;
+
+      if (!type || !amount) {
+        showToast('أدخل النوع والمبلغ', 'error');
+        return;
+      }
+
+      this.addRecord('expenses', {
+        expense_type: 'ثابتة',
+        description: type,
+        notes: description,
+        amount,
+        expense_date: new Date(expenseDate).toISOString()
+      }).then(() => {
+        this.switchView('fixedExpenses');
+      });
+    });
+
+    document.querySelectorAll('[data-delete-fixed-expense]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.deleteFixedExpense;
+        if (confirm('حذف المصروف الثابت؟')) {
+          this.deleteRecord('expenses', id).then(() => {
+            this.switchView('fixedExpenses');
+          });
+        }
+      });
+    });
+  }
+
+  bindDailyExpensesEvents() {
+    document.getElementById('addDailyExpenseBtn')?.addEventListener('click', () => {
+      const description = document.getElementById('dailyExpenseDescInput').value.trim();
+      const amount = parseFloat(document.getElementById('dailyExpenseAmountInput').value) || 0;
+      const expenseDate = document.getElementById('dailyExpenseDateInput').value;
+
+      if (!description || !amount) {
+        showToast('أدخل البيان والمبلغ', 'error');
+        return;
+      }
+
+      this.addRecord('expenses', {
+        expense_type: 'يومية',
+        description,
+        amount,
+        expense_date: new Date(expenseDate).toISOString()
+      }).then(() => {
+        this.switchView('dailyExpenses');
+      });
+    });
+
+    document.querySelectorAll('[data-delete-daily-expense]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.deleteDailyExpense;
+        if (confirm('حذف المصروف اليومي؟')) {
+          this.deleteRecord('expenses', id).then(() => {
+            this.switchView('dailyExpenses');
+          });
+        }
+      });
+    });
   }
 
   bindExpensesEvents() {
