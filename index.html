@@ -1605,13 +1605,12 @@ function hideModal() {
 const FIELD_MAP = {
   tires: { 
     selling_price: 'sellingPrice', 
-    cost_price: 'costPrice',
-    tire_type_id: 'tireTypeId', 
+    cost: 'cost',
     supplier_id: 'supplierId'
   },
   services: {},
   customers: {},
-  appointments: { customer_id: 'customerId', customer_name: 'customerName', service_name: 'serviceName' },
+  appointments: { customer_id: 'customerId', customer_name: 'customerName', service_name: 'serviceName', appointment_time: 'appointmentTime' },
   sales: {
     invoice_number: 'invoiceNumber',
     customer_id: 'customerId',
@@ -3151,18 +3150,18 @@ class TireShopApp {
       <div class="form-row">
         <div class="form-group">
           <label>سعر التكلفة</label>
-          <input type="number" id="editTireCostPrice" step="0.01" value="${tire.cost_price || 0}">
+          <input type="number" id="editTireCostPrice" step="0.01" value="${tire.cost || 0}">
         </div>
         <div class="form-group">
           <label>سعر البيع *</label>
-          <input type="number" id="editTireSellingPrice" step="0.01" value="${tire.sellingPrice}">
+          <input type="number" id="editTireSellingPrice" step="0.01" value="${tire.selling_price}">
         </div>
       </div>
 
       <!-- الكمية -->
       <div class="form-group">
         <label>الكمية *</label>
-        <input type="number" id="editTireQuantity" step="1" value="${tire.quantity}">
+        <input type="number" id="editTireQuantity" step="1" value="${tire.stock || 0}">
       </div>
 
       <div class="modal-footer">
@@ -3191,7 +3190,7 @@ class TireShopApp {
       const model = document.getElementById('editTireModel').value.trim();
       const supplierId = document.getElementById('editTireSupplier').value;
       const sellingPrice = parseFloat(document.getElementById('editTireSellingPrice').value) || 0;
-      const quantity = parseInt(document.getElementById('editTireQuantity').value) || 0;
+      const stock = parseInt(document.getElementById('editTireQuantity').value) || 0;
       
       if (!size || !brand || !supplierId || !sellingPrice) {
         showToast('أدخل البيانات المطلوبة', 'error');
@@ -3203,9 +3202,9 @@ class TireShopApp {
         brand,
         model,
         supplier_id: supplierId,
-        cost_price: parseFloat(document.getElementById('editTireCostPrice').value) || 0,
+        cost: parseFloat(document.getElementById('editTireCostPrice').value) || 0,
         selling_price: sellingPrice,
-        quantity
+        stock
       }).then(() => {
         overlay.classList.remove('active');
         this.switchView('tires');
@@ -3231,7 +3230,7 @@ class TireShopApp {
       </div>
       <div class="form-group">
         <label>التاريخ والوقت *</label>
-        <input type="datetime-local" id="editAppointmentDateTime" value="${appointment.appointmentTime || ''}">
+        <input type="datetime-local" id="editAppointmentDateTime" value="${(appointment.appointmentTime || appointment.appointment_time || '').substring(0, 16)}">
       </div>
       <div class="form-group">
         <label>ملاحظات</label>
@@ -3569,9 +3568,9 @@ class TireShopApp {
         const brand = document.getElementById('tireBrand').value.trim();
         const model = document.getElementById('tireModel').value.trim();
         const supplierId = document.getElementById('tireSupplier').value;
-        const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
+        const cost = parseFloat(document.getElementById('tireCostPrice').value) || 0;
         const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
-        const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
+        const stock = parseInt(document.getElementById('tireQuantity').value) || 0;
 
         if (!size || !brand || !supplierId || !sellingPrice) {
           showToast('أدخل البيانات المطلوبة', 'error');
@@ -3583,9 +3582,9 @@ class TireShopApp {
           brand, 
           model,
           supplier_id: supplierId,
-          cost_price: costPrice, 
+          cost, 
           selling_price: sellingPrice, 
-          quantity
+          stock
         }).then(() => {
           document.getElementById('tireSize').value = '';
           document.getElementById('tireBrand').value = '';
@@ -4204,7 +4203,7 @@ class TireShopApp {
                   <tr>
                     <td>${esc(a.customerName)}</td>
                     <td>${esc(a.serviceName)}</td>
-                    <td>${fmtDate(a.appointmentTime)}</td>
+                    <td>${fmtDate(a.appointmentTime || a.appointment_time)}</td>
                     <td>${fmtDate(a.createdAt)}</td>
                     <td>
                       <div class="action-cell">
