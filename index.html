@@ -1688,6 +1688,7 @@ class TireShopApp {
     this.sb = null;
     this.currentUser = null;
     this.currentView = 'login';
+    this.isLoading = false; // علم لمنع تحميل متزامن متعدد
     
     // Database collections
     this.tires = [];
@@ -1753,17 +1754,30 @@ class TireShopApp {
       return;
     }
 
+    // منع استدعاءات متعددة متزامنة
+    if (this.isLoading) return;
+    this.isLoading = true;
+
     try {
       const tables = [
         'tires', 'services', 'customers', 'appointments', 'sales',
         'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses'
       ];
 
-      for (const table of tables) {
-        const { data, error } = await this.sb.from(table).select('*').order('created_at', { ascending: false });
+      // تحميل جميع الجداول بالتوازي بدلاً من التسلسل
+      const results = await Promise.all(
+        tables.map(table => 
+          this.sb.from(table).select('*').order('created_at', { ascending: false })
+        )
+      );
+
+      results.forEach((result, idx) => {
+        const table = tables[idx];
+        const { data, error } = result;
+        
         if (error) {
           console.error(`Error loading ${table}:`, error);
-          continue;
+          return;
         }
 
         const mapped = data.map(row => rowFromDb(row, table));
@@ -1774,9 +1788,11 @@ class TireShopApp {
         
         this[propName] = mapped;
         console.log(`✅ Loaded ${mapped.length} from ${table}`);
-      }
+      });
     } catch (e) {
       console.error('Data load error:', e);
+    } finally {
+      this.isLoading = false;
     }
   }
 
@@ -3202,11 +3218,118 @@ class TireShopApp {
       this.render();
     });
 
-    document.querySelectorAll('.side-link').forEach(link => {
-      link.addEventListener('click', (e) => {
-        const view = e.currentTarget.dataset.view;
-        if (view) this.switchView(view);
+    // استخدام event delegation بدلاً من إضافة معالج لكل عنصر
+    const nav = document.querySelector('.side-nav');
+    if (nav && !nav.hasListener) {
+      nav.hasListener = true;
+      nav.addEventListener('click', (e) => {
+        const link = e.target.closest('.side-link');
+        if (link) {
+          const view = link.dataset.view;
+          if (view) this.switchView(view);
+        }
       });
+    }
+
+    // معالج عام لجميع أزرار الحذف والتعديل بـ event delegation
+    const content = document.getElementById('content');
+    if (content && !content.hasGeneralListener) {
+      content.hasGeneralListener = true;
+      content.addEventListener('click', (e) => {
+        // معالجات الحذف
+        if (e.target.matches('[data-delete-service]')) {
+          const id = e.target.dataset.deleteService;
+          if (confirm('حذف الخدمة؟')) {
+            this.deleteRecord('services', id).then(() => this.switchView('services'));
+          }
+        }
+        if (e.target.matches('[data-delete-customer]')) {
+          const id = e.target.dataset.deleteCustomer;
+          if (confirm('حذف العميل؟')) {
+            this.deleteRecord('customers', id).then(() => this.switchView('customers'));
+          }
+        }
+        if (e.target.matches('[data-delete-tire]')) {
+          const id = e.target.dataset.deleteTire;
+          if (confirm('حذف الإطار؟')) {
+            this.deleteRecord('tires', id).then(() => this.switchView('tires'));
+          }
+        }
+        if (e.target.matches('[data-delete-appointment]')) {
+          const id = e.target.dataset.deleteAppointment;
+          if (confirm('حذف الموعد؟')) {
+            this.deleteRecord('appointments', id).then(() => this.switchView('appointments'));
+          }
+        }
+        if (e.target.matches('[data-delete-supplier]')) {
+          const id = e.target.dataset.deleteSupplier;
+          if (confirm('حذف المورد؟')) {
+            this.deleteRecord('suppliers', id).then(() => this.switchView('suppliers'));
+          }
+        }
+        if (e.target.matches('[data-delete-invoice]')) {
+          const id = e.target.dataset.deleteInvoice;
+          if (confirm('حذف الفاتورة؟')) {
+            this.deleteRecord('supplier_invoices', id).then(() => this.switchView('supplierInvoices'));
+          }
+        }
+        if (e.target.matches('[data-delete-payment]')) {
+          const id = e.target.dataset.deletePayment;
+          if (confirm('حذف الدفعة؟')) {
+            this.deleteRecord('supplier_payments', id).then(() => this.switchView('supplierPayments'));
+          }
+        }
+        if (e.target.matches('[data-delete-fixed-expense]')) {
+          const id = e.target.dataset.deleteFixedExpense;
+          if (confirm('حذف المصروف الثابت؟')) {
+            this.deleteRecord('expenses', id).then(() => this.switchView('fixedExpenses'));
+          }
+        }
+        if (e.target.matches('[data-delete-daily-expense]')) {
+          const id = e.target.dataset.deleteDailyExpense;
+          if (confirm('حذف المصروف اليومي؟')) {
+            this.deleteRecord('expenses', id).then(() => this.switchView('dailyExpenses'));
+          }
+        }
+        if (e.target.matches('[data-delete-expense]')) {
+          const id = e.target.dataset.deleteExpense;
+          if (confirm('حذف المصروفة؟')) {
+            this.deleteRecord('expenses', id).then(() => this.switchView('expenses'));
+          }
+        }
+
+        // معالجات التعديل
+        if (e.target.matches('[data-edit-service]')) {
+          const service = this.services.find(s => s.id === e.target.dataset.editService);
+          if (service) this.showEditServiceModal(service);
+        }
+        if (e.target.matches('[data-edit-customer]')) {
+          const customer = this.customers.find(c => c.id === e.target.dataset.editCustomer);
+          if (customer) this.showEditCustomerModal(customer);
+        }
+        if (e.target.matches('[data-edit-tire]')) {
+          const tire = this.tires.find(t => t.id === e.target.dataset.editTire);
+          if (tire) this.showEditTireModal(tire);
+        }
+        if (e.target.matches('[data-edit-appointment]')) {
+          const appointment = this.appointments.find(a => a.id === e.target.dataset.editAppointment);
+          if (appointment) this.showEditAppointmentModal(appointment);
+        }
+        if (e.target.matches('[data-edit-supplier]')) {
+          const supplier = this.suppliers.find(s => s.id === e.target.dataset.editSupplier);
+          if (supplier) this.showEditSupplierModal(supplier);
+        }
+        if (e.target.matches('[data-pay-invoice]')) {
+          const invoiceId = e.target.dataset.payInvoice;
+          const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
+          if (invoice) this.showPaymentModal(invoice);
+        }
+      });
+    }
+
+    // تحديث الأزرار النشطة
+    document.querySelectorAll('.side-link').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === view);
     });
 
     if (view === 'dashboard') this.bindDashboardEvents();
