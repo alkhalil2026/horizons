@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
 :root {
@@ -3006,12 +3006,6 @@ class TireShopApp {
 
   showEditTireModal(tire) {
     const content = `
-      <!-- الاسم -->
-      <div class="form-group">
-        <label>الاسم *</label>
-        <input type="text" id="editTireName" value="${esc(tire.name)}">
-      </div>
-
       <!-- المقاس والبراند -->
       <div class="form-row">
         <div class="form-group">
@@ -3066,7 +3060,7 @@ class TireShopApp {
     const box = document.getElementById('modalBox');
     box.innerHTML = `
       <div class="modal-head">
-        <h3>تعديل - ${esc(tire.name)}</h3>
+        <h3>تعديل الإطار</h3>
         <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
       </div>
       <div>${content}</div>
@@ -3078,7 +3072,6 @@ class TireShopApp {
     });
     
     document.getElementById('saveEditTireBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editTireName').value.trim();
       const size = document.getElementById('editTireSize').value.trim();
       const brand = document.getElementById('editTireBrand').value.trim();
       const model = document.getElementById('editTireModel').value.trim();
@@ -3086,13 +3079,12 @@ class TireShopApp {
       const sellingPrice = parseFloat(document.getElementById('editTireSellingPrice').value) || 0;
       const quantity = parseInt(document.getElementById('editTireQuantity').value) || 0;
       
-      if (!name || !size || !brand || !supplierId || !sellingPrice) {
+      if (!size || !brand || !supplierId || !sellingPrice) {
         showToast('أدخل البيانات المطلوبة', 'error');
         return;
       }
 
       this.updateRecord('tires', tire.id, {
-        name,
         size,
         brand,
         model,
@@ -3436,7 +3428,6 @@ class TireShopApp {
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
       addBtn.addEventListener('click', () => {
-        const name = document.getElementById('tireName').value.trim();
         const size = document.getElementById('tireSize').value.trim();
         const brand = document.getElementById('tireBrand').value.trim();
         const model = document.getElementById('tireModel').value.trim();
@@ -3445,13 +3436,12 @@ class TireShopApp {
         const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
         const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
 
-        if (!name || !size || !brand || !supplierId || !sellingPrice) {
+        if (!size || !brand || !supplierId || !sellingPrice) {
           showToast('أدخل البيانات المطلوبة', 'error');
           return;
         }
 
         this.addRecord('tires', {
-          name, 
           size, 
           brand, 
           model,
@@ -3460,7 +3450,6 @@ class TireShopApp {
           selling_price: sellingPrice, 
           quantity
         }).then(() => {
-          document.getElementById('tireName').value = '';
           document.getElementById('tireSize').value = '';
           document.getElementById('tireBrand').value = '';
           document.getElementById('tireModel').value = '';
@@ -3906,12 +3895,6 @@ class TireShopApp {
         <div class="card">
           <div class="card-head"><h3>${t('addTire')}</h3></div>
           
-          <!-- الاسم -->
-          <div class="form-group">
-            <label>الاسم *</label>
-            <input type="text" id="tireName" placeholder="مثال: ميشلان">
-          </div>
-
           <!-- المقاس والبراند -->
           <div class="form-row">
             <div class="form-group">
@@ -3968,7 +3951,6 @@ class TireShopApp {
             <table>
               <thead>
                 <tr>
-                  <th>الاسم</th>
                   <th>المقاس</th>
                   <th>البراند</th>
                   <th>الكمية</th>
@@ -3980,7 +3962,6 @@ class TireShopApp {
               <tbody>
                 ${filteredTires.map(t => `
                   <tr>
-                    <td>${esc(t.name)}</td>
                     <td>${esc(t.size || '-')}</td>
                     <td>${esc(t.brand || '-')}</td>
                     <td class="num">${t.quantity || 0}</td>
@@ -3993,7 +3974,7 @@ class TireShopApp {
                       </div>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="7" class="text-center">لا توجد إطارات</td></tr>'}
+                `).join('') || '<tr><td colspan="6" class="text-center">لا توجد إطارات</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -4809,44 +4790,54 @@ class TireShopApp {
               
               if (lines.length < 2) throw new Error('الملف فارغ');
               
-              const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+              const headers = lines[0].split(',').map(h => h.trim());
               json = lines.slice(1).map(line => {
                 const values = line.split(',').map(v => v.trim());
                 const obj = {};
                 headers.forEach((h, i) => {
-                  obj[h] = values[i] || '';
+                  obj[h.toLowerCase()] = values[i] || '';
                 });
                 return obj;
               });
             } else {
-              // محاولة قراءة Excel
-              if (typeof XLSX === 'undefined') {
-                throw new Error('مكتبة Excel لم تُحمل. استخدم ملف CSV بدلاً من Excel');
+              // قراءة Excel
+              // التحقق من تحميل المكتبة
+              if (typeof XLSX === 'undefined' || !XLSX.read) {
+                throw new Error('مكتبة Excel لم تُحمل. يرجى استخدام ملف CSV أو إعادة تحميل الصفحة');
               }
               
               const data = event.target?.result;
               const workbook = XLSX.read(data, { type: 'array' });
               const worksheet = workbook.Sheets[workbook.SheetNames[0]];
               json = XLSX.utils.sheet_to_json(worksheet);
+              
+              // تحويل أسماء الأعمدة إلى lowercase
+              json = json.map(row => {
+                const newRow = {};
+                Object.keys(row).forEach(key => {
+                  newRow[key.toLowerCase()] = row[key];
+                });
+                return newRow;
+              });
             }
 
             // معالجة البيانات وتحويل الأعمدة
             loadedData = json.map(row => {
-              const keys = Object.keys(row).map(k => k.toLowerCase().trim());
-              const getBrandKey = () => keys.find(k => k.includes('brand') || k.includes('ماركة')) || 'brand';
-              const getSizeKey = () => keys.find(k => k.includes('size') || k.includes('مقاس')) || 'size';
-              const getStockKey = () => keys.find(k => k.includes('stock') || k.includes('qty') || k.includes('كمية')) || 'stock';
-              const getPriceKey = () => keys.find(k => k.includes('selling') || k.includes('price') || k.includes('سعر') && !k.includes('تكلفة')) || 'selling_price';
-              const getCostKey = () => keys.find(k => k.includes('cost') || k.includes('تكلفة')) || 'cost';
-              const getModelKey = () => keys.find(k => k.includes('model') || k.includes('موديل')) || 'model';
-              
+              // البحث عن أسماء الأعمدة بأي شكل
+              const brand = row.brand || row['الماركة'] || row['ماركة'] || '';
+              const size = row.size || row['المقاس'] || row['مقاس'] || '';
+              const stock = parseInt(row.stock || row['الكمية'] || row['كمية'] || row['qty'] || row['قطعة'] || 0) || 0;
+              const selling_price = parseFloat(row.selling_price || row['السعر'] || row['سعر'] || row['price'] || 0) || 0;
+              const cost = parseFloat(row.cost || row['سعر التكلفة'] || row['تكلفة'] || 0) || 0;
+              const model = row.model || row['موديل'] || row['موديل الطراز'] || '2026';
+
               return {
-                brand: row[getBrandKey()] || '',
-                size: row[getSizeKey()] || '',
-                model: row[getModelKey()] || '2026',
-                stock: parseInt(row[getStockKey()] || 0) || 0,
-                selling_price: parseFloat(row[getPriceKey()] || 0) || 0,
-                cost: parseFloat(row[getCostKey()] || 0) || 0,
+                brand: String(brand).trim(),
+                size: String(size).trim(),
+                model: String(model).trim(),
+                stock,
+                selling_price,
+                cost,
                 supplier_id: null
               };
             }).filter(t => t.brand && t.size && t.stock > 0);
@@ -4876,6 +4867,7 @@ class TireShopApp {
               statusMsg.textContent = `❌ ${error.message}`;
             }
             console.error('خطأ في قراءة الملف:', error);
+            loadedData = [];
           }
         };
 
