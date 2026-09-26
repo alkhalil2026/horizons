@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>أداة استيراد الإطارات</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Almarai', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      color: #555;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      font-family: 'Almarai', sans-serif;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: opacity 0.3s;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+      text-align: center;
+      font-weight: bold;
+      display: none;
+    }
+    .status.success {
+      background: #4caf50;
+      color: white;
+      display: block;
+    }
+    .status.error {
+      background: #f44336;
+      color: white;
+      display: block;
+    }
+    .status.loading {
+      background: #2196f3;
+      color: white;
+      display: block;
+    }
+    .tires-preview {
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-top: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .tire-item {
+      padding: 8px;
+      background: white;
+      margin-bottom: 8px;
+      border-radius: 3px;
+      border-left: 3px solid #667eea;
+      font-size: 13px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #ddd;
+      border-radius: 3px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #4caf50;
+      width: 0%;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 أداة استيراد الإطارات</h1>
+    
+    <div class="form-group">
+      <label>اختر المورد:</label>
+      <select id="supplierSelect">
+        <option value="">جاري تحميل الموردين...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>سعر التكلفة (اختياري - للجميع):</label>
+      <input type="number" id="costPrice" step="0.01" placeholder="اترك فارغاً للقيمة الافتراضية">
+    </div>
+
+    <button onclick="importTires()">📥 استيراد 30 إطار</button>
+    
+    <div id="status" class="status"></div>
+    
+    <div class="progress-bar" id="progressBar" style="display:none;">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div id="tiresPreview" class="tires-preview" style="display:none;">
+      <h3>📋 البيانات التي ستُضاف:</h3>
+      <div id="tiresList"></div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFocm5vcmp6ZXprdXNnaHFxYmZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mzc5NzksImV4cCI6MjEwNTMxMzk3OX0.eFVLGMmapEgiAcueu_mV94KRcr_OcIS59BkTQPJcWbo';
+    
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // بيانات الإطارات من الملف
+    const tiresData = [
+      {"name": "ATLANDER  195/R15C", "size": "195/R15C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
+      {"name": "ATLANDER  195/65/R15", "size": "195/65/R15", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 18.5},
+      {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 16.0},
+      {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 18.5},
+      {"name": "ATLANDER  205/65/R16", "size": "205/65/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 18.5},
+      {"name": "ATLANDER  215/60/R16", "size": "215/60/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 19.8},
+      {"name": "ATLANDER  215/70/R16C", "size": "215/70/R16C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.5},
+      {"name": "ATLANDER  215/45/R17", "size": "215/45/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 21.5},
+      {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 16, "selling_price": 21.2},
+      {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 20.6},
+      {"name": "ATLANDER  225/65/R17", "size": "225/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.6},
+      {"name": "ATLANDER  265/65/R17", "size": "265/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 35.5},
+      {"name": "ATLANDER  225/40R18", "size": "225/40R18", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 22.0},
+      {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 23.0},
+      {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 22.0},
+      {"name": "ATLANDER  245/40/R18", "size": "245/40/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 22.5},
+      {"name": "ATLANDER  245/45/R18", "size": "245/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 23.6},
+      {"name": "ATLANDER  235/55/R18", "size": "235/55/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 28.2},
+      {"name": "ATLANDER  235/60/R18", "size": "235/60/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 31.5},
+      {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 5, "selling_price": 24.0},
+      {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 3, "selling_price": 23.0},
+      {"name": "ATLANDER  255/35/R18", "size": "255/35/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
+      {"name": "ATLANDER  235/40/R19", "size": "235/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 28.0},
+      {"name": "MILEMAX 235/40/R19", "size": "235/40/R19", "brand": "MILEMAX", "model": "2026", "quantity": 4, "selling_price": 22.0},
+      {"name": "ATLANDER  225/40/R19", "size": "225/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.0},
+      {"name": "ATLANDER  235/55/R19", "size": "235/55/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 29.9},
+      {"name": "ATLANDER  245/45/R19", "size": "245/45/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 27.5},
+      {"name": "ATLANDER  245/40/R19", "size": "245/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 36.5},
+      {"name": "ATLANDER  245/45/R20", "size": "245/45/R20", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 29.0},
+      {"name": "ATLANDER  275/60/R20", "size": "275/60/R20", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 44.0}
+    ];
+
+    // تحميل الموردين عند فتح الصفحة
+    async function loadSuppliers() {
+      try {
+        const { data } = await sb.from('suppliers').select('id, name');
+        const select = document.getElementById('supplierSelect');
+        select.innerHTML = '<option value="">اختر المورد:</option>';
+        
+        if (data && data.length > 0) {
+          data.forEach(supplier => {
+            const option = document.createElement('option');
+            option.value = supplier.id;
+            option.textContent = supplier.name;
+            select.appendChild(option);
+          });
+        } else {
+          select.innerHTML += '<option disabled>لا توجد موردين - أضف مورد أولاً</option>';
+        }
+      } catch (error) {
+        showStatus('❌ خطأ في تحميل الموردين: ' + error.message, 'error');
+      }
+    }
+
+    async function importTires() {
+      const supplierId = document.getElementById('supplierSelect').value;
+      const costPrice = parseFloat(document.getElementById('costPrice').value) || 0;
+
+      if (!supplierId) {
+        showStatus('❌ يرجى اختيار مورد أولاً', 'error');
+        return;
+      }
+
+      showStatus('⏳ جاري الاستيراد...', 'loading');
+      document.getElementById('progressBar').style.display = 'block';
+      
+      let successful = 0;
+      let failed = 0;
+
+      for (let i = 0; i < tiresData.length; i++) {
+        const tire = tiresData[i];
+        
+        try {
+          const { error } = await sb.from('tires').insert([{
+            name: tire.name,
+            size: tire.size,
+            brand: tire.brand,
+            model: tire.model,
+            quantity: tire.quantity,
+            selling_price: tire.selling_price,
+            cost_price: costPrice,
+            supplier_id: supplierId
+          }]);
+
+          if (error) {
+            console.error(`خطأ في ${tire.name}:`, error);
+            failed++;
+          } else {
+            successful++;
+          }
+        } catch (error) {
+          console.error(`خطأ في ${tire.name}:`, error);
+          failed++;
+        }
+
+        // تحديث شريط التقدم
+        const progress = ((i + 1) / tiresData.length) * 100;
+        document.getElementById('progressFill').style.width = progress + '%';
+      }
+
+      document.getElementById('progressBar').style.display = 'none';
+      
+      if (failed === 0) {
+        showStatus(`✅ تم استيراد ${successful} إطار بنجاح!`, 'success');
+      } else {
+        showStatus(`⚠️ تم استيراد ${successful} إطار | فشل: ${failed}`, 'error');
+      }
+    }
+
+    function showStatus(message, type) {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + type;
+    }
+
+    // تحميل الموردين عند فتح الصفحة
+    window.addEventListener('load', loadSuppliers);
+  </script>
+</body>
+</html>
