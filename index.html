@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
 
 <style>
 :root {
@@ -4777,55 +4778,75 @@ class TireShopApp {
   }
 
   renderImportInventoryView() {
-    const tiresData = [
-      {"size": "195/R15C", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 24.0},
-      {"size": "195/65/R15", "brand": "ATLANDER", "model": "2026", "stock": 0, "selling_price": 18.5},
-      {"size": "205/55R16", "brand": "ATLANDER", "model": "2026", "stock": 2, "selling_price": 16.0},
-      {"size": "205/55R16", "brand": "ATLANDER", "model": "2026", "stock": 6, "selling_price": 18.5},
-      {"size": "205/65/R16", "brand": "ATLANDER", "model": "2026", "stock": 8, "selling_price": 18.5},
-      {"size": "215/60/R16", "brand": "ATLANDER", "model": "2026", "stock": 8, "selling_price": 19.8},
-      {"size": "215/70/R16C", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 25.5},
-      {"size": "215/45/R17", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 21.5},
-      {"size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "stock": 16, "selling_price": 21.2},
-      {"size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "stock": 8, "selling_price": 20.6},
-      {"size": "225/65/R17", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 25.6},
-      {"size": "265/65/R17", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 35.5},
-      {"size": "225/40R18", "brand": "ATLANDER", "model": "2026", "stock": 0, "selling_price": 22.0},
-      {"size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "stock": 6, "selling_price": 23.0},
-      {"size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "stock": 2, "selling_price": 22.0},
-      {"size": "245/40/R18", "brand": "ATLANDER", "model": "2026", "stock": 8, "selling_price": 22.5},
-      {"size": "245/45/R18", "brand": "ATLANDER", "model": "2026", "stock": 8, "selling_price": 23.6},
-      {"size": "235/55/R18", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 28.2},
-      {"size": "235/60/R18", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 31.5},
-      {"size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "stock": 5, "selling_price": 24.0},
-      {"size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "stock": 3, "selling_price": 23.0},
-      {"size": "255/35/R18", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 24.0},
-      {"size": "235/40/R19", "brand": "ATLANDER", "model": "2026", "stock": 8, "selling_price": 28.0},
-      {"size": "235/40/R19", "brand": "MILEMAX", "model": "2026", "stock": 4, "selling_price": 22.0},
-      {"size": "225/40/R19", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 25.0},
-      {"size": "235/55/R19", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 29.9},
-      {"size": "245/45/R19", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 27.5},
-      {"size": "245/40/R19", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 36.5},
-      {"size": "245/45/R20", "brand": "ATLANDER", "model": "2026", "stock": 8, "selling_price": 29.0},
-      {"size": "275/60/R20", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 44.0}
-    ];
-
     const self = this;
+    let loadedData = [];
     
     // ربط الأحداث بعد عرض الـ HTML
     setTimeout(() => {
+      const fileInput = document.getElementById('importExcelFile');
+      const uploadBtn = document.getElementById('importUploadBtn');
       const previewBtn = document.getElementById('importPreviewBtn');
       const startBtn = document.getElementById('importStartBtn');
 
-      if (!previewBtn || !startBtn) {
-        console.error('لم يتم العثور على أزرار الاستيراج');
-        return;
-      }
+      // معالج رفع الملف
+      uploadBtn?.addEventListener('click', () => fileInput?.click());
+
+      fileInput?.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const data = event.target?.result;
+            const workbook = XLSX.read(data, { type: 'array' });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+
+            // معالجة البيانات وتحويل الأعمدة
+            loadedData = json.map(row => ({
+              brand: row.brand || row['الماركة'] || '',
+              size: row.size || row['المقاس'] || '',
+              model: row.model || row['موديل'] || '2026',
+              stock: parseInt(row.stock || row['الكمية'] || 0),
+              selling_price: parseFloat(row.selling_price || row['السعر'] || 0),
+              cost: parseFloat(row.cost || row['سعر التكلفة'] || 0),
+              supplier_id: null
+            })).filter(t => t.brand && t.size);
+
+            const statusMsg = document.getElementById('importFileStatus');
+            if (statusMsg) {
+              statusMsg.style.display = 'block';
+              statusMsg.style.background = '#4caf50';
+              statusMsg.style.color = 'white';
+              statusMsg.textContent = `✅ تم تحميل ${loadedData.length} إطار من الملف`;
+            }
+
+            // تفعيل الأزرار
+            if (previewBtn) previewBtn.disabled = false;
+            if (startBtn) startBtn.disabled = false;
+
+          } catch (error) {
+            const statusMsg = document.getElementById('importFileStatus');
+            if (statusMsg) {
+              statusMsg.style.display = 'block';
+              statusMsg.style.background = '#f44336';
+              statusMsg.textContent = `❌ خطأ في قراءة الملف: ${error.message}`;
+            }
+            console.error('خطأ في قراءة Excel:', error);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
 
       // زر المعاينة
-      previewBtn.onclick = null;
-      previewBtn.addEventListener('click', (e) => {
+      previewBtn?.addEventListener('click', (e) => {
         e.preventDefault();
+        if (loadedData.length === 0) {
+          alert('يرجى تحميل ملف Excel أولاً');
+          return;
+        }
+
         const previewBox = document.getElementById('importPreviewBox');
         if (!previewBox) return;
         
@@ -4834,7 +4855,7 @@ class TireShopApp {
           let totalQty = 0;
           let totalPrice = 0;
 
-          tiresData.forEach(tire => {
+          loadedData.forEach(tire => {
             html += `
               <div style="padding: 8px; background: white; margin-bottom: 6px; border-radius: 3px; border-left: 3px solid #f2a71b; font-size: 12px; display: flex; justify-content: space-between;">
                 <span>${tire.brand} ${tire.size}</span>
@@ -4849,11 +4870,14 @@ class TireShopApp {
           const tiresList = document.getElementById('importTiresList');
           if (tiresList) tiresList.innerHTML = html;
           
+          const totalItemsEl = document.getElementById('importTotalItems');
+          if (totalItemsEl) totalItemsEl.textContent = loadedData.length;
+
           const totalQtyEl = document.getElementById('importTotalQty');
           if (totalQtyEl) totalQtyEl.textContent = totalQty;
           
           const avgPriceEl = document.getElementById('importAvgPrice');
-          if (avgPriceEl) avgPriceEl.textContent = (totalPrice / tiresData.length).toFixed(2);
+          if (avgPriceEl) avgPriceEl.textContent = (totalPrice / loadedData.length).toFixed(2);
           
           previewBox.style.display = 'block';
         } else {
@@ -4862,11 +4886,13 @@ class TireShopApp {
       });
 
       // زر الاستيراج
-      startBtn.onclick = null;
-      startBtn.addEventListener('click', async (e) => {
+      startBtn?.addEventListener('click', async (e) => {
         e.preventDefault();
         
-        const costValue = parseFloat(document.getElementById('importCostPrice').value) || 0;
+        if (loadedData.length === 0) {
+          alert('لا توجد بيانات للاستيراج');
+          return;
+        }
 
         startBtn.disabled = true;
         const progressDiv = document.getElementById('importProgress');
@@ -4883,21 +4909,11 @@ class TireShopApp {
         let successful = 0;
         let failed = 0;
 
-        for (let i = 0; i < tiresData.length; i++) {
-          const tire = tiresData[i];
+        for (let i = 0; i < loadedData.length; i++) {
+          const tire = loadedData[i];
 
           try {
-            const tireRecord = {
-              brand: tire.brand,
-              size: tire.size,
-              model: tire.model,
-              stock: tire.stock,
-              selling_price: tire.selling_price,
-              cost: costValue,
-              supplier_id: null
-            };
-
-            const { error } = await self.supabase.from('tires').insert([tireRecord]);
+            const { error } = await self.supabase.from('tires').insert([tire]);
 
             if (error) {
               console.error(`خطأ في ${tire.brand} ${tire.size}:`, error);
@@ -4910,12 +4926,12 @@ class TireShopApp {
             failed++;
           }
 
-          const progress = ((i + 1) / tiresData.length) * 100;
+          const progress = ((i + 1) / loadedData.length) * 100;
           const progressFill = document.getElementById('importProgressFill');
           const progressText = document.getElementById('importProgressText');
           
           if (progressFill) progressFill.style.width = progress + '%';
-          if (progressText) progressText.textContent = `${i + 1}/${tiresData.length}`;
+          if (progressText) progressText.textContent = `${i + 1}/${loadedData.length}`;
         }
 
         if (progressDiv) progressDiv.style.display = 'none';
@@ -4932,26 +4948,36 @@ class TireShopApp {
           }
         }
       });
+
+      // تعطيل الأزرار حتى يتم تحميل ملف
+      if (previewBtn) previewBtn.disabled = true;
+      if (startBtn) startBtn.disabled = true;
+
     }, 100);
 
     return `
       <div class="card">
         <div class="card-head">
-          <h3>📦 استيراج 30 إطار إلى المخزون</h3>
+          <h3>📦 استيراج الإطارات من Excel</h3>
         </div>
 
         <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; border-radius: 5px; margin-bottom: 20px; color: #1976d2;">
-          <strong>ℹ️ معلومة:</strong> سيتم إضافة الإطارات بدون مورد حالياً. يمكنك لاحقاً تقسيمها على الموردين.
+          <strong>ℹ️ متطلبات الملف:</strong><br>
+          الملف يجب أن يحتوي على الأعمدة: brand, size, stock, selling_price<br>
+          الأعمدة الاختيارية: model, cost
+        </div>
+
+        <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px;">
+          <input type="file" id="importExcelFile" accept=".xlsx,.xls,.csv" style="display: none;">
+          <button class="btn btn-amber" id="importUploadBtn" style="width: 100%; margin-bottom: 10px;">📁 اختر ملف Excel</button>
+          <div id="importFileStatus" style="display: none; padding: 10px; border-radius: 3px; font-weight: bold; text-align: center;"></div>
         </div>
 
         <div class="grid-2" style="margin-bottom: 20px;">
-          <div class="form-group">
-            <label>سعر التكلفة (اختياري)</label>
-            <input type="number" id="importCostPrice" step="0.01" placeholder="اترك فارغاً للقيمة الافتراضية (0)">
-          </div>
-          <div style="display: flex; gap: 10px; align-items: flex-end;">
+          <div></div>
+          <div style="display: flex; gap: 10px;">
             <button class="btn btn-ghost" id="importPreviewBtn" style="flex: 1;">👁️ معاينة</button>
-            <button class="btn btn-amber" id="importStartBtn" style="flex: 1;">📥 استيراج الآن</button>
+            <button class="btn btn-amber" id="importStartBtn" style="flex: 1;">📥 استيراج</button>
           </div>
         </div>
 
@@ -4960,7 +4986,7 @@ class TireShopApp {
             <div id="importProgressFill" style="height: 100%; background: linear-gradient(90deg, #f2a71b, #d6900f); width: 0%; transition: width 0.3s;"></div>
           </div>
           <div style="text-align: center; font-size: 12px; color: #666; margin-top: 5px;">
-            <span id="importProgressText">0/30</span>
+            <span id="importProgressText">0/0</span>
           </div>
         </div>
 
@@ -4973,7 +4999,7 @@ class TireShopApp {
           <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; margin-top: 15px;">
             <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
               <span>📊 إجمالي الإطارات:</span>
-              <span style="font-weight: bold;">30</span>
+              <span style="font-weight: bold;" id="importTotalItems">0</span>
             </div>
             <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
               <span>📦 الكمية الإجمالية:</span>
