@@ -4795,24 +4795,65 @@ class TireShopApp {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        const isCSV = file.name.endsWith('.csv');
         const reader = new FileReader();
+
         reader.onload = (event) => {
           try {
-            const data = event.target?.result;
-            const workbook = XLSX.read(data, { type: 'array' });
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(worksheet);
+            let json = [];
+            
+            if (isCSV) {
+              // قراءة CSV كـ نص
+              const text = event.target?.result;
+              const lines = text.trim().split('\n');
+              
+              if (lines.length < 2) throw new Error('الملف فارغ');
+              
+              const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+              json = lines.slice(1).map(line => {
+                const values = line.split(',').map(v => v.trim());
+                const obj = {};
+                headers.forEach((h, i) => {
+                  obj[h] = values[i] || '';
+                });
+                return obj;
+              });
+            } else {
+              // محاولة قراءة Excel
+              if (typeof XLSX === 'undefined') {
+                throw new Error('مكتبة Excel لم تُحمل. استخدم ملف CSV بدلاً من Excel');
+              }
+              
+              const data = event.target?.result;
+              const workbook = XLSX.read(data, { type: 'array' });
+              const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+              json = XLSX.utils.sheet_to_json(worksheet);
+            }
 
             // معالجة البيانات وتحويل الأعمدة
-            loadedData = json.map(row => ({
-              brand: row.brand || row['الماركة'] || '',
-              size: row.size || row['المقاس'] || '',
-              model: row.model || row['موديل'] || '2026',
-              stock: parseInt(row.stock || row['الكمية'] || 0),
-              selling_price: parseFloat(row.selling_price || row['السعر'] || 0),
-              cost: parseFloat(row.cost || row['سعر التكلفة'] || 0),
-              supplier_id: null
-            })).filter(t => t.brand && t.size);
+            loadedData = json.map(row => {
+              const keys = Object.keys(row).map(k => k.toLowerCase().trim());
+              const getBrandKey = () => keys.find(k => k.includes('brand') || k.includes('ماركة')) || 'brand';
+              const getSizeKey = () => keys.find(k => k.includes('size') || k.includes('مقاس')) || 'size';
+              const getStockKey = () => keys.find(k => k.includes('stock') || k.includes('qty') || k.includes('كمية')) || 'stock';
+              const getPriceKey = () => keys.find(k => k.includes('selling') || k.includes('price') || k.includes('سعر') && !k.includes('تكلفة')) || 'selling_price';
+              const getCostKey = () => keys.find(k => k.includes('cost') || k.includes('تكلفة')) || 'cost';
+              const getModelKey = () => keys.find(k => k.includes('model') || k.includes('موديل')) || 'model';
+              
+              return {
+                brand: row[getBrandKey()] || '',
+                size: row[getSizeKey()] || '',
+                model: row[getModelKey()] || '2026',
+                stock: parseInt(row[getStockKey()] || 0) || 0,
+                selling_price: parseFloat(row[getPriceKey()] || 0) || 0,
+                cost: parseFloat(row[getCostKey()] || 0) || 0,
+                supplier_id: null
+              };
+            }).filter(t => t.brand && t.size && t.stock > 0);
+
+            if (loadedData.length === 0) {
+              throw new Error('لم يتم العثور على بيانات صحيحة في الملف');
+            }
 
             const statusMsg = document.getElementById('importFileStatus');
             if (statusMsg) {
@@ -4831,12 +4872,18 @@ class TireShopApp {
             if (statusMsg) {
               statusMsg.style.display = 'block';
               statusMsg.style.background = '#f44336';
-              statusMsg.textContent = `❌ خطأ في قراءة الملف: ${error.message}`;
+              statusMsg.style.color = 'white';
+              statusMsg.textContent = `❌ ${error.message}`;
             }
-            console.error('خطأ في قراءة Excel:', error);
+            console.error('خطأ في قراءة الملف:', error);
           }
         };
-        reader.readAsArrayBuffer(file);
+
+        if (isCSV) {
+          reader.readAsText(file);
+        } else {
+          reader.readAsArrayBuffer(file);
+        }
       });
 
       // زر المعاينة
