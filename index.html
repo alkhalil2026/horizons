@@ -1963,7 +1963,7 @@ class TireShopApp {
 
 *الخدمة:* ${service.name}
 *العدد:* ${this.saleWizard.quantity}
-*السعر الواحد:* ${fmtMoney(service.price)}
+*السعر الواحد:* ${fmtMoney(parseFloat(service.price) || 0)}
 *المجموع:* ${fmtMoney(total)}
 
 *الضمان:* ${t(this.saleWizard.warranty)}
@@ -2404,11 +2404,11 @@ class TireShopApp {
           <div class="summary-box">
             <div class="summary-row">
               <span>السعر الواحد:</span>
-              <span class="num">${fmtMoney(service.price)}</span>
+              <span class="num">${fmtMoney(parseFloat(service.price) || 0)}</span>
             </div>
             <div class="summary-row total">
               <span>المجموع:</span>
-              <span class="num">${fmtMoney(service.price * this.saleWizard.quantity)}</span>
+              <span class="num">${fmtMoney((parseFloat(service.price) || 0) * this.saleWizard.quantity)}</span>
             </div>
           </div>
 
@@ -2522,7 +2522,7 @@ class TireShopApp {
             </div>
             <div class="summary-row total">
               <span>الإجمالي:</span>
-              <span class="num">${fmtMoney(this.services.find(s => s.id === this.saleWizard.selectedService)?.price * this.saleWizard.quantity)}</span>
+              <span class="num">${fmtMoney((parseFloat(this.services.find(s => s.id === this.saleWizard.selectedService)?.price) || 0) * this.saleWizard.quantity)}</span>
             </div>
           </div>
 
@@ -3027,7 +3027,7 @@ class TireShopApp {
       </div>
       <div class="form-group">
         <label>السعر *</label>
-        <input type="number" id="editServicePrice" step="0.01" value="${service.price}">
+        <input type="number" id="editServicePrice" step="0.01" value="${parseFloat(service.price) || 0}">
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
@@ -3978,7 +3978,7 @@ class TireShopApp {
                 ${filteredServices.map(s => `
                   <tr>
                     <td>${esc(s.name)}</td>
-                    <td class="num">${fmtMoney(s.price)}</td>
+                    <td class="num">${fmtMoney(parseFloat(s.price) || 0)}</td>
                     <td>${fmtDate(s.createdAt)}</td>
                     <td>
                       <div class="action-cell">
@@ -5134,7 +5134,7 @@ class TireShopApp {
           if (totalQtyEl) totalQtyEl.textContent = totalQty;
           
           const avgPriceEl = document.getElementById('importAvgPrice');
-          if (avgPriceEl) avgPriceEl.textContent = (totalPrice / loadedData.length).toFixed(2);
+          if (avgPriceEl) avgPriceEl.textContent = (loadedData.length > 0 ? (totalPrice / loadedData.length) : 0).toFixed(2);
           
           previewBox.style.display = 'block';
         } else {
