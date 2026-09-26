@@ -133,12 +133,13 @@
       }
 
       const testTire = {
-        name: 'TEST TIRE ' + Date.now(),
-        size: '195/R15C',
         brand: 'TEST_BRAND',
         model: '2026',
-        quantity: 1,
-        selling_price: 25.0
+        size: '195/R15C',
+        stock: 1,
+        cost: 0,
+        selling_price: 25.0,
+        supplier_id: null
       };
 
       try {
@@ -149,10 +150,9 @@
         if (error) {
           log(`❌ خطأ في الإدراج: ${error.message}`, 'error');
           log(`📝 الرمز: ${error.code}`, 'error');
-          log(`📝 التفاصيل: ${JSON.stringify(error)}`, 'error');
         } else {
           log('✅ تم إضافة الإطار بنجاح!', 'success');
-          log(`✅ الاسم: ${testTire.name}`, 'success');
+          log(`✅ البراند: ${testTire.brand}`, 'success');
         }
       } catch (err) {
         log(`❌ استثناء: ${err.message}`, 'error');
@@ -166,37 +166,38 @@
         sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       }
 
+      // البيانات - تحويل من الصيغة القديمة إلى الصيغة الجديدة
       const tiresData = [
-        {"name": "ATLANDER  195/R15C", "size": "195/R15C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
-        {"name": "ATLANDER  195/65/R15", "size": "195/65/R15", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 18.5},
-        {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 16.0},
-        {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 18.5},
-        {"name": "ATLANDER  205/65/R16", "size": "205/65/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 18.5},
-        {"name": "ATLANDER  215/60/R16", "size": "215/60/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 19.8},
-        {"name": "ATLANDER  215/70/R16C", "size": "215/70/R16C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.5},
-        {"name": "ATLANDER  215/45/R17", "size": "215/45/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 21.5},
-        {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 16, "selling_price": 21.2},
-        {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 20.6},
-        {"name": "ATLANDER  225/65/R17", "size": "225/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.6},
-        {"name": "ATLANDER  265/65/R17", "size": "265/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 35.5},
-        {"name": "ATLANDER  225/40R18", "size": "225/40R18", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 22.0},
-        {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 23.0},
-        {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 22.0},
-        {"name": "ATLANDER  245/40/R18", "size": "245/40/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 22.5},
-        {"name": "ATLANDER  245/45/R18", "size": "245/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 23.6},
-        {"name": "ATLANDER  235/55/R18", "size": "235/55/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 28.2},
-        {"name": "ATLANDER  235/60/R18", "size": "235/60/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 31.5},
-        {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 5, "selling_price": 24.0},
-        {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 3, "selling_price": 23.0},
-        {"name": "ATLANDER  255/35/R18", "size": "255/35/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
-        {"name": "ATLANDER  235/40/R19", "size": "235/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 28.0},
-        {"name": "MILEMAX 235/40/R19", "size": "235/40/R19", "brand": "MILEMAX", "model": "2026", "quantity": 4, "selling_price": 22.0},
-        {"name": "ATLANDER  225/40/R19", "size": "225/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.0},
-        {"name": "ATLANDER  235/55/R19", "size": "235/55/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 29.9},
-        {"name": "ATLANDER  245/45/R19", "size": "245/45/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 27.5},
-        {"name": "ATLANDER  245/40/R19", "size": "245/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 36.5},
-        {"name": "ATLANDER  245/45/R20", "size": "245/45/R20", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 29.0},
-        {"name": "ATLANDER  275/60/R20", "size": "275/60/R20", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 44.0}
+        {"brand": "ATLANDER", "size": "195/R15C", "model": "2026", "stock": 4, "selling_price": 24.0},
+        {"brand": "ATLANDER", "size": "195/65/R15", "model": "2026", "stock": 0, "selling_price": 18.5},
+        {"brand": "ATLANDER", "size": "205/55R16", "model": "2026", "stock": 2, "selling_price": 16.0},
+        {"brand": "ATLANDER", "size": "205/55R16", "model": "2026", "stock": 6, "selling_price": 18.5},
+        {"brand": "ATLANDER", "size": "205/65/R16", "model": "2026", "stock": 8, "selling_price": 18.5},
+        {"brand": "ATLANDER", "size": "215/60/R16", "model": "2026", "stock": 8, "selling_price": 19.8},
+        {"brand": "ATLANDER", "size": "215/70/R16C", "model": "2026", "stock": 4, "selling_price": 25.5},
+        {"brand": "ATLANDER", "size": "215/45/R17", "model": "2026", "stock": 4, "selling_price": 21.5},
+        {"brand": "ATLANDER", "size": "215/55/R17", "model": "2026", "stock": 16, "selling_price": 21.2},
+        {"brand": "ATLANDER", "size": "215/55/R17", "model": "2026", "stock": 8, "selling_price": 20.6},
+        {"brand": "ATLANDER", "size": "225/65/R17", "model": "2026", "stock": 4, "selling_price": 25.6},
+        {"brand": "ATLANDER", "size": "265/65/R17", "model": "2026", "stock": 4, "selling_price": 35.5},
+        {"brand": "ATLANDER", "size": "225/40R18", "model": "2026", "stock": 0, "selling_price": 22.0},
+        {"brand": "ATLANDER", "size": "225/45/R18", "model": "2026", "stock": 6, "selling_price": 23.0},
+        {"brand": "ATLANDER", "size": "225/45/R18", "model": "2026", "stock": 2, "selling_price": 22.0},
+        {"brand": "ATLANDER", "size": "245/40/R18", "model": "2026", "stock": 8, "selling_price": 22.5},
+        {"brand": "ATLANDER", "size": "245/45/R18", "model": "2026", "stock": 8, "selling_price": 23.6},
+        {"brand": "ATLANDER", "size": "235/55/R18", "model": "2026", "stock": 4, "selling_price": 28.2},
+        {"brand": "ATLANDER", "size": "235/60/R18", "model": "2026", "stock": 4, "selling_price": 31.5},
+        {"brand": "ATLANDER", "size": "235/45/R18", "model": "2026", "stock": 5, "selling_price": 24.0},
+        {"brand": "ATLANDER", "size": "235/45/R18", "model": "2026", "stock": 3, "selling_price": 23.0},
+        {"brand": "ATLANDER", "size": "255/35/R18", "model": "2026", "stock": 4, "selling_price": 24.0},
+        {"brand": "ATLANDER", "size": "235/40/R19", "model": "2026", "stock": 8, "selling_price": 28.0},
+        {"brand": "MILEMAX", "size": "235/40/R19", "model": "2026", "stock": 4, "selling_price": 22.0},
+        {"brand": "ATLANDER", "size": "225/40/R19", "model": "2026", "stock": 4, "selling_price": 25.0},
+        {"brand": "ATLANDER", "size": "235/55/R19", "model": "2026", "stock": 4, "selling_price": 29.9},
+        {"brand": "ATLANDER", "size": "245/45/R19", "model": "2026", "stock": 4, "selling_price": 27.5},
+        {"brand": "ATLANDER", "size": "245/40/R19", "model": "2026", "stock": 4, "selling_price": 36.5},
+        {"brand": "ATLANDER", "size": "245/45/R20", "model": "2026", "stock": 8, "selling_price": 29.0},
+        {"brand": "ATLANDER", "size": "275/60/R20", "model": "2026", "stock": 4, "selling_price": 44.0}
       ];
 
       let successful = 0;
@@ -209,14 +210,14 @@
           const { error } = await sb.from('tires').insert([tire]);
 
           if (error) {
-            log(`❌ ${tire.name}: ${error.message}`, 'error');
+            log(`❌ ${tire.brand} ${tire.size}: ${error.message}`, 'error');
             failed++;
           } else {
-            log(`✅ [${i+1}/30] تم إضافة: ${tire.name}`, 'success');
+            log(`✅ [${i+1}/30] تم إضافة: ${tire.brand} ${tire.size}`, 'success');
             successful++;
           }
         } catch (err) {
-          log(`❌ ${tire.name}: ${err.message}`, 'error');
+          log(`❌ ${tire.brand} ${tire.size}: ${err.message}`, 'error');
           failed++;
         }
       }
