@@ -1,9 +1,10 @@
 <!DOCTYPE html>
+<!-- VERSION: 2.0.0 - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
-<title>ورشتي - نظام إدارة محل الإطارات</title>
+<title>ورشتي - نظام إدارة محل الإطارات v2.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet">
@@ -1608,11 +1609,7 @@ const FIELD_MAP = {
     supplier_id: 'supplierId'
   },
   services: {},
-  customers: {
-    customer_phone: 'phone',
-    customer_email: 'email',
-    customer_address: 'address'
-  },
+  customers: {},
   appointments: { customer_id: 'customerId', customer_name: 'customerName', service_name: 'serviceName' },
   sales: {
     invoice_number: 'invoiceNumber',
@@ -1676,6 +1673,12 @@ function rowToDb(obj, table) {
   delete out.id;
   delete out.createdAt;
   delete out.created_at;
+  
+  // Log data for debugging
+  if (table === 'customers') {
+    console.log(`🔍 Customers rowToDb:`, out);
+  }
+  
   return out;
 }
 
@@ -1767,7 +1770,7 @@ class TireShopApp {
       // تحميل جميع الجداول بالتوازي بدلاً من التسلسل
       const results = await Promise.all(
         tables.map(table => 
-          this.sb.from(table).select('*').order('created_at', { ascending: false })
+          this.sb.from(table).select('*')
         )
       );
 
@@ -1806,19 +1809,40 @@ class TireShopApp {
 
     try {
       const dbData = rowToDb(data, table);
-      const { error } = await this.sb.from(table).insert([dbData]);
+      console.log(`📤 Sending to ${table}:`, dbData);
+      console.log(`📤 Keys:`, Object.keys(dbData));
+      
+      // تحقق من البيانات
+      if (!dbData || Object.keys(dbData).length === 0) {
+        console.error('❌ No data to send!');
+        showToast('بيانات فارغة!', 'error');
+        return false;
+      }
+      
+      // تحقق من أن البيانات ليست undefined/null
+      Object.entries(dbData).forEach(([key, value]) => {
+        console.log(`  ${key}: "${value}" (type: ${typeof value})`);
+      });
+      
+      const { data: insertedData, error } = await this.sb.from(table).insert([dbData]);
       
       if (error) {
-        console.error(`Error adding to ${table}:`, error);
-        showToast(t('error'), 'error');
+        console.error(`❌ Error adding to ${table}:`, error);
+        console.error('Error message:', error.message);
+        console.error('Error code:', error.code);
+        console.error('Error details:', error.details);
+        console.log('📤 Data tried to send:', dbData);
+        showToast(`❌ ${error.message || 'خطأ'}`, 'error');
         return false;
       }
 
+      console.log('✅ Insert successful:', insertedData);
       await this.loadAllData();
       showToast(t('saved'), 'success');
       return true;
     } catch (e) {
-      console.error('Add record error:', e);
+      console.error('❌ Add record error:', e);
+      console.error('Full error:', JSON.stringify(e));
       showToast(t('error'), 'error');
       return false;
     }
@@ -2937,10 +2961,6 @@ class TireShopApp {
         <label>البريد الإلكتروني</label>
         <input type="email" id="editCustomerEmail" value="${esc(customer.email || '')}">
       </div>
-      <div class="form-group">
-        <label>العنوان</label>
-        <input type="text" id="editCustomerAddress" value="${esc(customer.address || '')}">
-      </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
         <button class="btn btn-amber" id="saveEditCustomerBtn">حفظ</button>
@@ -2972,8 +2992,7 @@ class TireShopApp {
       this.updateRecord('customers', customer.id, {
         name,
         phone: document.getElementById('editCustomerPhone').value,
-        email: document.getElementById('editCustomerEmail').value,
-        address: document.getElementById('editCustomerAddress').value
+        email: document.getElementById('editCustomerEmail').value
       }).then(() => {
         overlay.classList.remove('active');
         this.switchView('customers');
@@ -3358,332 +3377,234 @@ class TireShopApp {
   }
 
   bindServicesEvents() {
-    document.getElementById('addServiceBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('serviceName').value.trim();
-      const price = parseFloat(document.getElementById('servicePrice').value) || 0;
+    const addBtn = document.getElementById('addServiceBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const name = document.getElementById('serviceName').value.trim();
+        const price = parseFloat(document.getElementById('servicePrice').value) || 0;
 
-      if (!name || !price) {
-        showToast('أدخل البيانات', 'error');
-        return;
-      }
-
-      this.addRecord('services', { name, price }).then(() => {
-        document.getElementById('serviceName').value = '';
-        document.getElementById('servicePrice').value = '';
-        this.switchView('services');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-service]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const service = this.services.find(s => s.id === btn.dataset.editService);
-        if (service) this.showEditServiceModal(service);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-service]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف الخدمة؟')) {
-          this.deleteRecord('services', btn.dataset.deleteService).then(() => {
-            this.switchView('services');
-          });
+        if (!name || !price) {
+          showToast('أدخل البيانات', 'error');
+          return;
         }
+
+        this.addRecord('services', { name, price }).then(() => {
+          document.getElementById('serviceName').value = '';
+          document.getElementById('servicePrice').value = '';
+          this.switchView('services');
+        });
       });
-    });
+    }
   }
 
   bindCustomersEvents() {
-    document.getElementById('addCustomerBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('customerName').value.trim();
+    // معالج الإضافة - يُضاف مرة واحدة فقط
+    const addBtn = document.getElementById('addCustomerBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const name = document.getElementById('customerName').value.trim();
 
-      if (!name) {
-        showToast('أدخل الاسم', 'error');
-        return;
-      }
-
-      this.addRecord('customers', {
-        name,
-        phone: document.getElementById('customerPhone').value,
-        email: document.getElementById('customerEmail').value,
-        address: document.getElementById('customerAddress').value
-      }).then(() => {
-        document.getElementById('customerName').value = '';
-        document.getElementById('customerPhone').value = '';
-        document.getElementById('customerEmail').value = '';
-        document.getElementById('customerAddress').value = '';
-        this.switchView('customers');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-customer]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const customer = this.customers.find(c => c.id === btn.dataset.editCustomer);
-        if (customer) this.showEditCustomerModal(customer);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-customer]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف العميل؟')) {
-          this.deleteRecord('customers', btn.dataset.deleteCustomer).then(() => {
-            this.switchView('customers');
-          });
+        if (!name) {
+          showToast('أدخل الاسم', 'error');
+          return;
         }
+
+        this.addRecord('customers', {
+          name,
+          phone: document.getElementById('customerPhone').value,
+          email: document.getElementById('customerEmail').value
+        }).then(() => {
+          document.getElementById('customerName').value = '';
+          document.getElementById('customerPhone').value = '';
+          document.getElementById('customerEmail').value = '';
+          this.switchView('customers');
+        });
       });
-    });
+    }
+    
+    // معالجات الحذف والتعديل موجودة في event delegation بـ bindViewEvents
   }
 
   bindTiresEvents() {
-    document.getElementById('addTireBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('tireName').value.trim();
-      const size = document.getElementById('tireSize').value.trim();
-      const brand = document.getElementById('tireBrand').value.trim();
-      const model = document.getElementById('tireModel').value.trim();
-      const supplierId = document.getElementById('tireSupplier').value;
-      const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
-      const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
-      const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
+    const addBtn = document.getElementById('addTireBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const name = document.getElementById('tireName').value.trim();
+        const size = document.getElementById('tireSize').value.trim();
+        const brand = document.getElementById('tireBrand').value.trim();
+        const model = document.getElementById('tireModel').value.trim();
+        const supplierId = document.getElementById('tireSupplier').value;
+        const costPrice = parseFloat(document.getElementById('tireCostPrice').value) || 0;
+        const sellingPrice = parseFloat(document.getElementById('tireSellingPrice').value) || 0;
+        const quantity = parseInt(document.getElementById('tireQuantity').value) || 0;
 
-      if (!name || !size || !brand || !supplierId || !sellingPrice) {
-        showToast('أدخل البيانات المطلوبة', 'error');
-        return;
-      }
-
-      this.addRecord('tires', {
-        name, 
-        size, 
-        brand, 
-        model,
-        supplier_id: supplierId,
-        cost_price: costPrice, 
-        selling_price: sellingPrice, 
-        quantity
-      }).then(() => {
-        document.getElementById('tireName').value = '';
-        document.getElementById('tireSize').value = '';
-        document.getElementById('tireBrand').value = '';
-        document.getElementById('tireModel').value = '';
-        document.getElementById('tireSupplier').value = '';
-        document.getElementById('tireCostPrice').value = '';
-        document.getElementById('tireSellingPrice').value = '';
-        document.getElementById('tireQuantity').value = '';
-        this.switchView('tires');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-tire]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tire = this.tires.find(t => t.id === btn.dataset.editTire);
-        if (tire) this.showEditTireModal(tire);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-tire]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف الإطار؟')) {
-          this.deleteRecord('tires', btn.dataset.deleteTire).then(() => {
-            this.switchView('tires');
-          });
+        if (!name || !size || !brand || !supplierId || !sellingPrice) {
+          showToast('أدخل البيانات المطلوبة', 'error');
+          return;
         }
+
+        this.addRecord('tires', {
+          name, 
+          size, 
+          brand, 
+          model,
+          supplier_id: supplierId,
+          cost_price: costPrice, 
+          selling_price: sellingPrice, 
+          quantity
+        }).then(() => {
+          document.getElementById('tireName').value = '';
+          document.getElementById('tireSize').value = '';
+          document.getElementById('tireBrand').value = '';
+          document.getElementById('tireModel').value = '';
+          document.getElementById('tireSupplier').value = '';
+          document.getElementById('tireCostPrice').value = '';
+          document.getElementById('tireSellingPrice').value = '';
+          document.getElementById('tireQuantity').value = '';
+          this.switchView('tires');
+        });
       });
-    });
+    }
   }
 
   bindAppointmentsEvents() {
-    document.getElementById('addAppointmentBtn')?.addEventListener('click', () => {
-      const customerId = document.getElementById('appointmentCustomerId').value;
-      const customerName = this.customers.find(c => c.id === customerId)?.name || '';
-      const serviceName = document.getElementById('appointmentServiceName').value;
-      const appointmentTime = document.getElementById('appointmentDateTime').value;
-      const notes = document.getElementById('appointmentNotes').value;
+    const addBtn = document.getElementById('addAppointmentBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const customerId = document.getElementById('appointmentCustomerId').value;
+        const customerName = this.customers.find(c => c.id === customerId)?.name || '';
+        const serviceName = document.getElementById('appointmentServiceName').value;
+        const appointmentTime = document.getElementById('appointmentDateTime').value;
+        const notes = document.getElementById('appointmentNotes').value;
 
-      if (!customerId || !serviceName || !appointmentTime) {
-        showToast('أدخل البيانات', 'error');
-        return;
-      }
-
-      this.addRecord('appointments', {
-        customer_id: customerId,
-        customer_name: customerName,
-        service_name: serviceName,
-        appointment_time: appointmentTime,
-        notes
-      }).then(() => {
-        document.getElementById('appointmentCustomerId').value = '';
-        document.getElementById('appointmentServiceName').value = '';
-        document.getElementById('appointmentDateTime').value = '';
-        document.getElementById('appointmentNotes').value = '';
-        this.switchView('appointments');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-appointment]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const appointment = this.appointments.find(a => a.id === btn.dataset.editAppointment);
-        if (appointment) this.showEditAppointmentModal(appointment);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-appointment]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف الموعد؟')) {
-          this.deleteRecord('appointments', btn.dataset.deleteAppointment).then(() => {
-            this.switchView('appointments');
-          });
+        if (!customerId || !serviceName || !appointmentTime) {
+          showToast('أدخل البيانات', 'error');
+          return;
         }
+
+        this.addRecord('appointments', {
+          customer_id: customerId,
+          customer_name: customerName,
+          service_name: serviceName,
+          appointment_time: appointmentTime,
+          notes
+        }).then(() => {
+          document.getElementById('appointmentCustomerId').value = '';
+          document.getElementById('appointmentServiceName').value = '';
+          document.getElementById('appointmentDateTime').value = '';
+          document.getElementById('appointmentNotes').value = '';
+          this.switchView('appointments');
+        });
       });
-    });
+    }
   }
 
   bindSuppliersEvents() {
-    document.getElementById('addSupplierBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('supplierName').value.trim();
+    const addBtn = document.getElementById('addSupplierBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const name = document.getElementById('supplierName').value.trim();
 
-      if (!name) {
-        showToast('أدخل الاسم', 'error');
-        return;
-      }
-
-      this.addRecord('suppliers', {
-        name,
-        phone: document.getElementById('supplierPhone').value,
-        email: document.getElementById('supplierEmail').value,
-        address: document.getElementById('supplierAddress').value
-      }).then(() => {
-        document.getElementById('supplierName').value = '';
-        document.getElementById('supplierPhone').value = '';
-        document.getElementById('supplierEmail').value = '';
-        document.getElementById('supplierAddress').value = '';
-        this.switchView('suppliers');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-supplier]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const supplier = this.suppliers.find(s => s.id === btn.dataset.editSupplier);
-        if (supplier) this.showEditSupplierModal(supplier);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-supplier]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف المورد؟')) {
-          this.deleteRecord('suppliers', btn.dataset.deleteSupplier).then(() => {
-            this.switchView('suppliers');
-          });
+        if (!name) {
+          showToast('أدخل الاسم', 'error');
+          return;
         }
+
+        this.addRecord('suppliers', {
+          name,
+          phone: document.getElementById('supplierPhone').value,
+          email: document.getElementById('supplierEmail').value,
+          address: document.getElementById('supplierAddress').value
+        }).then(() => {
+          document.getElementById('supplierName').value = '';
+          document.getElementById('supplierPhone').value = '';
+          document.getElementById('supplierEmail').value = '';
+          document.getElementById('supplierAddress').value = '';
+          this.switchView('suppliers');
+        });
       });
-    });
+    }
   }
 
   bindSupplierInvoicesEvents() {
-    document.getElementById('addInvoiceBtn')?.addEventListener('click', () => {
-      const supplierId = document.getElementById('invoiceSupplier').value;
-      const invoiceNumber = document.getElementById('invoiceNumber').value.trim();
-      const totalAmount = parseFloat(document.getElementById('invoiceTotal').value) || 0;
+    const addBtn = document.getElementById('addInvoiceBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const supplierId = document.getElementById('invoiceSupplier').value;
+        const invoiceNumber = document.getElementById('invoiceNumber').value.trim();
+        const totalAmount = parseFloat(document.getElementById('invoiceTotal').value) || 0;
 
-      if (!supplierId || !invoiceNumber || !totalAmount) {
-        showToast('أدخل البيانات', 'error');
-        return;
-      }
-
-      this.addRecord('supplier_invoices', {
-        supplier_id: supplierId,
-        invoice_number: invoiceNumber,
-        total_amount: totalAmount,
-        paid_amount: 0,
-        remaining_amount: totalAmount,
-        invoice_date: new Date().toISOString()
-      }).then(() => {
-        document.getElementById('invoiceSupplier').value = '';
-        document.getElementById('invoiceNumber').value = '';
-        document.getElementById('invoiceTotal').value = '';
-        this.switchView('supplierInvoices');
-      });
-    });
-
-    document.querySelectorAll('[data-pay-invoice]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.showPaymentModal(btn.dataset.payInvoice);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-invoice]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف الفاتورة؟')) {
-          this.deleteRecord('supplier_invoices', btn.dataset.deleteInvoice).then(() => {
-            this.switchView('supplierInvoices');
-          });
+        if (!supplierId || !invoiceNumber || !totalAmount) {
+          showToast('أدخل البيانات', 'error');
+          return;
         }
+
+        this.addRecord('supplier_invoices', {
+          supplier_id: supplierId,
+          invoice_number: invoiceNumber,
+          total_amount: totalAmount,
+          paid_amount: 0,
+          remaining_amount: totalAmount,
+          invoice_date: new Date().toISOString()
+        }).then(() => {
+          document.getElementById('invoiceSupplier').value = '';
+          document.getElementById('invoiceNumber').value = '';
+          document.getElementById('invoiceTotal').value = '';
+          this.switchView('supplierInvoices');
+        });
       });
-    });
+    }
   }
 
   bindSupplierPaymentsEvents() {
-    document.getElementById('addPaymentBtn')?.addEventListener('click', () => {
-      const invoiceId = document.getElementById('paymentInvoice').value;
-      const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
-      const notes = document.getElementById('paymentNotes').value;
-      const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
+    const addBtn = document.getElementById('addPaymentBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const invoiceId = document.getElementById('paymentInvoice').value;
+        const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+        const notes = document.getElementById('paymentNotes').value;
+        const invoice = this.supplierInvoices.find(i => i.id === invoiceId);
 
-      if (!invoiceId || !amount || !invoice) {
-        showToast('أدخل البيانات', 'error');
-        return;
-      }
+        if (!invoiceId || !amount || !invoice) {
+          showToast('أدخل البيانات', 'error');
+          return;
+        }
 
-      if (amount > invoice.remainingAmount) {
-        showToast('المبلغ أكبر من المتبقي', 'error');
-        return;
-      }
+        if (amount > invoice.remainingAmount) {
+          showToast('المبلغ أكبر من المتبقي', 'error');
+          return;
+        }
 
-      this.addRecord('supplier_payments', {
-        supplier_invoice_id: invoiceId,
-        payment_amount: amount,
-        payment_date: new Date().toISOString(),
-        notes
-      }).then(() => {
-        // تحديث المبلغ المدفوع والمتبقي
-        const newPaidAmount = (invoice.paidAmount || 0) + amount;
-        const newRemainingAmount = invoice.totalAmount - newPaidAmount;
-        
-        this.updateRecord('supplier_invoices', invoiceId, {
-          paid_amount: newPaidAmount,
-          remaining_amount: newRemainingAmount
+        this.addRecord('supplier_payments', {
+          supplier_invoice_id: invoiceId,
+          payment_amount: amount,
+          payment_date: new Date().toISOString(),
+          notes
         }).then(() => {
-          document.getElementById('paymentInvoice').value = '';
-          document.getElementById('paymentAmount').value = '';
-          document.getElementById('paymentNotes').value = '';
-          this.switchView('supplierPayments');
+          // تحديث المبلغ المدفوع والمتبقي
+          const newPaidAmount = (invoice.paidAmount || 0) + amount;
+          const newRemainingAmount = invoice.totalAmount - newPaidAmount;
+          
+          this.updateRecord('supplier_invoices', invoiceId, {
+            paid_amount: newPaidAmount,
+            remaining_amount: newRemainingAmount
+          }).then(() => {
+            document.getElementById('paymentInvoice').value = '';
+            document.getElementById('paymentAmount').value = '';
+            document.getElementById('paymentNotes').value = '';
+            this.switchView('supplierPayments');
+          });
         });
       });
-    });
-
-    document.querySelectorAll('[data-delete-payment]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف الدفعة؟')) {
-          const paymentId = btn.dataset.deletePayment;
-          const payment = this.supplierPayments.find(p => p.id === paymentId);
-          
-          if (payment) {
-            // استرجاع المبلغ من الفاتورة
-            const invoice = this.supplierInvoices.find(i => i.id === payment.supplierInvoiceId);
-            if (invoice) {
-              const newPaidAmount = Math.max(0, (invoice.paidAmount || 0) - payment.paymentAmount);
-              const newRemainingAmount = invoice.totalAmount - newPaidAmount;
-              
-              this.updateRecord('supplier_invoices', invoice.id, {
-                paid_amount: newPaidAmount,
-                remaining_amount: newRemainingAmount
-              }).then(() => {
-                this.deleteRecord('supplier_payments', paymentId).then(() => {
-                  this.switchView('supplierPayments');
-                });
-              });
-            }
-          }
-        }
-      });
-    });
+    }
+  }
   }
 
   bindDashboardEvents() {
@@ -3933,10 +3854,6 @@ class TireShopApp {
           <div class="form-group">
             <label>البريد الإلكتروني</label>
             <input type="email" id="customerEmail" placeholder="email@example.com">
-          </div>
-          <div class="form-group">
-            <label>العنوان</label>
-            <input type="text" id="customerAddress" placeholder="العنوان">
           </div>
           <button class="btn btn-amber btn-block" id="addCustomerBtn">${icon('add')} إضافة</button>
         </div>
@@ -4722,71 +4639,57 @@ class TireShopApp {
   }
 
   bindFixedExpensesEvents() {
-    document.getElementById('addFixedExpenseBtn')?.addEventListener('click', () => {
-      const type = document.getElementById('fixedExpenseTypeSelect').value;
-      const description = document.getElementById('fixedExpenseDescInput').value.trim();
-      const amount = parseFloat(document.getElementById('fixedExpenseAmountInput').value) || 0;
-      const expenseDate = document.getElementById('fixedExpenseDateInput').value;
+    const addBtn = document.getElementById('addFixedExpenseBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const type = document.getElementById('fixedExpenseTypeSelect').value;
+        const description = document.getElementById('fixedExpenseDescInput').value.trim();
+        const amount = parseFloat(document.getElementById('fixedExpenseAmountInput').value) || 0;
+        const expenseDate = document.getElementById('fixedExpenseDateInput').value;
 
-      if (!type || !amount) {
-        showToast('أدخل النوع والمبلغ', 'error');
-        return;
-      }
-
-      this.addRecord('expenses', {
-        expense_type: 'ثابتة',
-        description: type,
-        notes: description,
-        amount,
-        expense_date: new Date(expenseDate).toISOString()
-      }).then(() => {
-        this.switchView('fixedExpenses');
-      });
-    });
-
-    document.querySelectorAll('[data-delete-fixed-expense]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.deleteFixedExpense;
-        if (confirm('حذف المصروف الثابت؟')) {
-          this.deleteRecord('expenses', id).then(() => {
-            this.switchView('fixedExpenses');
-          });
+        if (!type || !amount) {
+          showToast('أدخل النوع والمبلغ', 'error');
+          return;
         }
+
+        this.addRecord('expenses', {
+          expense_type: 'ثابتة',
+          description: type,
+          notes: description,
+          amount,
+          expense_date: new Date(expenseDate).toISOString()
+        }).then(() => {
+          this.switchView('fixedExpenses');
+        });
       });
-    });
+    }
   }
 
   bindDailyExpensesEvents() {
-    document.getElementById('addDailyExpenseBtn')?.addEventListener('click', () => {
-      const description = document.getElementById('dailyExpenseDescInput').value.trim();
-      const amount = parseFloat(document.getElementById('dailyExpenseAmountInput').value) || 0;
-      const expenseDate = document.getElementById('dailyExpenseDateInput').value;
+    const addBtn = document.getElementById('addDailyExpenseBtn');
+    if (addBtn && !addBtn.hasListener) {
+      addBtn.hasListener = true;
+      addBtn.addEventListener('click', () => {
+        const description = document.getElementById('dailyExpenseDescInput').value.trim();
+        const amount = parseFloat(document.getElementById('dailyExpenseAmountInput').value) || 0;
+        const expenseDate = document.getElementById('dailyExpenseDateInput').value;
 
-      if (!description || !amount) {
-        showToast('أدخل البيان والمبلغ', 'error');
-        return;
-      }
-
-      this.addRecord('expenses', {
-        expense_type: 'يومية',
-        description,
-        amount,
-        expense_date: new Date(expenseDate).toISOString()
-      }).then(() => {
-        this.switchView('dailyExpenses');
-      });
-    });
-
-    document.querySelectorAll('[data-delete-daily-expense]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.deleteDailyExpense;
-        if (confirm('حذف المصروف اليومي؟')) {
-          this.deleteRecord('expenses', id).then(() => {
-            this.switchView('dailyExpenses');
-          });
+        if (!description || !amount) {
+          showToast('أدخل البيان والمبلغ', 'error');
+          return;
         }
+
+        this.addRecord('expenses', {
+          expense_type: 'يومية',
+          description,
+          amount,
+          expense_date: new Date(expenseDate).toISOString()
+        }).then(() => {
+          this.switchView('dailyExpenses');
+        });
       });
-    });
+    }
   }
 
   bindExpensesEvents() {
