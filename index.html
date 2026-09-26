@@ -4810,72 +4810,9 @@ class TireShopApp {
       {"size": "275/60/R20", "brand": "ATLANDER", "model": "2026", "stock": 4, "selling_price": 44.0}
     ];
 
-    const html = `
-      <div class="card">
-        <div class="card-head">
-          <h3>📦 استيراج 30 إطار إلى المخزون</h3>
-        </div>
-
-        <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; border-radius: 5px; margin-bottom: 20px; color: #1976d2;">
-          <strong>ℹ️ معلومة:</strong> سيتم إضافة الإطارات بدون مورد حالياً. يمكنك لاحقاً تقسيمها على الموردين.
-        </div>
-
-        <div class="grid-2" style="margin-bottom: 20px;">
-          <div class="form-group">
-            <label>سعر التكلفة (اختياري)</label>
-            <input type="number" id="importCostPrice" step="0.01" placeholder="اترك فارغاً للقيمة الافتراضية (0)">
-          </div>
-          <div style="display: flex; gap: 10px; align-items: flex-end;">
-            <button class="btn btn-ghost" id="importPreviewBtn" style="flex: 1;">👁️ معاينة</button>
-            <button class="btn btn-amber" id="importStartBtn" style="flex: 1;">📥 استيراج الآن</button>
-          </div>
-        </div>
-
-        <div id="importProgress" style="display: none; margin: 20px 0;">
-          <div style="background: #ddd; height: 8px; border-radius: 4px; overflow: hidden;">
-            <div id="importProgressFill" style="height: 100%; background: linear-gradient(90deg, #f2a71b, #d6900f); width: 0%; transition: width 0.3s;"></div>
-          </div>
-          <div style="text-align: center; font-size: 12px; color: #666; margin-top: 5px;">
-            <span id="importProgressText">0/30</span>
-          </div>
-        </div>
-
-        <div id="importStatus" style="margin: 20px 0; padding: 15px; border-radius: 5px; display: none; font-weight: bold; text-align: center;">
-        </div>
-
-        <div id="importPreviewBox" style="display: none; background: #f5f5f5; border: 1px solid #ddd; border-radius: 5px; padding: 15px; max-height: 400px; overflow-y: auto; margin-top: 20px;">
-          <div style="font-weight: bold; color: #333; margin-bottom: 10px;">📋 البيانات التي ستُضاف:</div>
-          <div id="importTiresList"></div>
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; margin-top: 15px;">
-            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
-              <span>📊 إجمالي الإطارات:</span>
-              <span style="font-weight: bold;">30</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
-              <span>📦 الكمية الإجمالية:</span>
-              <span style="font-weight: bold;" id="importTotalQty">0</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
-              <span>💵 متوسط السعر:</span>
-              <span style="font-weight: bold;" id="importAvgPrice">0</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // عرض الـ HTML أولاً
-    document.getElementById('appContent').innerHTML = html;
-    
-    // ثم ربط الأحداث
-    setTimeout(() => this.bindImportInventoryEvents(tiresData), 100);
-    
-    return '';
-  }
-
-  bindImportInventoryEvents(tiresData) {
     const self = this;
     
+    // ربط الأحداث بعد عرض الـ HTML
     setTimeout(() => {
       const previewBtn = document.getElementById('importPreviewBtn');
       const startBtn = document.getElementById('importStartBtn');
@@ -4929,7 +4866,7 @@ class TireShopApp {
       startBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         
-        const costPrice = parseFloat(document.getElementById('importCostPrice').value) || 0;
+        const costValue = parseFloat(document.getElementById('importCostPrice').value) || 0;
 
         startBtn.disabled = true;
         const progressDiv = document.getElementById('importProgress');
@@ -4950,15 +4887,17 @@ class TireShopApp {
           const tire = tiresData[i];
 
           try {
-            const { error } = await self.supabase.from('tires').insert([{
+            const tireRecord = {
               brand: tire.brand,
               size: tire.size,
               model: tire.model,
               stock: tire.stock,
               selling_price: tire.selling_price,
-              cost: costPrice,
+              cost: costValue,
               supplier_id: null
-            }]);
+            };
+
+            const { error } = await self.supabase.from('tires').insert([tireRecord]);
 
             if (error) {
               console.error(`خطأ في ${tire.brand} ${tire.size}:`, error);
@@ -4993,7 +4932,61 @@ class TireShopApp {
           }
         }
       });
-    }, 200);
+    }, 100);
+
+    return `
+      <div class="card">
+        <div class="card-head">
+          <h3>📦 استيراج 30 إطار إلى المخزون</h3>
+        </div>
+
+        <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; border-radius: 5px; margin-bottom: 20px; color: #1976d2;">
+          <strong>ℹ️ معلومة:</strong> سيتم إضافة الإطارات بدون مورد حالياً. يمكنك لاحقاً تقسيمها على الموردين.
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 20px;">
+          <div class="form-group">
+            <label>سعر التكلفة (اختياري)</label>
+            <input type="number" id="importCostPrice" step="0.01" placeholder="اترك فارغاً للقيمة الافتراضية (0)">
+          </div>
+          <div style="display: flex; gap: 10px; align-items: flex-end;">
+            <button class="btn btn-ghost" id="importPreviewBtn" style="flex: 1;">👁️ معاينة</button>
+            <button class="btn btn-amber" id="importStartBtn" style="flex: 1;">📥 استيراج الآن</button>
+          </div>
+        </div>
+
+        <div id="importProgress" style="display: none; margin: 20px 0;">
+          <div style="background: #ddd; height: 8px; border-radius: 4px; overflow: hidden;">
+            <div id="importProgressFill" style="height: 100%; background: linear-gradient(90deg, #f2a71b, #d6900f); width: 0%; transition: width 0.3s;"></div>
+          </div>
+          <div style="text-align: center; font-size: 12px; color: #666; margin-top: 5px;">
+            <span id="importProgressText">0/30</span>
+          </div>
+        </div>
+
+        <div id="importStatus" style="margin: 20px 0; padding: 15px; border-radius: 5px; display: none; font-weight: bold; text-align: center;">
+        </div>
+
+        <div id="importPreviewBox" style="display: none; background: #f5f5f5; border: 1px solid #ddd; border-radius: 5px; padding: 15px; max-height: 400px; overflow-y: auto; margin-top: 20px;">
+          <div style="font-weight: bold; color: #333; margin-bottom: 10px;">📋 البيانات التي ستُضاف:</div>
+          <div id="importTiresList"></div>
+          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; margin-top: 15px;">
+            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
+              <span>📊 إجمالي الإطارات:</span>
+              <span style="font-weight: bold;">30</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
+              <span>📦 الكمية الإجمالية:</span>
+              <span style="font-weight: bold;" id="importTotalQty">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
+              <span>💵 متوسط السعر:</span>
+              <span style="font-weight: bold;" id="importAvgPrice">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 }
 
