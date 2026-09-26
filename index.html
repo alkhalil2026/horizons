@@ -4920,7 +4920,7 @@ class TireShopApp {
         const tire = tiresData[i];
 
         try {
-          const { error } = await supabase.from('tires').insert([{
+          const { error } = await this.supabase.from('tires').insert([{
             name: tire.name,
             size: tire.size,
             brand: tire.brand,
