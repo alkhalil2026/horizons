@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>اختبار الاستيراج</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; margin-bottom: 20px; }
+    .button { 
+      width: 100%;
+      padding: 15px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .btn-test { background: #2196f3; color: white; }
+    .btn-import { background: #4caf50; color: white; }
+    .btn-test:hover { background: #0b7dda; }
+    .btn-import:hover { background: #45a049; }
+    .log {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-top: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .log-item {
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .log-item.success { color: #4caf50; }
+    .log-item.error { color: #f44336; }
+    .log-item.info { color: #2196f3; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 اختبار الاستيراج</h1>
+    
+    <button class="button btn-test" onclick="testConnection()">
+      1️⃣ اختبر الاتصال بـ Supabase
+    </button>
+
+    <button class="button btn-test" onclick="testInsertOne()">
+      2️⃣ اختبر إضافة إطار واحد
+    </button>
+
+    <button class="button btn-import" onclick="importAllTires()">
+      3️⃣ استيراج 30 إطار
+    </button>
+
+    <button class="button btn-test" onclick="clearLog()">
+      🗑️ مسح السجل
+    </button>
+
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFocm5vcmp6ZXprdXNnaHFxYmZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mzc5NzksImV4cCI6MjEwNTMxMzk3OX0.eFVLGMmapEgiAcueu_mV94KRcr_OcIS59BkTQPJcWbo';
+    
+    let supabase;
+    
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const item = document.createElement('div');
+      item.className = `log-item ${type}`;
+      item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(item);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    async function testConnection() {
+      log('🔄 جاري اختبار الاتصال...', 'info');
+      
+      try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        log('✅ تم إنشاء عميل Supabase', 'success');
+
+        const { data, error } = await supabase.from('tires').select('count');
+        
+        if (error) {
+          log(`❌ خطأ: ${error.message}`, 'error');
+          log(`📝 التفاصيل: ${JSON.stringify(error)}`, 'error');
+        } else {
+          log('✅ الاتصال بـ Supabase يعمل بشكل صحيح!', 'success');
+          log('✅ جدول tires موجود ويمكن الوصول إليه', 'success');
+        }
+      } catch (err) {
+        log(`❌ استثناء: ${err.message}`, 'error');
+      }
+    }
+
+    async function testInsertOne() {
+      log('🔄 جاري اختبار إضافة إطار واحد...', 'info');
+
+      if (!supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+
+      const testTire = {
+        name: 'TEST TIRE 195/R15C',
+        size: '195/R15C',
+        brand: 'TEST',
+        model: '2026',
+        quantity: 1,
+        selling_price: 25.0,
+        cost_price: 0,
+        supplier_id: null
+      };
+
+      try {
+        log(`📤 إرسال البيانات: ${JSON.stringify(testTire)}`, 'info');
+        
+        const { data, error } = await supabase.from('tires').insert([testTire]);
+        
+        if (error) {
+          log(`❌ خطأ في الإدراج: ${error.message}`, 'error');
+          log(`📝 الرمز: ${error.code}`, 'error');
+          log(`📝 التفاصيل: ${JSON.stringify(error)}`, 'error');
+        } else {
+          log('✅ تم إضافة الإطار بنجاح!', 'success');
+          log(`📊 النتيجة: ${JSON.stringify(data)}`, 'success');
+        }
+      } catch (err) {
+        log(`❌ استثناء: ${err.message}`, 'error');
+        log(`📝 Stack: ${err.stack}`, 'error');
+      }
+    }
+
+    async function importAllTires() {
+      log('🔄 جاري استيراج 30 إطار...', 'info');
+
+      if (!supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+
+      const tiresData = [
+        {"name": "ATLANDER  195/R15C", "size": "195/R15C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
+        {"name": "ATLANDER  195/65/R15", "size": "195/65/R15", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 18.5},
+        {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 16.0},
+        {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 18.5},
+        {"name": "ATLANDER  205/65/R16", "size": "205/65/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 18.5},
+        {"name": "ATLANDER  215/60/R16", "size": "215/60/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 19.8},
+        {"name": "ATLANDER  215/70/R16C", "size": "215/70/R16C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.5},
+        {"name": "ATLANDER  215/45/R17", "size": "215/45/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 21.5},
+        {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 16, "selling_price": 21.2},
+        {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 20.6},
+        {"name": "ATLANDER  225/65/R17", "size": "225/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.6},
+        {"name": "ATLANDER  265/65/R17", "size": "265/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 35.5},
+        {"name": "ATLANDER  225/40R18", "size": "225/40R18", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 22.0},
+        {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 23.0},
+        {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 22.0},
+        {"name": "ATLANDER  245/40/R18", "size": "245/40/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 22.5},
+        {"name": "ATLANDER  245/45/R18", "size": "245/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 23.6},
+        {"name": "ATLANDER  235/55/R18", "size": "235/55/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 28.2},
+        {"name": "ATLANDER  235/60/R18", "size": "235/60/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 31.5},
+        {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 5, "selling_price": 24.0},
+        {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 3, "selling_price": 23.0},
+        {"name": "ATLANDER  255/35/R18", "size": "255/35/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
+        {"name": "ATLANDER  235/40/R19", "size": "235/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 28.0},
+        {"name": "MILEMAX 235/40/R19", "size": "235/40/R19", "brand": "MILEMAX", "model": "2026", "quantity": 4, "selling_price": 22.0},
+        {"name": "ATLANDER  225/40/R19", "size": "225/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.0},
+        {"name": "ATLANDER  235/55/R19", "size": "235/55/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 29.9},
+        {"name": "ATLANDER  245/45/R19", "size": "245/45/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 27.5},
+        {"name": "ATLANDER  245/40/R19", "size": "245/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 36.5},
+        {"name": "ATLANDER  245/45/R20", "size": "245/45/R20", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 29.0},
+        {"name": "ATLANDER  275/60/R20", "size": "275/60/R20", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 44.0}
+      ];
+
+      let successful = 0;
+      let failed = 0;
+
+      for (let i = 0; i < tiresData.length; i++) {
+        const tire = tiresData[i];
+        
+        try {
+          const { error } = await supabase.from('tires').insert([tire]);
+
+          if (error) {
+            log(`❌ ${tire.name}: ${error.message}`, 'error');
+            failed++;
+          } else {
+            log(`✅ تم إضافة: ${tire.name}`, 'success');
+            successful++;
+          }
+        } catch (err) {
+          log(`❌ ${tire.name}: ${err.message}`, 'error');
+          failed++;
+        }
+      }
+
+      log(`📊 النتيجة النهائية: نجح ${successful} | فشل ${failed}`, successful > 0 ? 'success' : 'error');
+    }
+
+    log('🎯 أداة الاختبار جاهزة! اضغط على الأزرار أعلاه', 'info');
+  </script>
+</body>
+</html>
