@@ -1348,7 +1348,6 @@ const i18n = {
     sales: 'الفواتير',
     reports: 'التقارير',
     suppliers: 'الموردين',
-    tireTypes: 'أنواع الإطارات',
     supplierInvoices: 'فواتير الموردين',
     supplierPayments: 'دفعات الموردين',
     add: 'إضافة',
@@ -1423,7 +1422,6 @@ const i18n = {
     sales: 'Invoices',
     reports: 'Reports',
     suppliers: 'Suppliers',
-    tireTypes: 'Tire Types',
     supplierInvoices: 'Supplier Invoices',
     supplierPayments: 'Payments',
     add: 'Add',
@@ -1500,7 +1498,6 @@ const ICONS = {
   sales: '💰',
   reports: '📈',
   suppliers: '🚚',
-  tireTypes: '⚙️',
   supplierInvoices: '📄',
   supplierPayments: '💵',
   supplierSummary: '📊',
@@ -1602,7 +1599,6 @@ const FIELD_MAP = {
     discount_total: 'discountTotal'
   },
   suppliers: {},
-  tire_types: {},
   supplier_invoices: {
     supplier_id: 'supplierId',
     invoice_number: 'invoiceNumber',
@@ -1674,7 +1670,6 @@ class TireShopApp {
     this.appointments = [];
     this.sales = [];
     this.suppliers = [];
-    this.tireTypes = [];
     this.supplierInvoices = [];
     this.supplierPayments = [];
     this.expenses = [];
@@ -1735,7 +1730,7 @@ class TireShopApp {
     try {
       const tables = [
         'tires', 'services', 'customers', 'appointments', 'sales',
-        'suppliers', 'tire_types', 'supplier_invoices', 'supplier_payments', 'expenses'
+        'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses'
       ];
 
       for (const table of tables) {
@@ -1748,7 +1743,6 @@ class TireShopApp {
         const mapped = data.map(row => rowFromDb(row, table));
         
         const propName = table
-          .replace('tire_types', 'tireTypes')
           .replace('supplier_invoices', 'supplierInvoices')
           .replace('supplier_payments', 'supplierPayments');
         
@@ -2497,7 +2491,6 @@ class TireShopApp {
 
     if (this.currentUser.role === 'manager') {
       navItems.push(['suppliers', t('suppliers'), 'suppliers']);
-      navItems.push(['tireTypes', t('tireTypes'), 'tireTypes']);
       navItems.push(['supplierInvoices', t('supplierInvoices'), 'supplierInvoices']);
       navItems.push(['supplierPayments', t('supplierPayments'), 'supplierPayments']);
       navItems.push(['supplierSummary', t('supplierSummary'), 'supplierSummary']);
@@ -2561,7 +2554,6 @@ class TireShopApp {
       reports: t('reports'),
       expenses: `💸 ${t('expenses')}`,
       suppliers: t('suppliers'),
-      tireTypes: t('tireTypes'),
       supplierInvoices: t('supplierInvoices'),
       supplierPayments: t('supplierPayments'),
       supplierSummary: t('supplierSummary'),
@@ -2579,7 +2571,6 @@ class TireShopApp {
       reports: () => this.renderReportsView(),
       expenses: () => this.renderExpensesView(),
       suppliers: () => this.renderSuppliersView(),
-      tireTypes: () => this.renderTireTypesView(),
       supplierInvoices: () => this.renderSupplierInvoicesView(),
       supplierPayments: () => this.renderSupplierPaymentsView(),
       supplierSummary: () => this.renderSupplierSummaryView(),
@@ -2670,54 +2661,6 @@ class TireShopApp {
       }).then(() => {
         overlay.classList.remove('active');
         this.switchView('suppliers');
-      });
-    });
-  }
-
-  showEditTireTypeModal(tireType) {
-    const content = `
-      <div class="form-group">
-        <label>الاسم *</label>
-        <input type="text" id="editTireTypeName" value="${esc(tireType.name)}">
-      </div>
-      <div class="form-group">
-        <label>الوصف</label>
-        <textarea id="editTireTypeDescription" style="min-height: 80px;">${esc(tireType.description || '')}</textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
-        <button class="btn btn-amber" id="saveEditTireTypeBtn">حفظ</button>
-      </div>
-    `;
-    const overlay = document.getElementById('modalOverlay');
-    const box = document.getElementById('modalBox');
-    box.innerHTML = `
-      <div class="modal-head">
-        <h3>تعديل - ${esc(tireType.name)}</h3>
-        <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('active')">${icon('x') || '✕'}</button>
-      </div>
-      <div>${content}</div>
-    `;
-    overlay.classList.add('active');
-    
-    document.getElementById('closeEditBtn')?.addEventListener('click', () => {
-      overlay.classList.remove('active');
-    });
-    
-    document.getElementById('saveEditTireTypeBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editTireTypeName').value.trim();
-      
-      if (!name) {
-        showToast('أدخل الاسم', 'error');
-        return;
-      }
-
-      this.updateRecord('tire_types', tireType.id, {
-        name,
-        description: document.getElementById('editTireTypeDescription').value
-      }).then(() => {
-        overlay.classList.remove('active');
-        this.switchView('tireTypes');
       });
     });
   }
@@ -3245,7 +3188,6 @@ class TireShopApp {
     if (view === 'appointments') this.bindAppointmentsEvents();
     if (view === 'expenses') this.bindExpensesEvents();
     if (view === 'suppliers') this.bindSuppliersEvents();
-    if (view === 'tireTypes') this.bindTireTypesEvents();
     if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
     if (view === 'supplierPayments') this.bindSupplierPaymentsEvents();
 
@@ -3475,43 +3417,6 @@ class TireShopApp {
         if (confirm('حذف المورد؟')) {
           this.deleteRecord('suppliers', btn.dataset.deleteSupplier).then(() => {
             this.switchView('suppliers');
-          });
-        }
-      });
-    });
-  }
-
-  bindTireTypesEvents() {
-    document.getElementById('addTireTypeBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('tireTypeName').value.trim();
-
-      if (!name) {
-        showToast('أدخل الاسم', 'error');
-        return;
-      }
-
-      this.addRecord('tire_types', {
-        name,
-        description: document.getElementById('tireTypeDescription').value
-      }).then(() => {
-        document.getElementById('tireTypeName').value = '';
-        document.getElementById('tireTypeDescription').value = '';
-        this.switchView('tireTypes');
-      });
-    });
-
-    document.querySelectorAll('[data-edit-tiretype]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tireType = this.tireTypes.find(t => t.id === btn.dataset.editTiretype);
-        if (tireType) this.showEditTireTypeModal(tireType);
-      });
-    });
-
-    document.querySelectorAll('[data-delete-tiretype]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('حذف النوع؟')) {
-          this.deleteRecord('tire_types', btn.dataset.deleteTiretype).then(() => {
-            this.switchView('tireTypes');
           });
         }
       });
@@ -4407,61 +4312,6 @@ class TireShopApp {
               </tr>
             </tbody>
           </table>
-        </div>
-      </div>
-    `;
-  }
-
-  renderTireTypesView() {
-    const filteredTireTypes = this.filterByDate(this.tireTypes, 'createdAt');
-    
-    return `
-      ${this.renderDateFilterBar()}
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>${t('addTireType')}</h3></div>
-          <div class="form-group">
-            <label>اسم النوع *</label>
-            <input type="text" id="tireTypeName" placeholder="مثال: ميشلان، دانلوب">
-          </div>
-          <div class="form-group">
-            <label>الوصف</label>
-            <textarea id="tireTypeDescription" placeholder="وصف النوع" style="min-height: 80px;"></textarea>
-          </div>
-          <button class="btn btn-amber btn-block" id="addTireTypeBtn">${icon('add')} إضافة</button>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>أنواع الإطارات (${filteredTireTypes.length})</h3>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الوصف</th>
-                  <th>التاريخ</th>
-                  <th>الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filteredTireTypes.map(t => `
-                  <tr>
-                    <td>${esc(t.name)}</td>
-                    <td>${esc((t.description || '-').substring(0, 30))}</td>
-                    <td>${fmtDate(t.createdAt)}</td>
-                    <td>
-                      <div class="action-cell">
-                        <button class="btn btn-xs btn-blue" data-edit-tiretype="${t.id}">${icon('edit')}</button>
-                        <button class="btn btn-xs btn-danger" data-delete-tiretype="${t.id}">${icon('delete')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد أنواع</td></tr>'}
-              </tbody>
-            </table>
-          </div>
         </div>
       </div>
     `;
