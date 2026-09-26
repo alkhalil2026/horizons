@@ -2554,6 +2554,7 @@ class TireShopApp {
       ['reports', t('reports'), 'reports'],
       ['fixedExpenses', `💰 ${t('fixedExpenses')}`, 'fixedExpenses'],
       ['dailyExpenses', `💸 ${t('dailyExpenses')}`, 'dailyExpenses'],
+      ['importInventory', '📦 استيراج المخزون', 'importInventory'],
     ];
 
     if (this.currentUser.role === 'manager') {
@@ -2625,6 +2626,7 @@ class TireShopApp {
       supplierInvoices: t('supplierInvoices'),
       supplierPayments: t('supplierPayments'),
       supplierSummary: t('supplierSummary'),
+      importInventory: '📦 استيراج المخزون',
     };
     
     document.getElementById('pageTitle').textContent = titles[view] || t('dashboard');
@@ -2643,6 +2645,7 @@ class TireShopApp {
       supplierInvoices: () => this.renderSupplierInvoicesView(),
       supplierPayments: () => this.renderSupplierPaymentsView(),
       supplierSummary: () => this.renderSupplierSummaryView(),
+      importInventory: () => this.renderImportInventoryView(),
     };
 
     const content = document.getElementById('content');
@@ -4770,6 +4773,193 @@ class TireShopApp {
         overlay.classList.remove('active');
         this.switchView('expenses');
       });
+    });
+  }
+
+  renderImportInventoryView() {
+    const tiresData = [
+      {"name": "ATLANDER  195/R15C", "size": "195/R15C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
+      {"name": "ATLANDER  195/65/R15", "size": "195/65/R15", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 18.5},
+      {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 16.0},
+      {"name": "ATLANDER  205/55R16", "size": "205/55R16", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 18.5},
+      {"name": "ATLANDER  205/65/R16", "size": "205/65/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 18.5},
+      {"name": "ATLANDER  215/60/R16", "size": "215/60/R16", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 19.8},
+      {"name": "ATLANDER  215/70/R16C", "size": "215/70/R16C", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.5},
+      {"name": "ATLANDER  215/45/R17", "size": "215/45/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 21.5},
+      {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 16, "selling_price": 21.2},
+      {"name": "ATLANDER  215/55/R17", "size": "215/55/R17", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 20.6},
+      {"name": "ATLANDER  225/65/R17", "size": "225/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.6},
+      {"name": "ATLANDER  265/65/R17", "size": "265/65/R17", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 35.5},
+      {"name": "ATLANDER  225/40R18", "size": "225/40R18", "brand": "ATLANDER", "model": "2026", "quantity": 0, "selling_price": 22.0},
+      {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 6, "selling_price": 23.0},
+      {"name": "ATLANDER  225/45/R18", "size": "225/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 2, "selling_price": 22.0},
+      {"name": "ATLANDER  245/40/R18", "size": "245/40/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 22.5},
+      {"name": "ATLANDER  245/45/R18", "size": "245/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 23.6},
+      {"name": "ATLANDER  235/55/R18", "size": "235/55/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 28.2},
+      {"name": "ATLANDER  235/60/R18", "size": "235/60/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 31.5},
+      {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 5, "selling_price": 24.0},
+      {"name": "ATLANDER  235/45/R18", "size": "235/45/R18", "brand": "ATLANDER", "model": "2026", "quantity": 3, "selling_price": 23.0},
+      {"name": "ATLANDER  255/35/R18", "size": "255/35/R18", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 24.0},
+      {"name": "ATLANDER  235/40/R19", "size": "235/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 28.0},
+      {"name": "MILEMAX 235/40/R19", "size": "235/40/R19", "brand": "MILEMAX", "model": "2026", "quantity": 4, "selling_price": 22.0},
+      {"name": "ATLANDER  225/40/R19", "size": "225/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 25.0},
+      {"name": "ATLANDER  235/55/R19", "size": "235/55/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 29.9},
+      {"name": "ATLANDER  245/45/R19", "size": "245/45/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 27.5},
+      {"name": "ATLANDER  245/40/R19", "size": "245/40/R19", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 36.5},
+      {"name": "ATLANDER  245/45/R20", "size": "245/45/R20", "brand": "ATLANDER", "model": "2026", "quantity": 8, "selling_price": 29.0},
+      {"name": "ATLANDER  275/60/R20", "size": "275/60/R20", "brand": "ATLANDER", "model": "2026", "quantity": 4, "selling_price": 44.0}
+    ];
+
+    return `
+      <div class="card">
+        <div class="card-head">
+          <h3>📦 استيراج 30 إطار إلى المخزون</h3>
+        </div>
+
+        <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; border-radius: 5px; margin-bottom: 20px; color: #1976d2;">
+          <strong>ℹ️ معلومة:</strong> سيتم إضافة الإطارات بدون مورد حالياً. يمكنك لاحقاً تقسيمها على الموردين.
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 20px;">
+          <div class="form-group">
+            <label>سعر التكلفة (اختياري)</label>
+            <input type="number" id="importCostPrice" step="0.01" placeholder="اترك فارغاً للقيمة الافتراضية (0)">
+          </div>
+          <div style="display: flex; gap: 10px; align-items: flex-end;">
+            <button class="btn btn-ghost" id="importPreviewBtn" style="flex: 1;">👁️ معاينة</button>
+            <button class="btn btn-amber" id="importStartBtn" style="flex: 1;">📥 استيراج الآن</button>
+          </div>
+        </div>
+
+        <div id="importProgress" style="display: none; margin: 20px 0;">
+          <div style="background: #ddd; height: 8px; border-radius: 4px; overflow: hidden;">
+            <div id="importProgressFill" style="height: 100%; background: linear-gradient(90deg, #f2a71b, #d6900f); width: 0%; transition: width 0.3s;"></div>
+          </div>
+          <div style="text-align: center; font-size: 12px; color: #666; margin-top: 5px;">
+            <span id="importProgressText">0/30</span>
+          </div>
+        </div>
+
+        <div id="importStatus" style="margin: 20px 0; padding: 15px; border-radius: 5px; display: none; font-weight: bold; text-align: center;">
+        </div>
+
+        <div id="importPreviewBox" style="display: none; background: #f5f5f5; border: 1px solid #ddd; border-radius: 5px; padding: 15px; max-height: 400px; overflow-y: auto; margin-top: 20px;">
+          <div style="font-weight: bold; color: #333; margin-bottom: 10px;">📋 البيانات التي ستُضاف:</div>
+          <div id="importTiresList"></div>
+          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; margin-top: 15px;">
+            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
+              <span>📊 إجمالي الإطارات:</span>
+              <span style="font-weight: bold;">30</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
+              <span>📦 الكمية الإجمالية:</span>
+              <span style="font-weight: bold;" id="importTotalQty">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px;">
+              <span>💵 متوسط السعر:</span>
+              <span style="font-weight: bold;" id="importAvgPrice">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    setTimeout(() => this.bindImportInventoryEvents(tiresData), 100);
+  }
+
+  bindImportInventoryEvents(tiresData) {
+    const previewBtn = document.getElementById('importPreviewBtn');
+    const startBtn = document.getElementById('importStartBtn');
+
+    if (!previewBtn || !startBtn) return;
+
+    previewBtn.addEventListener('click', () => {
+      const previewBox = document.getElementById('importPreviewBox');
+      if (previewBox.style.display === 'none') {
+        let html = '';
+        let totalQty = 0;
+        let totalPrice = 0;
+
+        tiresData.forEach(tire => {
+          html += `
+            <div style="padding: 8px; background: white; margin-bottom: 6px; border-radius: 3px; border-left: 3px solid #f2a71b; font-size: 12px; display: flex; justify-content: space-between;">
+              <span>${esc(tire.name)}</span>
+              <span style="color: #f44336; font-weight: bold; margin: 0 10px;">×${tire.quantity}</span>
+              <span style="color: #4caf50; font-weight: bold;">${tire.selling_price.toFixed(2)}</span>
+            </div>
+          `;
+          totalQty += tire.quantity;
+          totalPrice += tire.selling_price;
+        });
+
+        document.getElementById('importTiresList').innerHTML = html;
+        document.getElementById('importTotalQty').textContent = totalQty;
+        document.getElementById('importAvgPrice').textContent = (totalPrice / tiresData.length).toFixed(2);
+        previewBox.style.display = 'block';
+      } else {
+        previewBox.style.display = 'none';
+      }
+    });
+
+    startBtn.addEventListener('click', async () => {
+      const costPrice = parseFloat(document.getElementById('importCostPrice').value) || 0;
+
+      startBtn.disabled = true;
+      const progressDiv = document.getElementById('importProgress');
+      const statusDiv = document.getElementById('importStatus');
+      progressDiv.style.display = 'block';
+      statusDiv.style.display = 'block';
+      statusDiv.style.background = '#2196f3';
+      statusDiv.style.color = 'white';
+      statusDiv.textContent = '⏳ جاري الاستيراج...';
+
+      let successful = 0;
+      let failed = 0;
+
+      for (let i = 0; i < tiresData.length; i++) {
+        const tire = tiresData[i];
+
+        try {
+          const { error } = await supabase.from('tires').insert([{
+            name: tire.name,
+            size: tire.size,
+            brand: tire.brand,
+            model: tire.model,
+            quantity: tire.quantity,
+            selling_price: tire.selling_price,
+            cost_price: costPrice,
+            supplier_id: null
+          }]);
+
+          if (error) {
+            console.error(`خطأ في ${tire.name}:`, error);
+            failed++;
+          } else {
+            successful++;
+          }
+        } catch (error) {
+          console.error(`خطأ في ${tire.name}:`, error);
+          failed++;
+        }
+
+        const progress = ((i + 1) / tiresData.length) * 100;
+        document.getElementById('importProgressFill').style.width = progress + '%';
+        document.getElementById('importProgressText').textContent = `${i + 1}/${tiresData.length}`;
+      }
+
+      progressDiv.style.display = 'none';
+      startBtn.disabled = false;
+
+      if (failed === 0) {
+        statusDiv.style.background = '#4caf50';
+        statusDiv.textContent = `✅ تم استيراج ${successful} إطار بنجاح!`;
+        showToast(`تم إضافة ${successful} إطار`, 'success');
+        setTimeout(() => this.switchView('tires'), 1500);
+      } else {
+        statusDiv.style.background = '#f44336';
+        statusDiv.textContent = `⚠️ تم استيراج ${successful} | فشل: ${failed}`;
+        showToast(`تم إضافة ${successful} إطار (فشل: ${failed})`, 'error');
+      }
     });
   }
 }
