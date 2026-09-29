@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.1.0 (script-tag fix, sales wizard restored) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.2.0 (multi-item invoices: services + tires) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1313,6 +1313,38 @@ table tbody tr:hover {
     padding: 16px;
   }
 }
+
+/* ===== سلة الفاتورة ===== */
+.wizard-container.wz-wide { max-width: 1100px; }
+.wz-steps { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.wz-step { flex: 1; min-width: 90px; padding: 10px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); color: var(--text-muted); font-weight: 700; text-align: center; font-size: 14px; }
+.wz-step.active { border-color: var(--amber-500); color: var(--text-900); background: var(--amber-100); }
+.wz-step.done { color: var(--tread-green); }
+.wz-num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; background: currentColor; margin-left: 6px; }
+.wz-num { color: #fff; background: var(--text-muted); }
+.wz-step.active .wz-num { background: var(--amber-600); }
+.wz-step.done .wz-num { background: var(--tread-green); }
+.wz-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.wz-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.wz-tab { flex: 1; padding: 12px; border: 2px solid var(--line); border-radius: 8px; background: var(--paper); font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.wz-tab.active { border-color: var(--amber-500); background: var(--amber-100); }
+.wz-search { width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; font-size: 14px; }
+.pick-card { position: relative; user-select: none; }
+.pick-card.out { opacity: 0.45; cursor: not-allowed; }
+.pick-badge { position: absolute; top: -9px; left: -9px; box-shadow: 0 2px 4px rgba(0,0,0,.2); min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: var(--amber-600); color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.cart-panel { position: sticky; top: 12px; }
+.cart-line { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cart-desc { flex: 1; display: flex; gap: 8px; align-items: center; min-width: 0; }
+.cart-name { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+.cart-type { font-size: 18px; }
+.cart-qty { display: flex; align-items: center; gap: 6px; }
+.qty-mini { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line); background: var(--concrete-100); font-size: 16px; font-weight: 800; cursor: pointer; }
+.cart-line-total { font-weight: 800; min-width: 60px; text-align: left; }
+.cart-remove { border: none; background: none; color: var(--brake-red); font-size: 16px; cursor: pointer; padding: 4px; }
+@media (max-width: 800px) {
+  .wz-layout { grid-template-columns: 1fr; }
+  .cart-panel { position: static; }
+}
 </style>
 </head>
 <body>
@@ -1707,15 +1739,7 @@ class TireShopApp {
     this.expenses = [];
     
     // Sale wizard state
-    this.saleWizard = {
-      step: 1,
-      selectedService: null,
-      quantity: 1,
-      warranty: 'noWarranty',
-      paymentMethod: 'cash',
-      customerName: '',
-      customerPhone: '',
-    };
+    this.saleWizard = this.emptySaleWizard();
     
     // Sales period filter
     this.currentSalesPeriod = 'today';
@@ -1875,24 +1899,34 @@ class TireShopApp {
     this.render();
   }
 
-  // ===== SALES WIZARD =====
+  // ===== SALES WIZARD (سلة متعددة: خدمات + إطارات) =====
 
-  startNewSale() {
-    this.saleWizard = {
-      active: true,
+  emptySaleWizard() {
+    return {
+      active: false,
       step: 1,
-      selectedService: null,
-      quantity: 1,
+      tab: 'services',
+      cart: [],
       warranty: 'noWarranty',
       paymentMethod: 'cash',
+      discount: 0,
       customerName: '',
       customerPhone: '',
     };
+  }
+
+  startNewSale() {
+    this.saleWizard = { ...this.emptySaleWizard(), active: true };
+    this.switchView('sales');
+  }
+
+  cancelSale() {
+    this.saleWizard = this.emptySaleWizard();
     this.switchView('sales');
   }
 
   nextWizardStep() {
-    if (this.saleWizard.step < 4) {
+    if (this.saleWizard.step < 3) {
       this.saleWizard.step++;
       this.switchView('sales');
     }
@@ -1905,80 +1939,213 @@ class TireShopApp {
     }
   }
 
-  saveSale() {
-    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
-    if (!service) {
-      showToast(t('error'), 'error');
-      return;
-    }
+  tireLabel(tire) {
+    return [tire.brand, tire.model, tire.size].filter(Boolean).join(' ');
+  }
 
-    const total = (parseFloat(service.price) || 0) * this.saleWizard.quantity;
+  // أضف عنصر للسلة أو زد كميته
+  addToCart(type, refId) {
+    const cart = this.saleWizard.cart;
+    const key = type + ':' + refId;
+    const line = cart.find(l => l.key === key);
 
-    this.addRecord('sales', {
-      invoice_number: 'INV-' + Date.now(),
-      customer_name: this.saleWizard.customerName,
-      customer_phone: this.saleWizard.customerPhone,
-      payment_method: this.saleWizard.paymentMethod,
-      warranty: this.saleWizard.warranty,
-      service_name: service.name,
-      quantity: this.saleWizard.quantity,
-      unit_price: service.price,
-      total: total,
-      subtotal: total
-    }).then((ok) => {
-      if (ok === false) {
-        showToast('لم تُحفظ الفاتورة — راجع رسالة الخطأ', 'error');
+    if (type === 'tire') {
+      const tire = this.tires.find(x => x.id === refId);
+      if (!tire) return;
+      const stock = parseInt(tire.stock) || 0;
+      const inCart = line ? line.quantity : 0;
+      if (inCart + 1 > stock) {
+        showToast(`المخزون المتاح من هذا الإطار: ${stock} فقط`, 'warning');
         return;
       }
-      showToast(t('invoiceCreated'), 'success');
-      this.saleWizard = {
-        step: 1,
-        selectedService: null,
-        quantity: 1,
-        warranty: 'noWarranty',
-        paymentMethod: 'cash',
-        customerName: '',
-        customerPhone: '',
-      };
-      setTimeout(() => this.switchView('sales'), 1000);
+      if (line) line.quantity++;
+      else cart.push({ key, type, refId, description: this.tireLabel(tire), unitPrice: parseFloat(tire.sellingPrice) || 0, quantity: 1 });
+    } else {
+      const service = this.services.find(x => x.id === refId);
+      if (!service) return;
+      if (line) line.quantity++;
+      else cart.push({ key, type, refId, description: service.name, unitPrice: parseFloat(service.price) || 0, quantity: 1 });
+    }
+    this.switchView('sales');
+  }
+
+  changeCartQty(key, delta) {
+    const cart = this.saleWizard.cart;
+    const line = cart.find(l => l.key === key);
+    if (!line) return;
+    const next = line.quantity + delta;
+    if (next < 1) {
+      this.saleWizard.cart = cart.filter(l => l.key !== key);
+    } else {
+      if (line.type === 'tire') {
+        const stock = parseInt(this.tires.find(x => x.id === line.refId)?.stock) || 0;
+        if (next > stock) {
+          showToast(`المخزون المتاح: ${stock} فقط`, 'warning');
+          return;
+        }
+      }
+      line.quantity = next;
+    }
+    this.switchView('sales');
+  }
+
+  removeFromCart(key) {
+    this.saleWizard.cart = this.saleWizard.cart.filter(l => l.key !== key);
+    this.switchView('sales');
+  }
+
+  cartTotals() {
+    const subtotal = this.saleWizard.cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+    const discount = Math.min(Math.max(parseFloat(this.saleWizard.discount) || 0, 0), subtotal);
+    return { subtotal, discount, total: subtotal - discount };
+  }
+
+  // عناصر الفاتورة للطباعة/الواتساب (تدعم الفواتير القديمة ذات الخدمة الواحدة)
+  getSaleItems(sale) {
+    let items = sale.items;
+    if (typeof items === 'string') {
+      try { items = JSON.parse(items); } catch (e) { items = null; }
+    }
+    if (Array.isArray(items) && items.length) {
+      return items.map(i => ({
+        description: i.description || i.name || '-',
+        quantity: parseFloat(i.quantity) || 1,
+        unitPrice: parseFloat(i.unitPrice ?? i.unit_price) || 0,
+      }));
+    }
+    if (sale.service_name) {
+      const unit = parseFloat(sale.unit_price);
+      if (unit) {
+        return [{ description: sale.service_name, quantity: parseFloat(sale.quantity) || 1, unitPrice: unit }];
+      }
+      // فاتورة متعددة الأصناف بدون عمود items: سطر واحد بالمجموع قبل الخصم
+      const sub = parseFloat(sale.subtotal) || parseFloat(sale.total) || 0;
+      return [{ description: sale.service_name, quantity: 1, unitPrice: sub }];
+    }
+    return [];
+  }
+
+  normalizePhone(phone) {
+    let p = String(phone || '').replace(/\D/g, '');
+    if (p.startsWith('00')) p = p.slice(2);
+    if (p.length === 8) p = '968' + p; // رقم عماني محلي
+    return p;
+  }
+
+  buildWizardInvoiceMessage(invoiceNumber) {
+    const { subtotal, discount, total } = this.cartTotals();
+    const w = this.saleWizard;
+    let msg = `🏪 *${SHOP.name}*\n📋 *فاتورة رقم:* ${invoiceNumber}\n`;
+    msg += `*العميل:* ${w.customerName}\n\n*التفاصيل:*\n`;
+    w.cart.forEach(l => {
+      msg += `• ${l.description} × ${l.quantity} = ${fmtMoney(l.unitPrice * l.quantity)}\n`;
     });
+    if (discount > 0) {
+      msg += `\n*المجموع:* ${fmtMoney(subtotal)}\n*الخصم:* ${fmtMoney(discount)}\n`;
+    }
+    msg += `\n*الإجمالي:* ${fmtMoney(total)} ر.ع\n`;
+    msg += `*الضمان:* ${t(w.warranty)}\n*طريقة الدفع:* ${t(w.paymentMethod)}\n\nشكراً لتعاملك معنا 🙏`;
+    return msg;
+  }
+
+  // يحاول الحفظ، وإذا رفضت قاعدة البيانات عموداً غير موجود يحذفه ويعيد المحاولة
+  async insertSaleRow(row) {
+    const data = { ...row };
+    const dropped = [];
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { error } = await this.sb.from('sales').insert([data]);
+      if (!error) return { ok: true, dropped };
+      const m = /'([^']+)' column/.exec(error.message || '') || /column "?([a-z_]+)"? .*does not exist/.exec(error.message || '');
+      if (m && m[1] in data) {
+        dropped.push(m[1]);
+        delete data[m[1]];
+        continue;
+      }
+      console.error('❌ Sale insert error:', error);
+      return { ok: false, error };
+    }
+    return { ok: false, error: { message: 'too many retries' } };
+  }
+
+  async saveSale(invoiceNumber) {
+    const w = this.saleWizard;
+    if (!w.cart.length) {
+      showToast('السلة فارغة', 'warning');
+      return false;
+    }
+    if (this.isSavingSale) return false;
+    this.isSavingSale = true;
+
+    const { subtotal, discount, total } = this.cartTotals();
+    const totalQty = w.cart.reduce((s, l) => s + l.quantity, 0);
+    const summary = w.cart.map(l => `${l.description} ×${l.quantity}`).join('، ');
+    const items = w.cart.map(l => ({
+      type: l.type, refId: l.refId, description: l.description,
+      quantity: l.quantity, unitPrice: l.unitPrice,
+    }));
+    invoiceNumber = invoiceNumber || ('INV-' + Date.now());
+
+    const row = {
+      invoice_number: invoiceNumber,
+      customer_name: w.customerName,
+      customer_phone: w.customerPhone,
+      payment_method: w.paymentMethod,
+      warranty: w.warranty,
+      service_name: summary,
+      quantity: totalQty,
+      unit_price: w.cart.length === 1 ? w.cart[0].unitPrice : null,
+      subtotal: subtotal,
+      discount_amount: discount,
+      total: total,
+      items: items,
+    };
+
+    try {
+      if (!this.sb) {
+        this.sales.unshift({ ...rowFromDb({ ...row, id: uid(), created_at: new Date().toISOString() }, 'sales') });
+        w.cart.filter(l => l.type === 'tire').forEach(l => {
+          const tire = this.tires.find(x => x.id === l.refId);
+          if (tire) tire.stock = (parseInt(tire.stock) || 0) - l.quantity;
+        });
+      } else {
+        const res = await this.insertSaleRow(row);
+        if (!res.ok) {
+          showToast('لم تُحفظ الفاتورة: ' + (res.error?.message || ''), 'error');
+          return false;
+        }
+        if (res.dropped.length) console.warn('⚠️ أعمدة غير موجودة في جدول sales ولم تُحفظ:', res.dropped);
+
+        // خصم الإطارات المباعة من المخزون
+        for (const l of w.cart.filter(x => x.type === 'tire')) {
+          const tire = this.tires.find(x => x.id === l.refId);
+          if (!tire) continue;
+          const newStock = Math.max(0, (parseInt(tire.stock) || 0) - l.quantity);
+          const { error } = await this.sb.from('tires').update({ stock: newStock }).eq('id', l.refId);
+          if (error) {
+            console.error('Stock update error:', error);
+            showToast('حُفظت الفاتورة لكن تعذّر تحديث مخزون: ' + l.description, 'error');
+          }
+        }
+        await this.loadAllData();
+      }
+
+      showToast(t('invoiceCreated'), 'success');
+      this.saleWizard = this.emptySaleWizard();
+      this.switchView('sales');
+      return true;
+    } finally {
+      this.isSavingSale = false;
+    }
   }
 
   sendWhatsApp() {
-    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
-    if (!service) {
-      showToast(t('error'), 'error');
-      return;
-    }
-
-    const total = (parseFloat(service.price) || 0) * this.saleWizard.quantity;
+    const w = this.saleWizard;
     const invoiceNumber = 'INV-' + Date.now();
-
-    const message = `
-🏪 *${SHOP.name}*
-📋 *فاتورة خدمة*
-
-*رقم الفاتورة:* ${invoiceNumber}
-*اسم العميل:* ${this.saleWizard.customerName}
-*الهاتف:* ${this.saleWizard.customerPhone}
-
-*الخدمة:* ${service.name}
-*العدد:* ${this.saleWizard.quantity}
-*السعر الواحد:* ${fmtMoney(service.price)}
-*المجموع:* ${fmtMoney(total)}
-
-*الضمان:* ${t(this.saleWizard.warranty)}
-*طريقة الدفع:* ${t(this.saleWizard.paymentMethod)}
-
-شكراً لك 🙏
-`;
-
-    const encodedMsg = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/?text=${encodedMsg}`;
-    window.open(whatsappUrl, '_blank');
-
-    // Still save the invoice
-    this.saveSale();
+    const phone = this.normalizePhone(w.customerPhone);
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(this.buildWizardInvoiceMessage(invoiceNumber))}`;
+    // نفتح واتساب أولاً (قبل أي انتظار) حتى لا يمنعه المتصفح
+    window.open(url, '_blank');
+    this.saveSale(invoiceNumber);
   }
 
   // ===== VIEWS =====
@@ -2362,216 +2529,189 @@ class TireShopApp {
   }
 
   renderSalesWizardView() {
-    if (this.saleWizard.step === 1) {
-      return this.renderWizardStep1();
-    } else if (this.saleWizard.step === 2) {
-      return this.renderWizardStep2();
-    } else if (this.saleWizard.step === 3) {
-      return this.renderWizardStep3();
-    } else if (this.saleWizard.step === 4) {
-      return this.renderWizardStep4();
-    }
+    if (this.saleWizard.step === 2) return this.renderWizardStep2();
+    if (this.saleWizard.step === 3) return this.renderWizardStep3();
+    return this.renderWizardStep1();
   }
 
-  renderWizardStep1() {
-    const selected = this.saleWizard.selectedService;
-    const cards = this.services.map(s => `
-      <div class="service-card ${s.id === selected ? 'selected' : ''}" data-service-id="${s.id}">
-        <h4>${esc(s.name)}</h4>
-        <div class="price num">${fmtMoney(parseFloat(s.price) || 0)}</div>
+  wizardProgress(step) {
+    const labels = ['الأصناف', 'الدفع', 'العميل'];
+    return `
+      <div class="wz-steps">
+        ${labels.map((l, i) => `
+          <div class="wz-step ${i + 1 < step ? 'done' : ''} ${i + 1 === step ? 'active' : ''}">
+            <span class="wz-num">${i + 1 < step ? '✓' : i + 1}</span> ${l}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  renderCartPanel(editable) {
+    const w = this.saleWizard;
+    const { subtotal, discount, total } = this.cartTotals();
+    const lines = w.cart.map(l => `
+      <div class="cart-line">
+        <div class="cart-desc">
+          <span class="cart-type">${l.type === 'tire' ? '🛞' : '🔧'}</span>
+          <div>
+            <div class="cart-name">${esc(l.description)}</div>
+            <div class="text-xs" style="color: var(--text-muted);">${fmtMoney(l.unitPrice)} × ${l.quantity}</div>
+          </div>
+        </div>
+        ${editable ? `
+          <div class="cart-qty">
+            <button class="qty-mini" data-cart-dec="${l.key}">−</button>
+            <span class="num">${l.quantity}</span>
+            <button class="qty-mini" data-cart-inc="${l.key}">+</button>
+          </div>
+        ` : ''}
+        <div class="cart-line-total num">${fmtMoney(l.unitPrice * l.quantity)}</div>
+        ${editable ? `<button class="cart-remove" data-cart-remove="${l.key}" title="حذف">✕</button>` : ''}
       </div>
     `).join('');
 
     return `
-      <div class="wizard-container">
-        <div class="wizard-progress">
-          <div class="progress-dot active"></div>
-          <div class="progress-dot"></div>
-          <div class="progress-dot"></div>
-          <div class="progress-dot"></div>
+      <div class="card cart-panel">
+        <div class="card-head"><h3>🧾 الفاتورة (${w.cart.length} صنف)</h3></div>
+        ${lines || '<p class="text-center" style="padding: 24px; color: var(--text-muted);">اضغط على خدمة أو إطار لإضافته</p>'}
+        <div class="summary-box" style="margin-top: 12px;">
+          <div class="summary-row"><span>المجموع:</span><span class="num">${fmtMoney(subtotal)}</span></div>
+          ${discount > 0 ? `<div class="summary-row"><span>الخصم:</span><span class="num">− ${fmtMoney(discount)}</span></div>` : ''}
+          <div class="summary-row total"><span>الإجمالي:</span><span class="num">${fmtMoney(total)}</span></div>
         </div>
+      </div>
+    `;
+  }
 
-        <div class="card">
-          <div class="card-head">
-            <h3>🧾 فاتورة جديدة — اختر الخدمة</h3>
+  renderWizardStep1() {
+    const w = this.saleWizard;
+    const inCart = (type, id) => w.cart.find(l => l.key === type + ':' + id)?.quantity || 0;
+
+    const serviceCards = this.services.map(s => {
+      const q = inCart('service', s.id);
+      return `
+        <div class="service-card pick-card ${q ? 'selected' : ''}" data-add-item="service" data-ref-id="${s.id}" data-search="${esc(s.name).toLowerCase()}">
+          ${q ? `<span class="pick-badge">${q}</span>` : ''}
+          <h4>${esc(s.name)}</h4>
+          <div class="price num">${fmtMoney(parseFloat(s.price) || 0)}</div>
+        </div>
+      `;
+    }).join('');
+
+    const tireCards = this.tires.map(tr => {
+      const q = inCart('tire', tr.id);
+      const stock = parseInt(tr.stock) || 0;
+      const label = this.tireLabel(tr);
+      return `
+        <div class="service-card pick-card ${q ? 'selected' : ''} ${stock <= 0 ? 'out' : ''}" ${stock > 0 ? `data-add-item="tire" data-ref-id="${tr.id}"` : ''} data-search="${esc(label).toLowerCase()}">
+          ${q ? `<span class="pick-badge">${q}</span>` : ''}
+          <h4>${esc(tr.brand || '')} ${esc(tr.model || '')}</h4>
+          <div class="text-xs num" style="margin: 4px 0;">${esc(tr.size || '')}</div>
+          <div class="price num">${fmtMoney(parseFloat(tr.sellingPrice) || 0)}</div>
+          <div class="text-xs" style="color: ${stock > 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${stock > 0 ? 'المتوفر: ' + stock : 'نفد المخزون'}</div>
+        </div>
+      `;
+    }).join('');
+
+    const isTires = w.tab === 'tires';
+    const list = isTires ? tireCards : serviceCards;
+    const emptyMsg = isTires ? 'لا توجد إطارات في المخزون' : 'لا توجد خدمات. أضف خدمة من صفحة الخدمات أولاً.';
+
+    return `
+      <div class="wizard-container wz-wide">
+        ${this.wizardProgress(1)}
+        <div class="wz-layout">
+          <div class="card">
+            <div class="wz-tabs">
+              <button class="wz-tab ${!isTires ? 'active' : ''}" data-wz-tab="services">🔧 الخدمات</button>
+              <button class="wz-tab ${isTires ? 'active' : ''}" data-wz-tab="tires">🛞 الإطارات</button>
+            </div>
+            <input type="search" id="wzSearch" class="wz-search" placeholder="${isTires ? 'ابحث بالماركة أو المقاس...' : 'ابحث عن خدمة...'}">
+            ${list ? `<div class="service-grid">${list}</div>` : `<p class="text-center" style="padding: 30px;">${emptyMsg}</p>`}
           </div>
-
-          ${this.services.length
-            ? `<div class="service-grid">${cards}</div>`
-            : '<p class="text-center" style="padding: 30px;">لا توجد خدمات بعد. أضف خدمة من صفحة الخدمات أولاً.</p>'}
-
-          <div class="modal-footer">
-            <button class="btn btn-ghost" id="cancelWizardBtn">إلغاء</button>
-            <button class="btn btn-amber" id="nextStep1Btn" ${selected ? '' : 'disabled'}>التالي ←</button>
-          </div>
+          ${this.renderCartPanel(true)}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="cancelWizardBtn">إلغاء</button>
+          <button class="btn btn-amber" id="nextStep1Btn" ${w.cart.length ? '' : 'disabled'}>التالي ←</button>
         </div>
       </div>
     `;
   }
 
   renderWizardStep2() {
-    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
-    if (!service) return '<p>خدمة غير موجودة</p>';
-
+    const w = this.saleWizard;
+    const warranties = ['noWarranty', 'warranty3M', 'warranty6M', 'warranty12M'];
     return `
-      <div class="wizard-container">
-        <div class="wizard-progress">
-          <div class="progress-dot done"></div>
-          <div class="progress-dot active"></div>
-          <div class="progress-dot"></div>
-          <div class="progress-dot"></div>
+      <div class="wizard-container wz-wide">
+        ${this.wizardProgress(2)}
+        <div class="wz-layout">
+          <div class="card">
+            <div class="card-head"><h3>الضمان والدفع</h3></div>
+
+            <h4 style="margin: 16px 0 10px; font-weight: 700;">الضمان:</h4>
+            <div class="warranty-grid">
+              ${warranties.map(k => `
+                <div class="warranty-option ${w.warranty === k ? 'selected' : ''}" data-warranty="${k}">
+                  <h4>${t(k)}</h4>
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="grid-2" style="margin-top: 20px;">
+              <div class="form-group">
+                <label>طريقة الدفع</label>
+                <select id="paymentMethodSelect">
+                  ${['cash', 'card', 'check', 'transfer'].map(k => `<option value="${k}" ${w.paymentMethod === k ? 'selected' : ''}>${t(k)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>خصم (ر.ع) — اختياري</label>
+                <input type="number" id="discountInput" min="0" step="0.1" value="${parseFloat(w.discount) || ''}" placeholder="0">
+              </div>
+            </div>
+          </div>
+          <div id="wzCartBox">${this.renderCartPanel(false)}</div>
         </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>${t('selectQuantity')}</h3>
-          </div>
-
-          <div style="text-align: center; margin: 40px 0;">
-            <h2 style="margin-bottom: 20px; color: var(--text-muted);">${esc(service.name)}</h2>
-            
-            <div class="quantity-selector">
-              <button class="qty-btn" id="qtyMinus">−</button>
-              <div class="qty-display" id="qtyDisplay">${this.saleWizard.quantity}</div>
-              <button class="qty-btn" id="qtyPlus">+</button>
-            </div>
-
-            <div style="margin-top: 20px;">
-              <label style="display: block; margin-bottom: 8px;">أو أدخل العدد مباشرة:</label>
-              <input type="number" class="qty-input" id="qtyInput" min="1" value="${this.saleWizard.quantity}">
-            </div>
-          </div>
-
-          <div class="summary-box">
-            <div class="summary-row">
-              <span>السعر الواحد:</span>
-              <span class="num">${fmtMoney(parseFloat(service.price) || 0)}</span>
-            </div>
-            <div class="summary-row total">
-              <span>المجموع:</span>
-              <span class="num">${fmtMoney((parseFloat(service.price) || 0) * this.saleWizard.quantity)}</span>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-ghost" id="prevStep2Btn">→ رجوع</button>
-            <button class="btn btn-amber" id="nextStep2Btn">التالي ←</button>
-          </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="prevStep2Btn">→ رجوع</button>
+          <button class="btn btn-amber" id="nextStep2Btn">التالي ←</button>
         </div>
       </div>
     `;
   }
 
   renderWizardStep3() {
-    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
-    if (!service) return '<p>خدمة غير موجودة</p>';
-
+    const w = this.saleWizard;
     return `
-      <div class="wizard-container">
-        <div class="wizard-progress">
-          <div class="progress-dot done"></div>
-          <div class="progress-dot done"></div>
-          <div class="progress-dot active"></div>
-          <div class="progress-dot"></div>
+      <div class="wizard-container wz-wide">
+        ${this.wizardProgress(3)}
+        <div class="wz-layout">
+          <div class="card">
+            <div class="card-head"><h3>${t('customerInfo')}</h3></div>
+            <div class="form-group">
+              <label>${t('customerName')} *</label>
+              <input type="text" id="customerNameInput" list="wzCustomersList" value="${esc(w.customerName)}" placeholder="اكتب الاسم أو اختر عميلاً مسجلاً">
+              <datalist id="wzCustomersList">
+                ${this.customers.map(c => `<option value="${esc(c.name)}">${esc(c.phone || '')}</option>`).join('')}
+              </datalist>
+            </div>
+            <div class="form-group">
+              <label>${t('customerPhone')} *</label>
+              <input type="tel" id="customerPhoneInput" value="${esc(w.customerPhone)}" placeholder="9xxxxxxx">
+            </div>
+            <div class="summary-box">
+              <div class="summary-row"><span>الضمان:</span><span>${t(w.warranty)}</span></div>
+              <div class="summary-row"><span>طريقة الدفع:</span><span>${t(w.paymentMethod)}</span></div>
+            </div>
+          </div>
+          ${this.renderCartPanel(false)}
         </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>اختر الضمان وطريقة الدفع</h3>
-          </div>
-
-          <h4 style="margin: 20px 0 12px; font-weight: 700;">الضمان:</h4>
-          <div class="warranty-grid">
-            <div class="warranty-option" data-warranty="noWarranty">
-              <h4>${t('noWarranty')}</h4>
-              <p>بدون ضمان</p>
-            </div>
-            <div class="warranty-option" data-warranty="warranty3M">
-              <h4>${t('warranty3M')}</h4>
-              <p>3 أشهر</p>
-            </div>
-            <div class="warranty-option" data-warranty="warranty6M">
-              <h4>${t('warranty6M')}</h4>
-              <p>6 أشهر</p>
-            </div>
-            <div class="warranty-option" data-warranty="warranty12M">
-              <h4>${t('warranty12M')}</h4>
-              <p>سنة كاملة</p>
-            </div>
-          </div>
-
-          <h4 style="margin: 24px 0 12px; font-weight: 700;">طريقة الدفع:</h4>
-          <div class="form-group">
-            <select id="paymentMethodSelect">
-              <option value="cash">${t('cash')}</option>
-              <option value="card">${t('card')}</option>
-              <option value="check">${t('check')}</option>
-              <option value="transfer">${t('transfer')}</option>
-            </select>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-ghost" id="prevStep3Btn">→ رجوع</button>
-            <button class="btn btn-amber" id="nextStep3Btn">التالي ←</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  renderWizardStep4() {
-    return `
-      <div class="wizard-container">
-        <div class="wizard-progress">
-          <div class="progress-dot done"></div>
-          <div class="progress-dot done"></div>
-          <div class="progress-dot done"></div>
-          <div class="progress-dot active"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <h3>${t('customerInfo')}</h3>
-          </div>
-
-          <div class="form-group">
-            <label>${t('customerName')} *</label>
-            <input type="text" id="customerNameInput" value="${esc(this.saleWizard.customerName)}" placeholder="اسم العميل">
-          </div>
-
-          <div class="form-group">
-            <label>${t('customerPhone')} *</label>
-            <input type="tel" id="customerPhoneInput" value="${esc(this.saleWizard.customerPhone)}" placeholder="+968 9...">
-          </div>
-
-          <div class="summary-box">
-            <div class="summary-row">
-              <span>الخدمة:</span>
-              <span>${esc(this.services.find(s => s.id === this.saleWizard.selectedService)?.name)}</span>
-            </div>
-            <div class="summary-row">
-              <span>العدد:</span>
-              <span class="num">${this.saleWizard.quantity}</span>
-            </div>
-            <div class="summary-row">
-              <span>الضمان:</span>
-              <span>${t(this.saleWizard.warranty)}</span>
-            </div>
-            <div class="summary-row">
-              <span>طريقة الدفع:</span>
-              <span>${t(this.saleWizard.paymentMethod)}</span>
-            </div>
-            <div class="summary-row total">
-              <span>الإجمالي:</span>
-              <span class="num">${fmtMoney((parseFloat(this.services.find(s => s.id === this.saleWizard.selectedService)?.price) || 0) * this.saleWizard.quantity)}</span>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn btn-ghost" id="prevStep4Btn">→ رجوع</button>
-            <button class="btn btn-blue" id="saveInvoiceBtn" style="flex: 1;">${icon('save')} ${t('saveSale')}</button>
-            <button class="btn btn-green" id="sendWhatsappBtn" style="flex: 1;">${icon('whatsapp')} ${t('sendWhatsapp')}</button>
-          </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="prevStep3Btn">→ رجوع</button>
+          <button class="btn btn-blue" id="saveInvoiceBtn" style="flex: 1;">${icon('save')} ${t('saveSale')}</button>
+          <button class="btn btn-green" id="sendWhatsappBtn" style="flex: 1;">${icon('whatsapp')} حفظ وإرسال واتساب</button>
         </div>
       </div>
     `;
@@ -2869,7 +3009,7 @@ class TireShopApp {
   }
 
   printSaleInvoice(sale) {
-    const items = this.saleItems?.filter(si => si.saleId === sale.id) || [];
+    const items = this.getSaleItems(sale);
     const printWindow = window.open('', '', 'width=800,height=600');
     const content = `
       <!DOCTYPE html>
@@ -2931,6 +3071,11 @@ class TireShopApp {
                   <td>${fmtMoney(item.quantity * item.unitPrice)}</td>
                 </tr>
               `).join('')}
+              ${(parseFloat(sale.discountAmount) || 0) > 0 ? `
+              <tr>
+                <td colspan="3">الخصم</td>
+                <td>− ${fmtMoney(sale.discountAmount)}</td>
+              </tr>` : ''}
               <tr class="total-row">
                 <td colspan="3">المجموع النهائي</td>
                 <td>${fmtMoney(sale.total || 0)}</td>
@@ -2954,7 +3099,7 @@ class TireShopApp {
   }
 
   sendInvoiceViaWhatsApp(sale, phone) {
-    const items = this.saleItems?.filter(si => si.saleId === sale.id) || [];
+    const items = this.getSaleItems(sale);
     let message = `*فاتورة من ${SHOP_NAME}*\n\n`;
     message += `رقم الفاتورة: ${sale.invoiceNumber}\n`;
     message += `التاريخ: ${fmtDate(sale.createdAt)}\n`;
@@ -3841,127 +3986,84 @@ class TireShopApp {
 
   bindSalesWizardEvents() {
     document.getElementById('newSaleBtn')?.addEventListener('click', () => this.startNewSale());
-    const wizardActive = !!(this.saleWizard && this.saleWizard.active);
+    const w = this.saleWizard;
+    const wizardActive = !!(w && w.active);
 
-    // Step 1: Service Selection
-    if (wizardActive && this.saleWizard.step === 1) {
-      document.querySelectorAll('.service-card').forEach(card => {
-        card.addEventListener('click', () => {
-          document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-          card.classList.add('selected');
-          this.saleWizard.selectedService = card.dataset.serviceId;
-          document.getElementById('nextStep1Btn').disabled = false;
-        });
-      });
+    if (wizardActive) {
+      const root = document.getElementById('content');
 
-      document.getElementById('nextStep1Btn')?.addEventListener('click', () => {
-        this.nextWizardStep();
+      // أزرار عامة للسلة (إضافة / زيادة / نقص / حذف / تبويب)
+      root.querySelectorAll('[data-add-item]').forEach(el => {
+        el.addEventListener('click', () => this.addToCart(el.dataset.addItem, el.dataset.refId));
       });
-      
-      document.getElementById('cancelWizardBtn')?.addEventListener('click', () => {
-        this.saleWizard.active = false;
-        this.saleWizard.step = 1;
+      root.querySelectorAll('[data-cart-inc]').forEach(el => el.addEventListener('click', () => this.changeCartQty(el.dataset.cartInc, 1)));
+      root.querySelectorAll('[data-cart-dec]').forEach(el => el.addEventListener('click', () => this.changeCartQty(el.dataset.cartDec, -1)));
+      root.querySelectorAll('[data-cart-remove]').forEach(el => el.addEventListener('click', () => this.removeFromCart(el.dataset.cartRemove)));
+      root.querySelectorAll('[data-wz-tab]').forEach(el => el.addEventListener('click', () => {
+        w.tab = el.dataset.wzTab;
         this.switchView('sales');
-      });
-    }
+      }));
 
-    // Step 2: Quantity Selection
-    if (wizardActive && this.saleWizard.step === 2) {
-      const updateDisplay = () => {
-        const service = this.services.find(s => s.id === this.saleWizard.selectedService);
-        const price = parseFloat(service?.price) || 0;
-        document.getElementById('qtyDisplay').textContent = this.saleWizard.quantity;
-        document.getElementById('qtyInput').value = this.saleWizard.quantity;
-        const totalEl = document.querySelector('.summary-row.total .num');
-        if (totalEl) totalEl.textContent = fmtMoney(price * this.saleWizard.quantity);
-      };
-
-      document.getElementById('qtyMinus')?.addEventListener('click', () => {
-        this.saleWizard.quantity = Math.max(1, this.saleWizard.quantity - 1);
-        updateDisplay();
-      });
-
-      document.getElementById('qtyPlus')?.addEventListener('click', () => {
-        this.saleWizard.quantity++;
-        updateDisplay();
-      });
-
-      document.getElementById('qtyInput')?.addEventListener('input', (e) => {
-        const val = parseInt(e.target.value);
-        if (val >= 1) {
-          this.saleWizard.quantity = val;
-          document.getElementById('qtyDisplay').textContent = val;
-          const service = this.services.find(s => s.id === this.saleWizard.selectedService);
-          const totalEl = document.querySelector('.summary-row.total .num');
-          if (totalEl) totalEl.textContent = fmtMoney((parseFloat(service?.price) || 0) * val);
-        }
-      });
-      document.getElementById('qtyInput')?.addEventListener('change', updateDisplay);
-
-      document.getElementById('nextStep2Btn')?.addEventListener('click', () => {
-        this.nextWizardStep();
-      });
-
-      document.getElementById('prevStep2Btn')?.addEventListener('click', () => {
-        this.prevWizardStep();
-      });
-    }
-
-    // Step 3: Warranty & Payment
-    if (wizardActive && this.saleWizard.step === 3) {
-      document.querySelectorAll('.warranty-option').forEach(opt => {
-        if (opt.dataset.warranty === this.saleWizard.warranty) {
-          opt.classList.add('selected');
-        }
-        opt.addEventListener('click', () => {
-          document.querySelectorAll('.warranty-option').forEach(o => o.classList.remove('selected'));
-          opt.classList.add('selected');
-          this.saleWizard.warranty = opt.dataset.warranty;
+      // بحث فوري بدون إعادة رسم الصفحة
+      document.getElementById('wzSearch')?.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        root.querySelectorAll('.pick-card').forEach(card => {
+          card.style.display = !q || (card.dataset.search || '').includes(q) ? '' : 'none';
         });
       });
 
+      document.getElementById('cancelWizardBtn')?.addEventListener('click', () => {
+        if (w.cart.length && !confirm('إلغاء الفاتورة وحذف الأصناف المختارة؟')) return;
+        this.cancelSale();
+      });
+      document.getElementById('nextStep1Btn')?.addEventListener('click', () => this.nextWizardStep());
+
+      // الخطوة 2
+      root.querySelectorAll('.warranty-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          root.querySelectorAll('.warranty-option').forEach(o => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          w.warranty = opt.dataset.warranty;
+        });
+      });
       document.getElementById('paymentMethodSelect')?.addEventListener('change', (e) => {
-        this.saleWizard.paymentMethod = e.target.value;
+        w.paymentMethod = e.target.value;
       });
-
-      document.getElementById('nextStep3Btn')?.addEventListener('click', () => {
-        this.nextWizardStep();
+      document.getElementById('discountInput')?.addEventListener('input', (e) => {
+        w.discount = parseFloat(e.target.value) || 0;
+        const box = document.getElementById('wzCartBox');
+        if (box) box.innerHTML = this.renderCartPanel(false);
       });
+      document.getElementById('prevStep2Btn')?.addEventListener('click', () => this.prevWizardStep());
+      document.getElementById('nextStep2Btn')?.addEventListener('click', () => this.nextWizardStep());
 
-      document.getElementById('prevStep3Btn')?.addEventListener('click', () => {
-        this.prevWizardStep();
+      // الخطوة 3
+      const nameInput = document.getElementById('customerNameInput');
+      const phoneInput = document.getElementById('customerPhoneInput');
+      nameInput?.addEventListener('input', (e) => {
+        w.customerName = e.target.value;
+        const match = this.customers.find(c => c.name === e.target.value);
+        if (match && match.phone && phoneInput) {
+          phoneInput.value = match.phone;
+          w.customerPhone = match.phone;
+        }
       });
-    }
+      phoneInput?.addEventListener('input', (e) => { w.customerPhone = e.target.value; });
 
-    // Step 4: Customer Info
-    if (wizardActive && this.saleWizard.step === 4) {
-      document.getElementById('customerNameInput')?.addEventListener('input', (e) => {
-        this.saleWizard.customerName = e.target.value;
-      });
-
-      document.getElementById('customerPhoneInput')?.addEventListener('input', (e) => {
-        this.saleWizard.customerPhone = e.target.value;
-      });
-
+      const checkCustomer = () => {
+        if (!w.customerName.trim() || !w.customerPhone.trim()) {
+          showToast('أدخل اسم العميل ورقم الهاتف', 'warning');
+          return false;
+        }
+        return true;
+      };
       document.getElementById('saveInvoiceBtn')?.addEventListener('click', () => {
-        if (!this.saleWizard.customerName || !this.saleWizard.customerPhone) {
-          showToast('أدخل بيانات العميل', 'warning');
-          return;
-        }
-        this.saveSale();
+        if (checkCustomer()) this.saveSale();
       });
-
       document.getElementById('sendWhatsappBtn')?.addEventListener('click', () => {
-        if (!this.saleWizard.customerName || !this.saleWizard.customerPhone) {
-          showToast('أدخل بيانات العميل', 'warning');
-          return;
-        }
-        this.sendWhatsApp();
+        if (checkCustomer()) this.sendWhatsApp();
       });
-
-      document.getElementById('prevStep4Btn')?.addEventListener('click', () => {
-        this.prevWizardStep();
-      });
+      document.getElementById('prevStep3Btn')?.addEventListener('click', () => this.prevWizardStep());
     }
 
     // معالجات التصفية السريعة للمبيعات
