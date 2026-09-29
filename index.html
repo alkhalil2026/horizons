@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.4.0 (optional customer email/address) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.6.0 (invoice header/footer + shop settings) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1351,6 +1351,8 @@ table tbody tr:hover {
 .disc-toggle { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
 .disc-type { padding: 0 14px; border: none; background: var(--paper); font-family: inherit; font-weight: 800; font-size: 14px; cursor: pointer; color: var(--text-600); }
 .disc-type.active { background: var(--amber-500); color: #fff; }
+
+.wz-edit-banner { background: var(--info-blue-bg); color: var(--info-blue); border: 1px solid var(--info-blue); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1370,13 +1372,32 @@ const SUPABASE_URL = 'https://ahrnorjzezkusghqqbfv.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFocm5vcmp6ZXprdXNnaHFxYmZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3Mzc5NzksImV4cCI6MjEwNTMxMzk3OX0.eFVLGMmapEgiAcueu_mV94KRcr_OcIS59BkTQPJcWbo';
 
 const SHOP = {
-  name: 'الآفاق المستقبلية المتميزة',
+  name: 'الآفاق المستقبلية المتميزة للإطارات',
   cr: '1554396',
-  phone: '+968 92345678',
+  // القيم الافتراضية — تُعدّل من صفحة "إعدادات المحل" (المدير)
+  phone: '99430175',
+  instagram: 'Horizon_tire',
   email: 'shop@example.com'
 };
+const SHOP_EDITABLE_KEYS = ['phone', 'instagram'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
+
+const WARRANTY_MONTHS = { warranty3M: 3, warranty6M: 6, warranty12M: 12 };
+
+// تاريخ انتهاء الضمان من تاريخ الفاتورة
+function warrantyEndDate(fromIso, warranty) {
+  const months = WARRANTY_MONTHS[warranty];
+  if (!months) return null;
+  const d = fromIso ? new Date(fromIso) : new Date();
+  if (isNaN(d)) return null;
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
+}
+
+function instagramHandle() {
+  return String(SHOP.instagram || '').replace(/^@/, '').trim();
+}
 
 let currentLang = localStorage.getItem('tireshop_lang') || 'ar';
 
@@ -1783,9 +1804,57 @@ class TireShopApp {
     this.render();
   }
 
+  // ===== إعدادات المحل (انستجرام + رقم المحل) =====
+  // تُحفظ في جدول settings على Supabase إن وُجد، وإلا على هذا الجهاز فقط
+  applySettings(obj) {
+    SHOP_EDITABLE_KEYS.forEach(k => {
+      if (obj && typeof obj[k] === 'string' && obj[k].trim()) SHOP[k] = obj[k].trim();
+    });
+  }
+
+  async loadSettings() {
+    try {
+      this.applySettings(JSON.parse(localStorage.getItem('tireshop_settings') || '{}'));
+    } catch (e) {}
+    this.settingsInDb = false;
+    if (!this.sb) return;
+    try {
+      const { data, error } = await this.sb.from('settings').select('*');
+      if (error) {
+        console.warn('⚠️ جدول settings غير متاح، الإعدادات محفوظة على هذا الجهاز فقط:', error.message);
+        return;
+      }
+      this.settingsInDb = true;
+      const obj = {};
+      (data || []).forEach(r => { obj[r.key] = r.value; });
+      this.applySettings(obj);
+      localStorage.setItem('tireshop_settings', JSON.stringify(obj));
+    } catch (e) {
+      console.warn('Settings load error:', e);
+    }
+  }
+
+  async saveSettings(values) {
+    const clean = {};
+    SHOP_EDITABLE_KEYS.forEach(k => { clean[k] = String(values[k] || '').trim(); });
+    try { localStorage.setItem('tireshop_settings', JSON.stringify(clean)); } catch (e) {}
+    this.applySettings(clean);
+    if (!this.sb) return 'local';
+    const rows = Object.entries(clean).map(([key, value]) => ({ key, value }));
+    const { error } = await this.sb.from('settings').upsert(rows, { onConflict: 'key' });
+    if (error) {
+      console.warn('Settings save error:', error);
+      this.settingsInDb = false;
+      return 'local';
+    }
+    this.settingsInDb = true;
+    return 'db';
+  }
+
   async loadAllData() {
     if (!this.sb) {
       console.warn('⚠️ Supabase not available');
+      await this.loadSettings();
       return;
     }
 
@@ -1824,6 +1893,7 @@ class TireShopApp {
         this[propName] = mapped;
         console.log(`✅ Loaded ${mapped.length} from ${table}`);
       });
+      await this.loadSettings();
     } catch (e) {
       console.error('Data load error:', e);
     } finally {
@@ -1946,7 +2016,76 @@ class TireShopApp {
       discountType: 'amount',
       customerName: '',
       customerPhone: '',
+      editingSaleId: null,
+      editingInvoiceNumber: null,
+      originalTireQty: {},
     };
+  }
+
+  // الكمية المتاحة للبيع = المخزون الحالي + ما كان في الفاتورة الأصلية (عند التعديل)
+  availableStock(tireId) {
+    const tire = this.tires.find(x => x.id === tireId);
+    const stock = parseInt(tire?.stock) || 0;
+    return stock + (this.saleWizard.originalTireQty?.[tireId] || 0);
+  }
+
+  startEditSale(saleId) {
+    const sale = this.sales.find(x => x.id === saleId);
+    if (!sale) return;
+
+    let items = sale.items;
+    if (typeof items === 'string') {
+      try { items = JSON.parse(items); } catch (e) { items = null; }
+    }
+
+    const cart = [];
+    if (Array.isArray(items) && items.length) {
+      items.forEach((i, idx) => {
+        const type = i.type === 'tire' || i.type === 'service' ? i.type : 'custom';
+        const refId = i.refId || ('c' + idx);
+        cart.push({
+          key: type + ':' + refId, type, refId,
+          description: i.description || '-',
+          unitPrice: parseFloat(i.unitPrice ?? i.unit_price) || 0,
+          quantity: parseFloat(i.quantity) || 1,
+        });
+      });
+    } else if (sale.service_name) {
+      // فاتورة قديمة بدون تفاصيل الأصناف: نحاول مطابقة خدمة، وإلا سطر حر
+      const service = this.services.find(x => x.name === sale.service_name);
+      const qty = parseFloat(sale.quantity) || 1;
+      const unit = parseFloat(sale.unit_price);
+      if (service && unit) {
+        cart.push({ key: 'service:' + service.id, type: 'service', refId: service.id, description: service.name, unitPrice: unit, quantity: qty });
+      } else {
+        cart.push({ key: 'custom:legacy', type: 'custom', refId: 'legacy', description: sale.service_name,
+          unitPrice: unit || parseFloat(sale.subtotal) || parseFloat(sale.total) || 0, quantity: unit ? qty : 1 });
+      }
+    }
+
+    const originalTireQty = {};
+    cart.filter(l => l.type === 'tire').forEach(l => {
+      originalTireQty[l.refId] = (originalTireQty[l.refId] || 0) + l.quantity;
+    });
+
+    const pct = parseFloat(sale.discountPercent) || 0;
+    const amt = parseFloat(sale.discountAmount) || 0;
+
+    this.saleWizard = {
+      ...this.emptySaleWizard(),
+      active: true,
+      cart,
+      warranty: sale.warranty || 'noWarranty',
+      paymentMethod: sale.paymentMethod || 'cash',
+      discountType: pct > 0 ? 'percent' : 'amount',
+      discount: pct > 0 ? pct : amt,
+      customerName: sale.customerName || '',
+      customerPhone: sale.customerPhone || '',
+      editingSaleId: sale.id,
+      editingInvoiceNumber: sale.invoiceNumber,
+      originalTireQty,
+    };
+    this.switchView('sales');
   }
 
   startNewSale() {
@@ -1986,7 +2125,7 @@ class TireShopApp {
     if (type === 'tire') {
       const tire = this.tires.find(x => x.id === refId);
       if (!tire) return;
-      const stock = parseInt(tire.stock) || 0;
+      const stock = this.availableStock(refId);
       const inCart = line ? line.quantity : 0;
       if (inCart + 1 > stock) {
         showToast(`المخزون المتاح من هذا الإطار: ${stock} فقط`, 'warning');
@@ -2012,7 +2151,7 @@ class TireShopApp {
       this.saleWizard.cart = cart.filter(l => l.key !== key);
     } else {
       if (line.type === 'tire') {
-        const stock = parseInt(this.tires.find(x => x.id === line.refId)?.stock) || 0;
+        const stock = this.availableStock(line.refId);
         if (next > stock) {
           showToast(`المخزون المتاح: ${stock} فقط`, 'warning');
           return;
@@ -2076,20 +2215,38 @@ class TireShopApp {
     return p;
   }
 
+  // رسالة واتساب موحّدة (من المعالج ومن قائمة الفواتير)
+  buildInvoiceMessage(d) {
+    let msg = `🏪 *${SHOP.name}*\n`;
+    msg += `السجل التجاري: ${SHOP.cr}\n`;
+    msg += `📋 *فاتورة رقم:* ${d.invoiceNumber}\n`;
+    msg += `التاريخ: ${fmtDate(d.date)}\n`;
+    msg += `*العميل:* ${d.customerName || '-'}\n\n*التفاصيل:*\n`;
+    d.items.forEach(i => {
+      msg += `• ${i.description} × ${i.quantity} = ${fmtMoney(i.unitPrice * i.quantity)}\n`;
+    });
+    if (d.discount > 0) {
+      msg += `\n*المجموع:* ${fmtMoney(d.subtotal)}\n*${d.discountLabel}:* ${fmtMoney(d.discount)}\n`;
+    }
+    msg += `\n*الإجمالي:* ${fmtMoney(d.total)} ر.ع\n`;
+    if (d.paymentMethod) msg += `*طريقة الدفع:* ${t(d.paymentMethod)}\n`;
+    const end = warrantyEndDate(d.date, d.warranty);
+    if (end) msg += `\n🛡️ *${t(d.warranty)}* — ساري حتى ${fmtDate(end)}\n`;
+    msg += `\n📞 ${SHOP.phone}`;
+    if (instagramHandle()) msg += `\n📷 انستجرام: @${instagramHandle()}`;
+    msg += `\n\nشكراً لتعاملك معنا 🙏`;
+    return msg;
+  }
+
   buildWizardInvoiceMessage(invoiceNumber) {
     const { subtotal, discount, total } = this.cartTotals();
     const w = this.saleWizard;
-    let msg = `🏪 *${SHOP.name}*\n📋 *فاتورة رقم:* ${invoiceNumber}\n`;
-    msg += `*العميل:* ${w.customerName}\n\n*التفاصيل:*\n`;
-    w.cart.forEach(l => {
-      msg += `• ${l.description} × ${l.quantity} = ${fmtMoney(l.unitPrice * l.quantity)}\n`;
+    const original = w.editingSaleId ? this.sales.find(x => x.id === w.editingSaleId) : null;
+    return this.buildInvoiceMessage({
+      invoiceNumber, date: original?.createdAt || new Date().toISOString(),
+      customerName: w.customerName, items: w.cart, subtotal, discount,
+      discountLabel: this.discountLabel(), total, warranty: w.warranty, paymentMethod: w.paymentMethod,
     });
-    if (discount > 0) {
-      msg += `\n*المجموع:* ${fmtMoney(subtotal)}\n*${this.discountLabel()}:* ${fmtMoney(discount)}\n`;
-    }
-    msg += `\n*الإجمالي:* ${fmtMoney(total)} ر.ع\n`;
-    msg += `*الضمان:* ${t(w.warranty)}\n*طريقة الدفع:* ${t(w.paymentMethod)}\n\nشكراً لتعاملك معنا 🙏`;
-    return msg;
   }
 
   // يحاول الحفظ، وإذا رفضت قاعدة البيانات عموداً غير موجود يحذفه ويعيد المحاولة
@@ -2127,7 +2284,8 @@ class TireShopApp {
       type: l.type, refId: l.refId, description: l.description,
       quantity: l.quantity, unitPrice: l.unitPrice,
     }));
-    invoiceNumber = invoiceNumber || ('INV-' + Date.now());
+    const editingId = w.editingSaleId;
+    invoiceNumber = w.editingInvoiceNumber || invoiceNumber || ('INV-' + Date.now());
 
     const row = {
       invoice_number: invoiceNumber,
@@ -2146,35 +2304,52 @@ class TireShopApp {
     };
 
     try {
+      // فرق كميات الإطارات: الجديد − الأصلي (عند الفاتورة الجديدة الأصلي = 0)
+      const stockDelta = {};
+      w.cart.filter(l => l.type === 'tire').forEach(l => {
+        stockDelta[l.refId] = (stockDelta[l.refId] || 0) + l.quantity;
+      });
+      Object.entries(w.originalTireQty || {}).forEach(([id, q]) => {
+        stockDelta[id] = (stockDelta[id] || 0) - q;
+      });
+
       if (!this.sb) {
-        this.sales.unshift({ ...rowFromDb({ ...row, id: uid(), created_at: new Date().toISOString() }, 'sales') });
-        w.cart.filter(l => l.type === 'tire').forEach(l => {
-          const tire = this.tires.find(x => x.id === l.refId);
-          if (tire) tire.stock = (parseInt(tire.stock) || 0) - l.quantity;
+        if (editingId) {
+          const idx = this.sales.findIndex(x => x.id === editingId);
+          if (idx > -1) this.sales[idx] = { ...this.sales[idx], ...rowFromDb({ ...row, created_at: this.sales[idx].createdAt }, 'sales'), id: editingId };
+        } else {
+          this.sales.unshift({ ...rowFromDb({ ...row, id: uid(), created_at: new Date().toISOString() }, 'sales') });
+        }
+        Object.entries(stockDelta).forEach(([id, d]) => {
+          const tire = this.tires.find(x => x.id === id);
+          if (tire && d) tire.stock = (parseInt(tire.stock) || 0) - d;
         });
       } else {
-        const res = await this.insertSaleRow(row);
+        const res = editingId
+          ? await this.writeWithRetry(row, d => this.sb.from('sales').update(d).eq('id', editingId)).then(r => ({ ok: !r.error, error: r.error, dropped: [] }))
+          : await this.insertSaleRow(row);
         if (!res.ok) {
           showToast('لم تُحفظ الفاتورة: ' + (res.error?.message || ''), 'error');
           return false;
         }
         if (res.dropped.length) console.warn('⚠️ أعمدة غير موجودة في جدول sales ولم تُحفظ:', res.dropped);
 
-        // خصم الإطارات المباعة من المخزون
-        for (const l of w.cart.filter(x => x.type === 'tire')) {
-          const tire = this.tires.find(x => x.id === l.refId);
+        // تحديث مخزون الإطارات بالفرق فقط
+        for (const [id, d] of Object.entries(stockDelta)) {
+          if (!d) continue;
+          const tire = this.tires.find(x => x.id === id);
           if (!tire) continue;
-          const newStock = Math.max(0, (parseInt(tire.stock) || 0) - l.quantity);
-          const { error } = await this.sb.from('tires').update({ stock: newStock }).eq('id', l.refId);
+          const newStock = Math.max(0, (parseInt(tire.stock) || 0) - d);
+          const { error } = await this.sb.from('tires').update({ stock: newStock }).eq('id', id);
           if (error) {
             console.error('Stock update error:', error);
-            showToast('حُفظت الفاتورة لكن تعذّر تحديث مخزون: ' + l.description, 'error');
+            showToast('حُفظت الفاتورة لكن تعذّر تحديث مخزون: ' + this.tireLabel(tire), 'error');
           }
         }
         await this.loadAllData();
       }
 
-      showToast(t('invoiceCreated'), 'success');
+      showToast(editingId ? 'تم تعديل الفاتورة' : t('invoiceCreated'), 'success');
       this.saleWizard = this.emptySaleWizard();
       this.switchView('sales');
       return true;
@@ -2185,7 +2360,7 @@ class TireShopApp {
 
   sendWhatsApp() {
     const w = this.saleWizard;
-    const invoiceNumber = 'INV-' + Date.now();
+    const invoiceNumber = w.editingInvoiceNumber || ('INV-' + Date.now());
     const phone = this.normalizePhone(w.customerPhone);
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(this.buildWizardInvoiceMessage(invoiceNumber))}`;
     // نفتح واتساب أولاً (قبل أي انتظار) حتى لا يمنعه المتصفح
@@ -2560,6 +2735,7 @@ class TireShopApp {
                   <td class="num">${fmtMoney(s.total || 0)}</td>
                   <td>${fmtDate(s.createdAt)}</td>
                   <td>
+                    <button class="btn btn-xs btn-amber" data-edit-sale="${s.id}">✏️ تعديل</button>
                     <button class="btn btn-xs btn-blue" data-print-invoice="${s.id}">🖨️ طباعة</button>
                     <button class="btn btn-xs btn-green" data-whatsapp-invoice="${s.id}" data-customer-phone="${s.customerPhone || ''}">📱 واتس</button>
                     <button class="btn btn-xs btn-danger" data-delete-sale="${s.id}">🗑️</button>
@@ -2573,6 +2749,68 @@ class TireShopApp {
     `;
   }
 
+  renderShopSettingsView() {
+    if (this.currentUser?.role !== 'manager') {
+      return '<div class="card"><p class="text-center" style="padding: 30px;">هذه الصفحة للمدير فقط</p></div>';
+    }
+    return `
+      <div class="card" style="max-width: 640px;">
+        <div class="card-head"><h3>⚙️ بيانات تظهر في الفاتورة</h3></div>
+
+        <div class="summary-box" style="margin-bottom: 18px;">
+          <div class="summary-row"><span>الاسم التجاري:</span><span>${esc(SHOP.name)}</span></div>
+          <div class="summary-row"><span>رقم السجل التجاري:</span><span class="num">${esc(SHOP.cr)}</span></div>
+        </div>
+
+        <div class="form-group">
+          <label>📞 رقم المحل</label>
+          <input type="tel" id="settingPhone" value="${esc(SHOP.phone)}" placeholder="99430175" dir="ltr" style="text-align: right;">
+        </div>
+        <div class="form-group">
+          <label>📷 حساب انستجرام (بدون @)</label>
+          <input type="text" id="settingInstagram" value="${esc(instagramHandle())}" placeholder="Horizon_tire" dir="ltr" style="text-align: right;">
+        </div>
+
+        <div class="text-xs" style="color: var(--text-muted); margin: 6px 0 14px;">
+          ${this.settingsInDb
+            ? '✅ الإعدادات محفوظة في قاعدة البيانات وتظهر على كل الأجهزة.'
+            : '⚠️ الإعدادات تُحفظ حالياً على هذا الجهاز فقط. لمشاركتها بين كل الأجهزة أنشئ جدول settings في Supabase.'}
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="previewInvoiceBtn">🖨️ معاينة فاتورة تجريبية</button>
+          <button class="btn btn-amber" id="saveSettingsBtn">💾 حفظ</button>
+        </div>
+      </div>
+    `;
+  }
+
+  bindShopSettingsEvents() {
+    document.getElementById('saveSettingsBtn')?.addEventListener('click', async () => {
+      const phone = document.getElementById('settingPhone').value.trim();
+      const instagram = document.getElementById('settingInstagram').value.trim().replace(/^@/, '');
+      if (!phone) {
+        showToast('أدخل رقم المحل', 'error');
+        return;
+      }
+      if (instagram && !/^[A-Za-z0-9._]+$/.test(instagram)) {
+        showToast('اسم انستجرام يحتوي على أحرف غير مسموحة', 'error');
+        return;
+      }
+      const where = await this.saveSettings({ phone, instagram });
+      showToast(where === 'db' ? 'تم حفظ الإعدادات' : 'تم الحفظ على هذا الجهاز فقط', where === 'db' ? 'success' : 'warning');
+      this.switchView('shopSettings');
+    });
+    document.getElementById('previewInvoiceBtn')?.addEventListener('click', () => {
+      this.printSaleInvoice({
+        invoiceNumber: 'INV-تجريبية', customerName: 'عميل تجريبي', customerPhone: '9xxxxxxx',
+        createdAt: new Date().toISOString(), warranty: 'warranty6M', paymentMethod: 'cash',
+        items: [{ description: 'مثال: إطار 205/55R16', quantity: 4, unitPrice: 30 }, { description: 'مثال: ترصيص', quantity: 4, unitPrice: 1 }],
+        subtotal: 124, total: 124,
+      });
+    });
+  }
+
   renderSalesWizardView() {
     if (this.saleWizard.step === 2) return this.renderWizardStep2();
     if (this.saleWizard.step === 3) return this.renderWizardStep3();
@@ -2581,7 +2819,9 @@ class TireShopApp {
 
   wizardProgress(step) {
     const labels = ['الأصناف', 'الدفع', 'العميل'];
+    const w = this.saleWizard;
     return `
+      ${w.editingSaleId ? `<div class="wz-edit-banner">✏️ تعديل الفاتورة رقم <b class="num">${esc(w.editingInvoiceNumber || '')}</b></div>` : ''}
       <div class="wz-steps">
         ${labels.map((l, i) => `
           <div class="wz-step ${i + 1 < step ? 'done' : ''} ${i + 1 === step ? 'active' : ''}">
@@ -2598,7 +2838,7 @@ class TireShopApp {
     const lines = w.cart.map(l => `
       <div class="cart-line">
         <div class="cart-desc">
-          <span class="cart-type">${l.type === 'tire' ? '🛞' : '🔧'}</span>
+          <span class="cart-type">${l.type === 'tire' ? '🛞' : l.type === 'custom' ? '📝' : '🔧'}</span>
           <div>
             <div class="cart-name">${esc(l.description)}</div>
             <div class="text-xs" style="color: var(--text-muted);">${fmtMoney(l.unitPrice)} × ${l.quantity}</div>
@@ -2646,7 +2886,7 @@ class TireShopApp {
 
     const tireCards = this.tires.map(tr => {
       const q = inCart('tire', tr.id);
-      const stock = parseInt(tr.stock) || 0;
+      const stock = this.availableStock(tr.id);
       const label = this.tireLabel(tr);
       return `
         <div class="service-card pick-card ${q ? 'selected' : ''} ${stock <= 0 ? 'out' : ''}" ${stock > 0 ? `data-add-item="tire" data-ref-id="${tr.id}"` : ''} data-search="${esc(label).toLowerCase()}">
@@ -2762,7 +3002,7 @@ class TireShopApp {
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" id="prevStep3Btn">→ رجوع</button>
-          <button class="btn btn-blue" id="saveInvoiceBtn" style="flex: 1;">${icon('save')} ${t('saveSale')}</button>
+          <button class="btn btn-blue" id="saveInvoiceBtn" style="flex: 1;">${icon('save')} ${w.editingSaleId ? 'حفظ التعديلات' : t('saveSale')}</button>
           <button class="btn btn-green" id="sendWhatsappBtn" style="flex: 1;">${icon('whatsapp')} حفظ وإرسال واتساب</button>
         </div>
       </div>
@@ -2803,6 +3043,7 @@ class TireShopApp {
       navItems.push(['supplierInvoices', t('supplierInvoices'), 'supplierInvoices']);
       navItems.push(['supplierPayments', t('supplierPayments'), 'supplierPayments']);
       navItems.push(['supplierSummary', t('supplierSummary'), 'supplierSummary']);
+      navItems.push(['shopSettings', '⚙️ إعدادات المحل', 'shopSettings']);
     }
 
     return `
@@ -2868,6 +3109,7 @@ class TireShopApp {
       supplierPayments: t('supplierPayments'),
       supplierSummary: t('supplierSummary'),
       importInventory: '📦 استيراج المخزون',
+      shopSettings: '⚙️ إعدادات المحل',
     };
     
     document.getElementById('pageTitle').textContent = titles[view] || t('dashboard');
@@ -2887,6 +3129,7 @@ class TireShopApp {
       supplierPayments: () => this.renderSupplierPaymentsView(),
       supplierSummary: () => this.renderSupplierSummaryView(),
       importInventory: () => this.renderImportInventoryView(),
+      shopSettings: () => this.renderShopSettingsView(),
     };
 
     const content = document.getElementById('content');
@@ -3062,6 +3305,7 @@ class TireShopApp {
 
   printSaleInvoice(sale) {
     const items = this.getSaleItems(sale);
+    const warrantyEnd = warrantyEndDate(sale.createdAt, sale.warranty);
     const printWindow = window.open('', '', 'width=800,height=600');
     const content = `
       <!DOCTYPE html>
@@ -3074,8 +3318,13 @@ class TireShopApp {
           body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
           .invoice { border: 1px solid #333; padding: 20px; }
           .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          .shop-info { font-size: 18px; font-weight: bold; }
-          .invoice-number { margin-top: 10px; color: #666; }
+          .shop-info { font-size: 20px; font-weight: bold; }
+          .shop-cr { margin-top: 4px; color: #444; font-size: 14px; }
+          .invoice-number { margin-top: 8px; font-size: 16px; font-weight: bold; }
+          .warranty-box { margin-top: 20px; border: 2px dashed #333; padding: 12px; text-align: center; }
+          .warranty-box b { font-size: 16px; }
+          .contact { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin-top: 10px; color: #333; font-size: 14px; direction: rtl; }
+          .contact span { direction: ltr; unicode-bidi: embed; }
           .details { display: flex; justify-content: space-between; margin: 20px 0; }
           .details-box { flex: 1; }
           .details-box label { font-weight: bold; }
@@ -3090,8 +3339,9 @@ class TireShopApp {
       <body>
         <div class="invoice">
           <div class="header">
-            <div class="shop-info">${SHOP_NAME}</div>
-            <div class="invoice-number">الفاتورة رقم: ${sale.invoiceNumber}</div>
+            <div class="shop-info">${esc(SHOP.name)}</div>
+            <div class="shop-cr">رقم السجل التجاري: ${esc(SHOP.cr)}</div>
+            <div class="invoice-number">رقم الفاتورة: ${esc(sale.invoiceNumber)}</div>
           </div>
           
           <div class="details">
@@ -3135,9 +3385,18 @@ class TireShopApp {
             </tbody>
           </table>
 
+          ${warrantyEnd ? `
+          <div class="warranty-box">
+            🛡️ <b>${t(sale.warranty)}</b><br>
+            ساري من ${fmtDate(sale.createdAt)} حتى ${fmtDate(warrantyEnd)}
+          </div>` : ''}
+
           <div class="footer">
             <p>شكراً لتعاملك معنا</p>
-            <p>${new Date().toLocaleDateString('ar-SA')}</p>
+            <div class="contact">
+              <div>📞 رقم المحل: <span>${esc(SHOP.phone)}</span></div>
+              ${instagramHandle() ? `<div>📷 انستجرام: <span>@${esc(instagramHandle())}</span></div>` : ''}
+            </div>
           </div>
         </div>
         <\script>
@@ -3152,21 +3411,17 @@ class TireShopApp {
 
   sendInvoiceViaWhatsApp(sale, phone) {
     const items = this.getSaleItems(sale);
-    let message = `*فاتورة من ${SHOP_NAME}*\n\n`;
-    message += `رقم الفاتورة: ${sale.invoiceNumber}\n`;
-    message += `التاريخ: ${fmtDate(sale.createdAt)}\n`;
-    message += `العميل: ${sale.customerName}\n\n`;
-    
-    message += `*التفاصيل:*\n`;
-    items.forEach(item => {
-      message += `• ${item.description}: ${item.quantity} × ${fmtMoney(item.unitPrice)} = ${fmtMoney(item.quantity * item.unitPrice)}\n`;
+    const discount = parseFloat(sale.discountAmount) || 0;
+    const pct = parseFloat(sale.discountPercent) || 0;
+    const message = this.buildInvoiceMessage({
+      invoiceNumber: sale.invoiceNumber, date: sale.createdAt, customerName: sale.customerName, items,
+      subtotal: parseFloat(sale.subtotal) || (parseFloat(sale.total) || 0) + discount,
+      discount, discountLabel: pct > 0 ? `الخصم (${+pct.toFixed(2)}%)` : 'الخصم',
+      total: parseFloat(sale.total) || 0, warranty: sale.warranty, paymentMethod: sale.paymentMethod,
     });
-    
-    message += `\n*المبلغ الإجمالي: ${fmtMoney(sale.total || 0)}*\n`;
-    message += `\nشكراً لتعاملك معنا ✅`;
 
     const encodedMessage = encodeURIComponent(message);
-    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanPhone = this.normalizePhone(phone);
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
     
     window.open(whatsappUrl, '_blank');
@@ -3670,6 +3925,10 @@ class TireShopApp {
           }
         }
 
+        if (e.target.matches('[data-edit-sale]')) {
+          this.startEditSale(e.target.dataset.editSale);
+        }
+
         if (e.target.matches('[data-print-invoice]')) {
           const id = e.target.dataset.printInvoice;
           const sale = this.sales.find(s => s.id === id);
@@ -3719,6 +3978,7 @@ class TireShopApp {
 
     if (view === 'dashboard') this.bindDashboardEvents();
     if (view === 'sales') this.bindSalesWizardEvents();
+    if (view === 'shopSettings') this.bindShopSettingsEvents();
     if (view === 'services') this.bindServicesEvents();
     if (view === 'customers') this.bindCustomersEvents();
     if (view === 'tires') this.bindTiresEvents();
@@ -4073,7 +4333,8 @@ class TireShopApp {
       });
 
       document.getElementById('cancelWizardBtn')?.addEventListener('click', () => {
-        if (w.cart.length && !confirm('إلغاء الفاتورة وحذف الأصناف المختارة؟')) return;
+        const msg = w.editingSaleId ? 'إلغاء التعديل؟ ستبقى الفاتورة كما كانت.' : 'إلغاء الفاتورة وحذف الأصناف المختارة؟';
+        if (w.cart.length && !confirm(msg)) return;
         this.cancelSale();
       });
       document.getElementById('nextStep1Btn')?.addEventListener('click', () => this.nextWizardStep());
