@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.7.1 (manager link to employee page) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.7.2 (employee: no reports/fixed expenses, services read-only) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1395,7 +1395,7 @@ const SHOP_EDITABLE_KEYS = ['phone', 'instagram'];
 const APP_MODE = 'employee';
 
 // الصفحات المسموحة للموظف (المدير يرى كل شيء)
-const EMPLOYEE_VIEWS = ['customers', 'appointments', 'tires', 'services', 'reports', 'fixedExpenses', 'dailyExpenses'];
+const EMPLOYEE_VIEWS = ['customers', 'appointments', 'tires', 'services', 'dailyExpenses'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
 
@@ -3890,6 +3890,7 @@ class TireShopApp {
       content.addEventListener('click', (e) => {
         // معالجات الحذف
         if (e.target.matches('[data-delete-service]')) {
+          if (!this.isManager()) return;
           const id = e.target.dataset.deleteService;
           if (confirm('حذف الخدمة؟')) {
             this.deleteRecord('services', id).then(() => this.switchView('services'));
@@ -3978,6 +3979,7 @@ class TireShopApp {
 
         // معالجات التعديل
         if (e.target.matches('[data-edit-service]')) {
+          if (!this.isManager()) return;
           const service = this.services.find(s => s.id === e.target.dataset.editService);
           if (service) this.showEditServiceModal(service);
         }
@@ -4038,6 +4040,7 @@ class TireShopApp {
   }
 
   bindServicesEvents() {
+    if (!this.isManager()) return;
     const addBtn = document.getElementById('addServiceBtn');
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
@@ -4482,11 +4485,12 @@ class TireShopApp {
 
   renderServicesView() {
     const filteredServices = this.filterByDate(this.services, 'createdAt');
+    const canEdit = this.isManager();
     
     return `
       ${this.renderDateFilterBar()}
-      <div class="grid-2">
-        <div class="card">
+      <div class="${canEdit ? 'grid-2' : ''}">
+        ${canEdit ? `<div class="card">
           <div class="card-head"><h3>${t('addService')}</h3></div>
           <div class="form-group">
             <label>اسم الخدمة *</label>
@@ -4497,7 +4501,7 @@ class TireShopApp {
             <input type="number" id="servicePrice" min="0" step="0.01" placeholder="0.00">
           </div>
           <button class="btn btn-amber btn-block" id="addServiceBtn">${icon('add')} إضافة</button>
-        </div>
+        </div>` : ''}
 
         <div class="card">
           <div class="card-head">
@@ -4510,23 +4514,23 @@ class TireShopApp {
                   <th>الاسم</th>
                   <th>السعر</th>
                   <th>التاريخ</th>
-                  <th>الإجراءات</th>
+                  ${canEdit ? '<th>الإجراءات</th>' : ''}
                 </tr>
               </thead>
               <tbody>
                 ${filteredServices.map(s => `
                   <tr>
                     <td>${esc(s.name)}</td>
-                    <td class="num">${fmtMoney(s.price)}</td>
+                    <td class="num">${fmtMoney(parseFloat(s.price) || 0)}</td>
                     <td>${fmtDate(s.createdAt)}</td>
-                    <td>
+                    ${canEdit ? `<td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-service="${s.id}">${icon('edit')}</button>
                         <button class="btn btn-xs btn-danger" data-delete-service="${s.id}">${icon('delete')}</button>
                       </div>
-                    </td>
+                    </td>` : ''}
                   </tr>
-                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد خدمات</td></tr>'}
+                `).join('') || `<tr><td colspan="${canEdit ? 4 : 3}" class="text-center">لا توجد خدمات</td></tr>`}
               </tbody>
             </table>
           </div>
