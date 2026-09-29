@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.7.0 (separate manager / employee files) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.7.0 (separate manager / employee files) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
-<title>ورشتي - نظام إدارة محل الإطارات v2.0</title>
+<title>الموظف — ورشتي - نظام إدارة محل الإطارات v2.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet">
@@ -1385,7 +1385,7 @@ const SHOP = {
 const SHOP_EDITABLE_KEYS = ['phone', 'instagram'];
 
 // ===== نوع الملف: 'manager' (ملف المدير) أو 'employee' (ملف الموظف employee.html) =====
-const APP_MODE = 'manager';
+const APP_MODE = 'employee';
 
 // الصفحات المسموحة للموظف (المدير يرى كل شيء)
 const EMPLOYEE_VIEWS = ['customers', 'appointments', 'tires', 'services', 'reports', 'fixedExpenses', 'dailyExpenses'];
@@ -2007,7 +2007,6 @@ class TireShopApp {
 
   login(username, password, role) {
     const creds = {
-      manager: { u: 'admin', p: 'admin123', name: 'المدير' },
       employee: { u: 'employee', p: 'emp123', name: 'الموظف' },
     };
 
