@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.7.0 (separate manager / employee files) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.7.1 (manager link to employee page) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1356,6 +1356,13 @@ table tbody tr:hover {
 
 .login-role-badge { display: inline-block; padding: 8px 18px; border-radius: 20px; background: var(--amber-100); color: var(--amber-600); font-weight: 800; }
 .login-role-badge.emp { background: var(--info-blue-bg); color: var(--info-blue); }
+
+.emp-link-box { display: flex; gap: 6px; margin: 8px 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+.emp-link { flex: 1; display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 6px; background: rgba(62,126,166,0.18); color: #cfe3f0; font-size: 14px; font-weight: 700; text-decoration: none; border: 1px solid rgba(62,126,166,0.45); transition: background 0.15s; }
+.emp-link:hover { background: rgba(62,126,166,0.32); color: #fff; }
+.emp-link-arrow { margin-right: auto; opacity: 0.7; }
+.emp-copy { width: 42px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); cursor: pointer; font-size: 16px; }
+.emp-copy:hover { background: rgba(255,255,255,0.12); }
 </style>
 </head>
 <body>
@@ -3080,6 +3087,14 @@ class TireShopApp {
             `).join('')}
           </nav>
 
+          ${this.isManager() ? `
+          <div class="emp-link-box">
+            <a class="emp-link" href="employee.html" target="_blank" rel="noopener" title="تفتح في تبويب جديد">
+              <span>👔</span><span>صفحة الموظف</span><span class="emp-link-arrow">↗</span>
+            </a>
+            <button class="emp-copy" id="copyEmpLinkBtn" title="نسخ رابط صفحة الموظف">📋</button>
+          </div>` : ''}
+
           <div class="side-foot">
             <div class="user-chip">
               <div class="user-avatar">${esc(initials)}</div>
@@ -3839,6 +3854,15 @@ class TireShopApp {
 
   bindViewEvents(view) {
     document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
+    document.getElementById('copyEmpLinkBtn')?.addEventListener('click', async () => {
+      const url = new URL('employee.html', location.href).href;
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('تم نسخ رابط صفحة الموظف', 'success');
+      } catch (e) {
+        prompt('انسخ رابط صفحة الموظف:', url);
+      }
+    });
     document.getElementById('langBtn')?.addEventListener('click', () => {
       currentLang = currentLang === 'ar' ? 'en' : 'ar';
       localStorage.setItem('tireshop_lang', currentLang);
