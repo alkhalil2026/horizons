@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.3.0 (discount by amount or percent) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.4.0 (optional customer email/address) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1831,6 +1831,30 @@ class TireShopApp {
     }
   }
 
+  // كتابة مرنة: تتجاوز الأعمدة غير الموجودة، وتحوّل null إلى نص فارغ إذا كان العمود لا يقبل الفراغ
+  async writeWithRetry(dbData, doWrite) {
+    const data = { ...dbData };
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const result = await doWrite(data);
+      const error = result.error;
+      if (!error) return result;
+      const msg = error.message || '';
+      const missing = /'([^']+)' column/.exec(msg);
+      if (missing && missing[1] in data) {
+        console.warn(`⚠️ العمود "${missing[1]}" غير موجود في الجدول، تم تجاوزه`);
+        delete data[missing[1]];
+        continue;
+      }
+      const notNull = error.code === '23502' && /column "([^"]+)"/.exec(msg);
+      if (notNull && notNull[1] in data && data[notNull[1]] === null) {
+        data[notNull[1]] = '';
+        continue;
+      }
+      return result;
+    }
+    return { error: { message: 'تعذّر الحفظ بعد عدة محاولات' } };
+  }
+
   async addRecord(table, data) {
     if (!this.sb) {
       const id = uid();
@@ -1856,7 +1880,7 @@ class TireShopApp {
         console.log(`  ${key}: "${value}" (type: ${typeof value})`);
       });
       
-      const { data: insertedData, error } = await this.sb.from(table).insert([dbData]);
+      const { data: insertedData, error } = await this.writeWithRetry(dbData, d => this.sb.from(table).insert([d]));
       
       if (error) {
         console.error(`❌ Error adding to ${table}:`, error);
@@ -1864,7 +1888,10 @@ class TireShopApp {
         console.error('Error code:', error.code);
         console.error('Error details:', error.details);
         console.log('📤 Data tried to send:', dbData);
-        showToast(`❌ ${error.message || 'خطأ'}`, 'error');
+        const friendly = error.code === '23505'
+          ? 'هذه القيمة مسجلة مسبقاً (مكررة) — ' + (error.details || '')
+          : (error.message || 'خطأ');
+        showToast(`❌ ${friendly}`, 'error');
         return false;
       }
 
@@ -3287,7 +3314,7 @@ class TireShopApp {
         <input type="tel" id="editCustomerPhone" value="${esc(customer.phone || '')}">
       </div>
       <div class="form-group">
-        <label>البريد الإلكتروني</label>
+        <label>البريد الإلكتروني <span style="color: #999;">(اختياري)</span></label>
         <input type="email" id="editCustomerEmail" value="${esc(customer.email || '')}">
       </div>
       <div class="form-group">
@@ -3315,19 +3342,11 @@ class TireShopApp {
     });
     
     document.getElementById('saveEditCustomerBtn')?.addEventListener('click', () => {
-      const name = document.getElementById('editCustomerName').value.trim();
-      
-      if (!name) {
-        showToast('أدخل الاسم', 'error');
-        return;
-      }
+      const data = this.customerFormData('editCustomer');
+      if (!this.validCustomer(data)) return;
 
-      this.updateRecord('customers', customer.id, {
-        name,
-        phone: document.getElementById('editCustomerPhone').value,
-        email: document.getElementById('editCustomerEmail').value,
-        address: document.getElementById('editCustomerAddress').value
-      }).then(() => {
+      this.updateRecord('customers', customer.id, data).then((ok) => {
+        if (ok === false) return;
         overlay.classList.remove('active');
         this.switchView('customers');
       });
@@ -3509,11 +3528,11 @@ class TireShopApp {
 
     try {
       const dbData = rowToDb(data, table);
-      const { error } = await this.sb.from(table).update(dbData).eq('id', id);
+      const { error } = await this.writeWithRetry(dbData, d => this.sb.from(table).update(d).eq('id', id));
       
       if (error) {
         console.error(`Error updating ${table}:`, error);
-        showToast('خطأ في التحديث', 'error');
+        showToast('خطأ في التحديث: ' + (error.code === '23505' ? 'قيمة مكررة' : (error.message || '')), 'error');
         return false;
       }
 
@@ -3745,25 +3764,41 @@ class TireShopApp {
     }
   }
 
+  // بيانات العميل: الاسم مطلوب، والباقي اختياري (الفارغ يُرسل null)
+  customerFormData(prefix) {
+    const val = id => (document.getElementById(prefix + id)?.value || '').trim();
+    const email = val('Email');
+    return {
+      name: val('Name'),
+      phone: val('Phone') || null,
+      email: email || null,
+      address: val('Address') || null,
+    };
+  }
+
+  validCustomer(data) {
+    if (!data.name) {
+      showToast('أدخل اسم العميل', 'error');
+      return false;
+    }
+    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      showToast('صيغة البريد الإلكتروني غير صحيحة (أو اتركه فارغاً)', 'error');
+      return false;
+    }
+    return true;
+  }
+
   bindCustomersEvents() {
     // معالج الإضافة - يُضاف مرة واحدة فقط
     const addBtn = document.getElementById('addCustomerBtn');
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
       addBtn.addEventListener('click', () => {
-        const name = document.getElementById('customerName').value.trim();
+        const data = this.customerFormData('customer');
+        if (!this.validCustomer(data)) return;
 
-        if (!name) {
-          showToast('أدخل الاسم', 'error');
-          return;
-        }
-
-        this.addRecord('customers', {
-          name,
-          phone: document.getElementById('customerPhone').value,
-          email: document.getElementById('customerEmail').value,
-          address: document.getElementById('customerAddress').value
-        }).then(() => {
+        this.addRecord('customers', data).then((ok) => {
+          if (ok === false) return; // نُبقي البيانات في النموذج لتصحيحها
           document.getElementById('customerName').value = '';
           document.getElementById('customerPhone').value = '';
           document.getElementById('customerEmail').value = '';
@@ -4220,7 +4255,7 @@ class TireShopApp {
             <input type="tel" id="customerPhone" placeholder="+968 9...">
           </div>
           <div class="form-group">
-            <label>البريد الإلكتروني</label>
+            <label>البريد الإلكتروني <span style="color: #999;">(اختياري)</span></label>
             <input type="email" id="customerEmail" placeholder="email@example.com">
           </div>
           <div class="form-group">
