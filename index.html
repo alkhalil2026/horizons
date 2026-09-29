@@ -1904,12 +1904,6 @@ class TireShopApp {
 
   saveSale() {
     const service = this.services.find(s => s.id === this.saleWizard.selectedService);
-    if (!service) {
-      showToast(t('error'), 'error');
-      return;
-    }
-
-    const service = this.services.find(s => s.id === this.saleWizard.selectedService);
     if (!service || !service.price) {
       showToast('خدمة غير صحيحة', 'error');
       return;
@@ -3020,6 +3014,7 @@ class TireShopApp {
   }
 
   showEditServiceModal(service) {
+    const safePrice = parseFloat(service.price) || 0;
     const content = `
       <div class="form-group">
         <label>الاسم *</label>
@@ -3027,7 +3022,7 @@ class TireShopApp {
       </div>
       <div class="form-group">
         <label>السعر *</label>
-        <input type="number" id="editServicePrice" step="0.01" value="${parseFloat(service.price) || 0}">
+        <input type="number" id="editServicePrice" step="0.01" value="${safePrice}">
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeEditBtn">إلغاء</button>
@@ -3124,6 +3119,11 @@ class TireShopApp {
   }
 
   showEditTireModal(tire) {
+    // تقييم جميع القيم قبل الإدراج في HTML
+    const safeCost = parseFloat(tire.cost) || 0;
+    const safeSellingPrice = parseFloat(tire.selling_price) || 0;
+    const safeStock = parseInt(tire.stock) || 0;
+    
     const content = `
       <!-- المقاس والبراند -->
       <div class="form-row">
@@ -3156,18 +3156,18 @@ class TireShopApp {
       <div class="form-row">
         <div class="form-group">
           <label>سعر التكلفة</label>
-          <input type="number" id="editTireCostPrice" step="0.01" value="${parseFloat(tire.cost) || 0}">
+          <input type="number" id="editTireCostPrice" step="0.01" value="${safeCost}">
         </div>
         <div class="form-group">
           <label>سعر البيع *</label>
-          <input type="number" id="editTireSellingPrice" step="0.01" value="${parseFloat(tire.selling_price) || 0}">
+          <input type="number" id="editTireSellingPrice" step="0.01" value="${safeSellingPrice}">
         </div>
       </div>
 
       <!-- الكمية -->
       <div class="form-group">
         <label>الكمية *</label>
-        <input type="number" id="editTireQuantity" step="1" value="${parseInt(tire.stock) || 0}">
+        <input type="number" id="editTireQuantity" step="1" value="${safeStock}">
       </div>
 
       <div class="modal-footer">
@@ -3219,6 +3219,9 @@ class TireShopApp {
   }
 
   showEditAppointmentModal(appointment) {
+    // تقييم قيمة التاريخ والوقت قبل الإدراج
+    const appointmentDateTime = ((appointment.appointmentTime || appointment.appointment_time) || '').substring(0, 16);
+    
     const content = `
       <div class="form-group">
         <label>العميل *</label>
@@ -3236,7 +3239,7 @@ class TireShopApp {
       </div>
       <div class="form-group">
         <label>التاريخ والوقت *</label>
-        <input type="datetime-local" id="editAppointmentDateTime" value="${((appointment.appointmentTime || appointment.appointment_time) || '').substring(0, 16)}">
+        <input type="datetime-local" id="editAppointmentDateTime" value="${appointmentDateTime}">
       </div>
       <div class="form-group">
         <label>ملاحظات</label>
@@ -4556,6 +4559,9 @@ class TireShopApp {
     const fixedExpenses = filteredExpenses.filter(e => e.expenseType === 'ثابتة');
     const totalFixed = fixedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     
+    // تقييم التاريخ الحالي قبل الإدراج في HTML
+    const todayDate = new Date().toISOString().split('T')[0];
+    
     const fixedTypeOptions = [
       { value: 'rent', label: t('rent') },
       { value: 'electricity', label: t('electricity') },
@@ -4601,7 +4607,7 @@ class TireShopApp {
           </div>
           <div class="form-group">
             <label>التاريخ</label>
-            <input type="date" id="fixedExpenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+            <input type="date" id="fixedExpenseDateInput" value="${todayDate}">
           </div>
           <button class="btn btn-green btn-block" id="addFixedExpenseBtn">💾 إضافة</button>
         </div>
@@ -4645,6 +4651,9 @@ class TireShopApp {
     const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
     const dailyExpenses = filteredExpenses.filter(e => e.expenseType === 'يومية');
     const totalDaily = dailyExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    
+    // تقييم التاريخ الحالي قبل الإدراج في HTML
+    const todayDate = new Date().toISOString().split('T')[0];
 
     return `
       ${this.renderDateFilterBar()}
@@ -4674,7 +4683,7 @@ class TireShopApp {
           </div>
           <div class="form-group">
             <label>التاريخ</label>
-            <input type="date" id="dailyExpenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+            <input type="date" id="dailyExpenseDateInput" value="${todayDate}">
           </div>
           <div class="form-group">
             <label>الصورة <span style="color: #999;">(اختياري)</span></label>
@@ -4910,6 +4919,9 @@ class TireShopApp {
   }
 
   showAddExpenseModal() {
+    // تقييم التاريخ الحالي قبل الإدراج في HTML
+    const todayDate = new Date().toISOString().split('T')[0];
+    
     const content = `
       <div class="form-group">
         <label>نوع المصروفة *</label>
@@ -4928,7 +4940,7 @@ class TireShopApp {
       </div>
       <div class="form-group">
         <label>التاريخ</label>
-        <input type="date" id="expenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+        <input type="date" id="expenseDateInput" value="${todayDate}">
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeExpenseModalBtn">إلغاء</button>
