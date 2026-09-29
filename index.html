@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.2.0 (multi-item invoices: services + tires) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.3.0 (discount by amount or percent) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1345,6 +1345,12 @@ table tbody tr:hover {
   .wz-layout { grid-template-columns: 1fr; }
   .cart-panel { position: static; }
 }
+
+.disc-row { display: flex; gap: 8px; }
+.disc-row input { flex: 1; }
+.disc-toggle { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.disc-type { padding: 0 14px; border: none; background: var(--paper); font-family: inherit; font-weight: 800; font-size: 14px; cursor: pointer; color: var(--text-600); }
+.disc-type.active { background: var(--amber-500); color: #fff; }
 </style>
 </head>
 <body>
@@ -1910,6 +1916,7 @@ class TireShopApp {
       warranty: 'noWarranty',
       paymentMethod: 'cash',
       discount: 0,
+      discountType: 'amount',
       customerName: '',
       customerPhone: '',
     };
@@ -1994,10 +2001,20 @@ class TireShopApp {
     this.switchView('sales');
   }
 
+  discountLabel() {
+    const { percent } = this.cartTotals();
+    return percent > 0 ? `الخصم (${+percent.toFixed(2)}%)` : 'الخصم';
+  }
+
   cartTotals() {
     const subtotal = this.saleWizard.cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
-    const discount = Math.min(Math.max(parseFloat(this.saleWizard.discount) || 0, 0), subtotal);
-    return { subtotal, discount, total: subtotal - discount };
+    const w = this.saleWizard;
+    const value = Math.max(parseFloat(w.discount) || 0, 0);
+    const isPercent = w.discountType === 'percent';
+    const percent = isPercent ? Math.min(value, 100) : 0;
+    let discount = isPercent ? subtotal * percent / 100 : value;
+    discount = Math.round(Math.min(discount, subtotal) * 1000) / 1000;
+    return { subtotal, discount, percent, total: subtotal - discount };
   }
 
   // عناصر الفاتورة للطباعة/الواتساب (تدعم الفواتير القديمة ذات الخدمة الواحدة)
@@ -2041,7 +2058,7 @@ class TireShopApp {
       msg += `• ${l.description} × ${l.quantity} = ${fmtMoney(l.unitPrice * l.quantity)}\n`;
     });
     if (discount > 0) {
-      msg += `\n*المجموع:* ${fmtMoney(subtotal)}\n*الخصم:* ${fmtMoney(discount)}\n`;
+      msg += `\n*المجموع:* ${fmtMoney(subtotal)}\n*${this.discountLabel()}:* ${fmtMoney(discount)}\n`;
     }
     msg += `\n*الإجمالي:* ${fmtMoney(total)} ر.ع\n`;
     msg += `*الضمان:* ${t(w.warranty)}\n*طريقة الدفع:* ${t(w.paymentMethod)}\n\nشكراً لتعاملك معنا 🙏`;
@@ -2076,7 +2093,7 @@ class TireShopApp {
     if (this.isSavingSale) return false;
     this.isSavingSale = true;
 
-    const { subtotal, discount, total } = this.cartTotals();
+    const { subtotal, discount, percent, total } = this.cartTotals();
     const totalQty = w.cart.reduce((s, l) => s + l.quantity, 0);
     const summary = w.cart.map(l => `${l.description} ×${l.quantity}`).join('، ');
     const items = w.cart.map(l => ({
@@ -2096,6 +2113,7 @@ class TireShopApp {
       unit_price: w.cart.length === 1 ? w.cart[0].unitPrice : null,
       subtotal: subtotal,
       discount_amount: discount,
+      discount_percent: percent,
       total: total,
       items: items,
     };
@@ -2577,7 +2595,7 @@ class TireShopApp {
         ${lines || '<p class="text-center" style="padding: 24px; color: var(--text-muted);">اضغط على خدمة أو إطار لإضافته</p>'}
         <div class="summary-box" style="margin-top: 12px;">
           <div class="summary-row"><span>المجموع:</span><span class="num">${fmtMoney(subtotal)}</span></div>
-          ${discount > 0 ? `<div class="summary-row"><span>الخصم:</span><span class="num">− ${fmtMoney(discount)}</span></div>` : ''}
+          ${discount > 0 ? `<div class="summary-row"><span>${this.discountLabel()}:</span><span class="num">− ${fmtMoney(discount)}</span></div>` : ''}
           <div class="summary-row total"><span>الإجمالي:</span><span class="num">${fmtMoney(total)}</span></div>
         </div>
       </div>
@@ -2667,8 +2685,15 @@ class TireShopApp {
                 </select>
               </div>
               <div class="form-group">
-                <label>خصم (ر.ع) — اختياري</label>
-                <input type="number" id="discountInput" min="0" step="0.1" value="${parseFloat(w.discount) || ''}" placeholder="0">
+                <label>الخصم — اختياري</label>
+                <div class="disc-row">
+                  <div class="disc-toggle">
+                    <button type="button" class="disc-type ${w.discountType !== 'percent' ? 'active' : ''}" data-disc-type="amount">ر.ع</button>
+                    <button type="button" class="disc-type ${w.discountType === 'percent' ? 'active' : ''}" data-disc-type="percent">%</button>
+                  </div>
+                  <input type="number" id="discountInput" min="0" ${w.discountType === 'percent' ? 'max="100" step="1"' : 'step="0.1"'} value="${parseFloat(w.discount) || ''}" placeholder="${w.discountType === 'percent' ? 'مثال: 10' : 'مثال: 5'}">
+                </div>
+                <div class="text-xs" id="discountHint" style="margin-top: 6px; color: var(--text-muted);"></div>
               </div>
             </div>
           </div>
@@ -3073,7 +3098,7 @@ class TireShopApp {
               `).join('')}
               ${(parseFloat(sale.discountAmount) || 0) > 0 ? `
               <tr>
-                <td colspan="3">الخصم</td>
+                <td colspan="3">الخصم${(parseFloat(sale.discountPercent) || 0) > 0 ? ' (' + (+parseFloat(sale.discountPercent).toFixed(2)) + '%)' : ''}</td>
                 <td>− ${fmtMoney(sale.discountAmount)}</td>
               </tr>` : ''}
               <tr class="total-row">
@@ -4029,11 +4054,33 @@ class TireShopApp {
       document.getElementById('paymentMethodSelect')?.addEventListener('change', (e) => {
         w.paymentMethod = e.target.value;
       });
-      document.getElementById('discountInput')?.addEventListener('input', (e) => {
-        w.discount = parseFloat(e.target.value) || 0;
+      const refreshDiscount = () => {
         const box = document.getElementById('wzCartBox');
         if (box) box.innerHTML = this.renderCartPanel(false);
+        const hint = document.getElementById('discountHint');
+        const { discount, percent, subtotal } = this.cartTotals();
+        if (hint) {
+          hint.textContent = !discount ? ''
+            : w.discountType === 'percent'
+              ? `= ${fmtMoney(discount)} ر.ع`
+              : `= ${subtotal ? +(discount / subtotal * 100).toFixed(2) : 0}% من المجموع`;
+        }
+        const raw = parseFloat(w.discount) || 0;
+        if (w.discountType === 'percent' && raw > 100) showToast('أقصى نسبة خصم 100%', 'warning');
+        if (w.discountType !== 'percent' && raw > subtotal) showToast('الخصم أكبر من المجموع', 'warning');
+      };
+      document.getElementById('discountInput')?.addEventListener('input', (e) => {
+        w.discount = parseFloat(e.target.value) || 0;
+        refreshDiscount();
       });
+      root.querySelectorAll('[data-disc-type]').forEach(btn => btn.addEventListener('click', () => {
+        if (w.discountType === btn.dataset.discType) return;
+        w.discountType = btn.dataset.discType;
+        w.discount = 0;
+        this.switchView('sales');
+        document.getElementById('discountInput')?.focus();
+      }));
+      if (document.getElementById('discountInput')) refreshDiscount();
       document.getElementById('prevStep2Btn')?.addEventListener('click', () => this.prevWizardStep());
       document.getElementById('nextStep2Btn')?.addEventListener('click', () => this.nextWizardStep());
 
