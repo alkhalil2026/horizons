@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.7.2 (employee: no reports/fixed expenses, services read-only) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.8.0 (employee new-sale page) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1363,6 +1363,12 @@ table tbody tr:hover {
 .emp-link-arrow { margin-right: auto; opacity: 0.7; }
 .emp-copy { width: 42px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); cursor: pointer; font-size: 16px; }
 .emp-copy:hover { background: rgba(255,255,255,0.12); }
+
+.sale-done { max-width: 560px; margin: 30px auto; text-align: center; padding: 36px 24px; }
+.sale-done-icon { font-size: 56px; margin-bottom: 8px; }
+.sale-done h2 { font-size: 24px; font-weight: 800; }
+.sale-done-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+.sale-done-actions .btn { min-width: 150px; padding: 12px 18px; }
 </style>
 </head>
 <body>
@@ -1395,7 +1401,7 @@ const SHOP_EDITABLE_KEYS = ['phone', 'instagram'];
 const APP_MODE = 'employee';
 
 // الصفحات المسموحة للموظف (المدير يرى كل شيء)
-const EMPLOYEE_VIEWS = ['customers', 'appointments', 'tires', 'services', 'dailyExpenses'];
+const EMPLOYEE_VIEWS = ['newSale', 'customers', 'appointments', 'tires', 'services', 'dailyExpenses'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
 
@@ -1835,6 +1841,16 @@ class TireShopApp {
     return this.isManager() || EMPLOYEE_VIEWS.includes(view);
   }
 
+  // صفحة معالج البيع: المدير داخل صفحة الفواتير، والموظف في صفحة "عملية بيع جديدة"
+  saleView() {
+    return this.isManager() ? 'sales' : 'newSale';
+  }
+
+  // الخصم للمدير فقط
+  canDiscount() {
+    return this.isManager();
+  }
+
   homeView() {
     return this.isManager() ? 'dashboard' : EMPLOYEE_VIEWS[0];
   }
@@ -2032,6 +2048,8 @@ class TireShopApp {
 
   logout() {
     this.currentUser = null;
+    this.lastSaleNumber = null;
+    this.saleWizard = this.emptySaleWizard();
     this.currentView = 'login';
     sessionStorage.removeItem('tireshop_user');
     this.render();
@@ -2120,30 +2138,30 @@ class TireShopApp {
       editingInvoiceNumber: sale.invoiceNumber,
       originalTireQty,
     };
-    this.switchView('sales');
+    this.switchView(this.saleView());
   }
 
   startNewSale() {
     this.saleWizard = { ...this.emptySaleWizard(), active: true };
-    this.switchView('sales');
+    this.switchView(this.saleView());
   }
 
   cancelSale() {
     this.saleWizard = this.emptySaleWizard();
-    this.switchView('sales');
+    this.switchView(this.saleView());
   }
 
   nextWizardStep() {
     if (this.saleWizard.step < 3) {
       this.saleWizard.step++;
-      this.switchView('sales');
+      this.switchView(this.saleView());
     }
   }
 
   prevWizardStep() {
     if (this.saleWizard.step > 1) {
       this.saleWizard.step--;
-      this.switchView('sales');
+      this.switchView(this.saleView());
     }
   }
 
@@ -2174,7 +2192,7 @@ class TireShopApp {
       if (line) line.quantity++;
       else cart.push({ key, type, refId, description: service.name, unitPrice: parseFloat(service.price) || 0, quantity: 1 });
     }
-    this.switchView('sales');
+    this.switchView(this.saleView());
   }
 
   changeCartQty(key, delta) {
@@ -2194,12 +2212,12 @@ class TireShopApp {
       }
       line.quantity = next;
     }
-    this.switchView('sales');
+    this.switchView(this.saleView());
   }
 
   removeFromCart(key) {
     this.saleWizard.cart = this.saleWizard.cart.filter(l => l.key !== key);
-    this.switchView('sales');
+    this.switchView(this.saleView());
   }
 
   discountLabel() {
@@ -2210,7 +2228,7 @@ class TireShopApp {
   cartTotals() {
     const subtotal = this.saleWizard.cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
     const w = this.saleWizard;
-    const value = Math.max(parseFloat(w.discount) || 0, 0);
+    const value = this.canDiscount() ? Math.max(parseFloat(w.discount) || 0, 0) : 0;
     const isPercent = w.discountType === 'percent';
     const percent = isPercent ? Math.min(value, 100) : 0;
     let discount = isPercent ? subtotal * percent / 100 : value;
@@ -2385,8 +2403,9 @@ class TireShopApp {
       }
 
       showToast(editingId ? 'تم تعديل الفاتورة' : t('invoiceCreated'), 'success');
+      if (!this.isManager()) this.lastSaleNumber = invoiceNumber;
       this.saleWizard = this.emptySaleWizard();
-      this.switchView('sales');
+      this.switchView(this.saleView());
       return true;
     } finally {
       this.isSavingSale = false;
@@ -2830,6 +2849,44 @@ class TireShopApp {
     });
   }
 
+  renderNewSaleView() {
+    // شاشة التأكيد بعد الحفظ
+    if (this.lastSaleNumber) {
+      const sale = this.sales.find(x => x.invoiceNumber === this.lastSaleNumber);
+      return `
+        <div class="card sale-done">
+          <div class="sale-done-icon">✅</div>
+          <h2>تم حفظ الفاتورة</h2>
+          <p class="num" style="font-size: 18px; margin: 6px 0 4px;">${esc(this.lastSaleNumber)}</p>
+          ${sale ? `<p style="color: var(--text-600);">${esc(sale.customerName || '')} — الإجمالي <b class="num">${fmtMoney(sale.total)}</b> ر.ع</p>` : ''}
+          <div class="sale-done-actions">
+            ${sale ? `
+              <button class="btn btn-blue" id="donePrintBtn">🖨️ طباعة الفاتورة</button>
+              <button class="btn btn-green" id="doneWhatsappBtn">📱 إرسال واتساب</button>
+            ` : ''}
+            <button class="btn btn-amber" id="doneNewSaleBtn">➕ عملية بيع جديدة</button>
+          </div>
+        </div>
+      `;
+    }
+    if (!this.saleWizard || !this.saleWizard.active) {
+      this.saleWizard = { ...this.emptySaleWizard(), active: true };
+    }
+    return this.renderSalesWizardView();
+  }
+
+  bindNewSaleDoneEvents() {
+    const sale = this.lastSaleNumber ? this.sales.find(x => x.invoiceNumber === this.lastSaleNumber) : null;
+    document.getElementById('donePrintBtn')?.addEventListener('click', () => sale && this.printSaleInvoice(sale));
+    document.getElementById('doneWhatsappBtn')?.addEventListener('click', () => {
+      if (sale) this.sendInvoiceViaWhatsApp(sale, sale.customerPhone || '');
+    });
+    document.getElementById('doneNewSaleBtn')?.addEventListener('click', () => {
+      this.lastSaleNumber = null;
+      this.startNewSale();
+    });
+  }
+
   renderSalesWizardView() {
     if (this.saleWizard.step === 2) return this.renderWizardStep2();
     if (this.saleWizard.step === 3) return this.renderWizardStep3();
@@ -2970,6 +3027,7 @@ class TireShopApp {
                   ${['cash', 'card', 'check', 'transfer'].map(k => `<option value="${k}" ${w.paymentMethod === k ? 'selected' : ''}>${t(k)}</option>`).join('')}
                 </select>
               </div>
+${this.canDiscount() ? `
               <div class="form-group">
                 <label>الخصم — اختياري</label>
                 <div class="disc-row">
@@ -2980,7 +3038,7 @@ class TireShopApp {
                   <input type="number" id="discountInput" min="0" ${w.discountType === 'percent' ? 'max="100" step="1"' : 'step="0.1"'} value="${parseFloat(w.discount) || ''}" placeholder="${w.discountType === 'percent' ? 'مثال: 10' : 'مثال: 5'}">
                 </div>
                 <div class="text-xs" id="discountHint" style="margin-top: 6px; color: var(--text-muted);"></div>
-              </div>
+              </div>` : ''}
             </div>
           </div>
           <div id="wzCartBox">${this.renderCartPanel(false)}</div>
@@ -3064,6 +3122,9 @@ class TireShopApp {
       navItems.push(['supplierSummary', t('supplierSummary'), 'supplierSummary']);
       navItems.push(['shopSettings', '⚙️ إعدادات المحل', 'shopSettings']);
     }
+    if (!this.isManager()) {
+      navItems.unshift(['newSale', 'عملية بيع جديدة', 'sales']);
+    }
     navItems = navItems.filter(([view]) => this.canView(view));
 
     return `
@@ -3119,6 +3180,9 @@ class TireShopApp {
     if (this.currentUser && !this.canView(view)) {
       view = this.homeView();
     }
+    if (view !== 'newSale' && this.currentView === 'newSale') {
+      this.lastSaleNumber = null;
+    }
     this.currentView = view;
     
     document.querySelectorAll('.side-link').forEach(b => {
@@ -3141,6 +3205,7 @@ class TireShopApp {
       supplierSummary: t('supplierSummary'),
       importInventory: '📦 استيراج المخزون',
       shopSettings: '⚙️ إعدادات المحل',
+      newSale: '🧾 عملية بيع جديدة',
     };
     
     document.getElementById('pageTitle').textContent = titles[view] || t('dashboard');
@@ -3161,6 +3226,7 @@ class TireShopApp {
       supplierSummary: () => this.renderSupplierSummaryView(),
       importInventory: () => this.renderImportInventoryView(),
       shopSettings: () => this.renderShopSettingsView(),
+      newSale: () => this.renderNewSaleView(),
     };
 
     const content = document.getElementById('content');
@@ -3878,6 +3944,7 @@ class TireShopApp {
         const link = e.target.closest('.side-link');
         if (link) {
           const view = link.dataset.view;
+          if (view === 'newSale') this.lastSaleNumber = null;
           if (view) this.switchView(view);
         }
       });
@@ -3956,7 +4023,7 @@ class TireShopApp {
         if (e.target.matches('[data-delete-sale]')) {
           const id = e.target.dataset.deleteSale;
           if (confirm('حذف الفاتورة؟ هذا الإجراء غير قابل للتراجع')) {
-            this.deleteRecord('sales', id).then(() => this.switchView('sales'));
+            this.deleteRecord('sales', id).then(() => this.switchView(this.saleView()));
           }
         }
 
@@ -4014,7 +4081,8 @@ class TireShopApp {
     });
 
     if (view === 'dashboard') this.bindDashboardEvents();
-    if (view === 'sales') this.bindSalesWizardEvents();
+    if (view === 'sales' || view === 'newSale') this.bindSalesWizardEvents();
+    if (view === 'newSale') this.bindNewSaleDoneEvents();
     if (view === 'shopSettings') this.bindShopSettingsEvents();
     if (view === 'services') this.bindServicesEvents();
     if (view === 'customers') this.bindCustomersEvents();
@@ -4360,7 +4428,7 @@ class TireShopApp {
       root.querySelectorAll('[data-cart-remove]').forEach(el => el.addEventListener('click', () => this.removeFromCart(el.dataset.cartRemove)));
       root.querySelectorAll('[data-wz-tab]').forEach(el => el.addEventListener('click', () => {
         w.tab = el.dataset.wzTab;
-        this.switchView('sales');
+        this.switchView(this.saleView());
       }));
 
       // بحث فوري بدون إعادة رسم الصفحة
@@ -4412,7 +4480,7 @@ class TireShopApp {
         if (w.discountType === btn.dataset.discType) return;
         w.discountType = btn.dataset.discType;
         w.discount = 0;
-        this.switchView('sales');
+        this.switchView(this.saleView());
         document.getElementById('discountInput')?.focus();
       }));
       if (document.getElementById('discountInput')) refreshDiscount();
@@ -4462,7 +4530,7 @@ class TireShopApp {
           this.currentSalesPeriod = period;
           this.currentCustomFromDate = null;
           this.currentCustomToDate = null;
-          this.switchView('sales');
+          this.switchView(this.saleView());
         }
       });
     });
@@ -4479,7 +4547,7 @@ class TireShopApp {
       this.currentSalesPeriod = 'custom';
       this.currentCustomFromDate = fromInput;
       this.currentCustomToDate = toInput;
-      this.switchView('sales');
+      this.switchView(this.saleView());
     });
   }
 
