@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.9.1 (service English name saving fix) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.9.2 (supplier payment method) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1383,6 +1383,15 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 /* تنبيهات مكدسة فوق بعضها بدل التداخل */
 #toastWrap { position: fixed; bottom: 20px; right: 20px; z-index: 3000; display: flex; flex-direction: column-reverse; gap: 8px; align-items: flex-end; pointer-events: none; }
 #toastWrap .toast { position: static; pointer-events: auto; }
+
+.pay-methods { display: flex; gap: 8px; }
+.pay-method { flex: 1; position: relative; cursor: pointer; }
+.pay-method input { position: absolute; opacity: 0; pointer-events: none; }
+.pay-method span { display: block; text-align: center; padding: 10px 6px; border: 2px solid var(--line); border-radius: 8px; font-weight: 700; font-size: 14px; background: #fff; transition: all 0.15s; }
+.pay-method:hover span { border-color: var(--amber-500); }
+.pay-method.active span { border-color: var(--amber-500); background: var(--amber-100); }
+.pay-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.pay-total { background: var(--concrete-100); border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1419,6 +1428,36 @@ const APP_MODE = 'manager';
 const EMPLOYEE_VIEWS = ['newSale', 'customers', 'appointments', 'tires', 'services', 'dailyExpenses'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
+
+// طرق دفع الموردين
+const SUPPLIER_PAY_METHODS = { cash: 'كاش', card: 'فيزا', transfer: 'تحويل' };
+const PAY_TAG_RE = /\[طريقة الدفع: (كاش|فيزا|تحويل)\]\s*/;
+
+function paymentMethodPicker(name, selected = 'cash') {
+  const icons = { cash: '💵', card: '💳', transfer: '🏦' };
+  return `
+    <div class="pay-methods">
+      ${Object.entries(SUPPLIER_PAY_METHODS).map(([k, label]) => `
+        <label class="pay-method ${k === selected ? 'active' : ''}">
+          <input type="radio" name="${name}" value="${k}" ${k === selected ? 'checked' : ''}>
+          <span>${icons[k]} ${label}</span>
+        </label>
+      `).join('')}
+    </div>
+  `;
+}
+
+function readPaymentMethod(name) {
+  return document.querySelector(`input[name="${name}"]:checked`)?.value || 'cash';
+}
+
+// طريقة الدفع لدفعة مورد (من العمود، أو من الملاحظات إن لم يوجد العمود)
+function supplierPaymentMethod(pay) {
+  if (pay.paymentMethod && SUPPLIER_PAY_METHODS[pay.paymentMethod]) return pay.paymentMethod;
+  const m = PAY_TAG_RE.exec(pay.notes || '');
+  if (m) return Object.keys(SUPPLIER_PAY_METHODS).find(k => SUPPLIER_PAY_METHODS[k] === m[1]) || null;
+  return null;
+}
 
 const WARRANTY_MONTHS = { warranty3M: 3, warranty6M: 6, warranty12M: 12 };
 
@@ -2232,7 +2271,8 @@ const FIELD_MAP = {
   supplier_payments: {
     supplier_invoice_id: 'supplierInvoiceId',
     payment_amount: 'paymentAmount',
-    payment_date: 'paymentDate'
+    payment_date: 'paymentDate',
+    payment_method: 'paymentMethod'
   },
   expenses: {
     expense_type: 'expenseType',
@@ -4133,6 +4173,10 @@ ${this.canDiscount() ? `
         <input type="number" id="quickPaymentAmount" min="0" step="0.01" max="${invoice.remainingAmount}" placeholder="0.00">
       </div>
       <div class="form-group">
+        <label>طريقة الدفع *</label>
+        ${paymentMethodPicker('quickPayMethod')}
+      </div>
+      <div class="form-group">
         <label>ملاحظات</label>
         <textarea id="quickPaymentNotes" placeholder="ملاحظات" style="min-height: 60px;"></textarea>
       </div>
@@ -4156,7 +4200,8 @@ ${this.canDiscount() ? `
       overlay.classList.remove('active');
     });
     
-    document.getElementById('saveQuickPaymentBtn')?.addEventListener('click', () => {
+    this.bindPayMethodPickers();
+    document.getElementById('saveQuickPaymentBtn')?.addEventListener('click', async (e) => {
       const amount = parseFloat(document.getElementById('quickPaymentAmount').value) || 0;
       
       if (!amount || amount <= 0) {
@@ -4164,29 +4209,60 @@ ${this.canDiscount() ? `
         return;
       }
 
-      if (amount > invoice.remainingAmount) {
+      if (amount > (parseFloat(invoice.remainingAmount) || 0) + 0.0001) {
         showToast('المبلغ أكبر من المتبقي', 'error');
         return;
       }
 
-      this.addRecord('supplier_payments', {
-        supplier_invoice_id: invoiceId,
-        payment_amount: amount,
-        payment_date: new Date().toISOString(),
-        notes: document.getElementById('quickPaymentNotes').value
-      }).then(() => {
-        // تحديث المبلغ المدفوع والمتبقي
-        const newPaidAmount = (invoice.paidAmount || 0) + amount;
-        const newRemainingAmount = invoice.totalAmount - newPaidAmount;
-        
-        this.updateRecord('supplier_invoices', invoiceId, {
-          paid_amount: newPaidAmount,
-          remaining_amount: newRemainingAmount
-        }).then(() => {
-          overlay.classList.remove('active');
-          this.switchView('supplierPayments');
-        });
-      });
+      e.currentTarget.disabled = true;
+      const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('quickPayMethod'), document.getElementById('quickPaymentNotes').value);
+      if (!ok) { e.currentTarget.disabled = false; return; }
+      overlay.classList.remove('active');
+      this.switchView('supplierPayments');
+    });
+  }
+
+  // حفظ دفعة مورد + تحديث رصيد فاتورة المورد (فقط إذا نجح حفظ الدفعة)
+  async saveSupplierPayment(invoice, amount, method, notes) {
+    const methodTag = `[طريقة الدفع: ${SUPPLIER_PAY_METHODS[method]}]`;
+    const cleanNotes = (notes || '').trim();
+    const colMissing = this.missingPayMethodCol === true;
+    const row = {
+      supplier_invoice_id: invoice.id,
+      payment_amount: amount,
+      payment_date: new Date().toISOString(),
+      notes: colMissing ? (methodTag + ' ' + cleanNotes).trim() : cleanNotes,
+    };
+    if (!colMissing) row.payment_method = method;
+
+    const ok = await this.addRecord('supplier_payments', row);
+    if (ok === false) return false;
+
+    // عمود payment_method غير موجود: نحفظ الطريقة داخل الملاحظات حتى لا تضيع
+    if (!colMissing && (this.lastDropped || []).includes('payment_method')) {
+      this.missingPayMethodCol = true;
+      const saved = [...this.supplierPayments]
+        .filter(p => p.supplierInvoiceId === invoice.id && Math.abs((parseFloat(p.paymentAmount) || 0) - amount) < 0.0001 && !supplierPaymentMethod(p))
+        .sort((a, b) => String(b.paymentDate || b.createdAt).localeCompare(String(a.paymentDate || a.createdAt)))[0];
+      if (saved && this.sb) {
+        await this.sb.from('supplier_payments').update({ notes: (methodTag + ' ' + cleanNotes).trim() }).eq('id', saved.id);
+      }
+    }
+
+    const paid = (parseFloat(invoice.paidAmount) || 0) + amount;
+    const total = parseFloat(invoice.totalAmount) || 0;
+    await this.updateRecord('supplier_invoices', invoice.id, {
+      paid_amount: paid,
+      remaining_amount: Math.max(0, Math.round((total - paid) * 1000) / 1000),
+    });
+    return true;
+  }
+
+  bindPayMethodPickers() {
+    document.querySelectorAll('.pay-methods').forEach(group => {
+      group.querySelectorAll('input[type="radio"]').forEach(r => r.addEventListener('change', () => {
+        group.querySelectorAll('.pay-method').forEach(l => l.classList.toggle('active', l.querySelector('input').checked));
+      }));
     });
   }
 
@@ -4942,7 +5018,7 @@ ${this.canDiscount() ? `
     const addBtn = document.getElementById('addPaymentBtn');
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
-      addBtn.addEventListener('click', () => {
+      addBtn.addEventListener('click', async () => {
         const invoiceId = document.getElementById('paymentInvoice').value;
         const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
         const notes = document.getElementById('paymentNotes').value;
@@ -4953,33 +5029,19 @@ ${this.canDiscount() ? `
           return;
         }
 
-        if (amount > invoice.remainingAmount) {
+        if (amount > (parseFloat(invoice.remainingAmount) || 0) + 0.0001) {
           showToast('المبلغ أكبر من المتبقي', 'error');
           return;
         }
 
-        this.addRecord('supplier_payments', {
-          supplier_invoice_id: invoiceId,
-          payment_amount: amount,
-          payment_date: new Date().toISOString(),
-          notes
-        }).then(() => {
-          // تحديث المبلغ المدفوع والمتبقي
-          const newPaidAmount = (invoice.paidAmount || 0) + amount;
-          const newRemainingAmount = invoice.totalAmount - newPaidAmount;
-          
-          this.updateRecord('supplier_invoices', invoiceId, {
-            paid_amount: newPaidAmount,
-            remaining_amount: newRemainingAmount
-          }).then(() => {
-            document.getElementById('paymentInvoice').value = '';
-            document.getElementById('paymentAmount').value = '';
-            document.getElementById('paymentNotes').value = '';
-            this.switchView('supplierPayments');
-          });
-        });
+        addBtn.disabled = true;
+        const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('payMethod'), notes);
+        addBtn.disabled = false;
+        if (!ok) return; // نُبقي البيانات في النموذج
+        this.switchView('supplierPayments');
       });
     }
+    this.bindPayMethodPickers();
   }
 
   bindDashboardEvents() {
@@ -5647,6 +5709,12 @@ ${this.canDiscount() ? `
 
   renderSupplierPaymentsView() {
     const filteredPayments = this.filterByDate(this.supplierPayments, 'paymentDate');
+    const byMethod = { cash: 0, card: 0, transfer: 0 };
+    filteredPayments.forEach(p => {
+      const m = supplierPaymentMethod(p);
+      if (m) byMethod[m] += parseFloat(p.paymentAmount) || 0;
+    });
+    const methodBadge = { cash: 'badge-success', card: 'badge-info', transfer: 'badge-warning' };
     
     return `
       ${this.renderDateFilterBar()}
@@ -5670,6 +5738,10 @@ ${this.canDiscount() ? `
             <input type="number" id="paymentAmount" min="0" step="0.01" placeholder="0.00">
           </div>
           <div class="form-group">
+            <label>طريقة الدفع *</label>
+            ${paymentMethodPicker('payMethod')}
+          </div>
+          <div class="form-group">
             <label>ملاحظات</label>
             <textarea id="paymentNotes" placeholder="ملاحظات" style="min-height: 60px;"></textarea>
           </div>
@@ -5680,12 +5752,18 @@ ${this.canDiscount() ? `
           <div class="card-head">
             <h3>سجل الدفعات (${filteredPayments.length})</h3>
           </div>
+          <div class="pay-totals">
+            ${Object.entries(SUPPLIER_PAY_METHODS).map(([k, label]) => `
+              <div class="pay-total"><span>${label}</span><b class="num">${fmtMoney(byMethod[k])}</b></div>
+            `).join('')}
+          </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>الفاتورة</th>
                   <th>المبلغ</th>
+                  <th>طريقة الدفع</th>
                   <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
@@ -5697,6 +5775,7 @@ ${this.canDiscount() ? `
                     <tr>
                       <td>${esc(invoice?.invoiceNumber || '-')}</td>
                       <td class="num">${fmtMoney(pay.paymentAmount)}</td>
+                      <td>${(() => { const m = supplierPaymentMethod(pay); return m ? `<span class="badge ${methodBadge[m]}">${SUPPLIER_PAY_METHODS[m]}</span>` : '<span style="color: var(--text-muted);">—</span>'; })()}</td>
                       <td>${fmtDate(pay.paymentDate)}</td>
                       <td>
                         <div class="action-cell">
@@ -5705,7 +5784,7 @@ ${this.canDiscount() ? `
                       </td>
                     </tr>
                   `;
-                }).join('') || '<tr><td colspan="4" class="text-center">لا توجد دفعات</td></tr>'}
+                }).join('') || '<tr><td colspan="5" class="text-center">لا توجد دفعات</td></tr>'}
               </tbody>
             </table>
           </div>
