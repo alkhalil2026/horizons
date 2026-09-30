@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.9.4 (cost price in inventory + tire cost/edit fixes) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.9.5 (removed import inventory page) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -2413,6 +2413,8 @@ class TireShopApp {
   }
 
   canView(view) {
+    // صفحات محذوفة من النظام
+    if (view === 'importInventory') return false;
     return this.isManager() || EMPLOYEE_VIEWS.includes(view);
   }
 
@@ -3758,7 +3760,6 @@ ${this.canDiscount() ? `
       ['reports', t('reports'), 'reports'],
       ['fixedExpenses', `💰 ${t('fixedExpenses')}`, 'fixedExpenses'],
       ['dailyExpenses', `💸 ${t('dailyExpenses')}`, 'dailyExpenses'],
-      ['importInventory', '📦 استيراج المخزون', 'importInventory'],
     ];
 
     if (this.currentUser.role === 'manager') {
@@ -3870,7 +3871,6 @@ ${this.canDiscount() ? `
       supplierInvoices: () => this.renderSupplierInvoicesView(),
       supplierPayments: () => this.renderSupplierPaymentsView(),
       supplierSummary: () => this.renderSupplierSummaryView(),
-      importInventory: () => this.renderImportInventoryView(),
       shopSettings: () => this.renderShopSettingsView(),
       newSale: () => this.renderNewSaleView(),
     };
