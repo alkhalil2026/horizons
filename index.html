@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.9.0 (full English translation) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.9.1 (service English name saving fix) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -2382,17 +2382,65 @@ class TireShopApp {
   }
 
   // أسماء الخدمات بالإنجليزي + الاسم التجاري بالإنجليزي
+  // الاسم الإنجليزي للخدمة: من عمود name_en، وإن لم يوجد العمود فمن الحفظ البديل
+  serviceNameEn(sv) {
+    if (!sv) return '';
+    const map = this.serviceEnMap || {};
+    return String(sv.name_en || map[sv.id] || '').trim();
+  }
+
+  loadServiceEnMap(fromDb) {
+    let map = {};
+    try { map = JSON.parse(localStorage.getItem('tireshop_service_en') || '{}') || {}; } catch (e) {}
+    if (fromDb) {
+      try { map = { ...map, ...(JSON.parse(fromDb) || {}) }; } catch (e) {}
+    }
+    this.serviceEnMap = map;
+  }
+
+  // حفظ بديل عند عدم وجود عمود name_en: في جدول settings، وإلا على هذا الجهاز
+  async saveServiceEnFallback(serviceId, nameEn) {
+    const map = { ...(this.serviceEnMap || {}) };
+    if (nameEn) map[serviceId] = nameEn; else delete map[serviceId];
+    this.serviceEnMap = map;
+    try { localStorage.setItem('tireshop_service_en', JSON.stringify(map)); } catch (e) {}
+    if (this.sb) {
+      const { error } = await this.sb.from('settings').upsert([{ key: 'serviceNamesEn', value: JSON.stringify(map) }], { onConflict: 'key' });
+      if (!error) return 'db';
+    }
+    return 'local';
+  }
+
+  // بعد حفظ خدمة: تأكد أن الاسم الإنجليزي حُفظ فعلاً وأخبر المستخدم أين
+  async afterServiceSaved(serviceId, nameEn) {
+    const columnMissing = (this.lastDropped || []).includes('name_en');
+    if (!serviceId) return;
+    if (columnMissing) {
+      const where = await this.saveServiceEnFallback(serviceId, nameEn);
+      if (nameEn) {
+        showToast(where === 'db'
+          ? 'تم حفظ الاسم الإنجليزي (في جدول الإعدادات)'
+          : 'تم حفظ الاسم الإنجليزي على هذا الجهاز فقط — أضف عمود name_en في Supabase ليظهر على كل الأجهزة', where === 'db' ? 'success' : 'warning');
+      }
+    } else if (this.serviceEnMap && this.serviceEnMap[serviceId]) {
+      // العمود موجود وحُفظ فيه: نحذف النسخة البديلة القديمة
+      await this.saveServiceEnFallback(serviceId, null);
+    }
+    this.rebuildDynamicDict();
+  }
+
   rebuildDynamicDict() {
     DYN_DICT = {};
     if (SHOP.nameEn) DYN_DICT[SHOP.name] = SHOP.nameEn;
     (this.services || []).forEach(sv => {
-      const en = (sv.name_en || '').trim();
+      const en = this.serviceNameEn(sv);
       if (sv.name && en) DYN_DICT[sv.name.trim()] = en;
     });
     resetTranslations();
   }
 
   async loadSettings() {
+    this.loadServiceEnMap();
     try {
       this.applySettings(JSON.parse(localStorage.getItem('tireshop_settings') || '{}'));
     } catch (e) {}
@@ -2407,6 +2455,7 @@ class TireShopApp {
       this.settingsInDb = true;
       const obj = {};
       (data || []).forEach(r => { obj[r.key] = r.value; });
+      this.loadServiceEnMap(obj.serviceNamesEn);
       this.applySettings(obj);
       localStorage.setItem('tireshop_settings', JSON.stringify(obj));
     } catch (e) {
@@ -2485,14 +2534,17 @@ class TireShopApp {
   // كتابة مرنة: تتجاوز الأعمدة غير الموجودة، وتحوّل null إلى نص فارغ إذا كان العمود لا يقبل الفراغ
   async writeWithRetry(dbData, doWrite) {
     const data = { ...dbData };
+    const dropped = [];
+    this.lastDropped = dropped;
     for (let attempt = 0; attempt < 8; attempt++) {
       const result = await doWrite(data);
       const error = result.error;
-      if (!error) return result;
+      if (!error) return { ...result, dropped };
       const msg = error.message || '';
       const missing = /'([^']+)' column/.exec(msg);
       if (missing && missing[1] in data) {
         console.warn(`⚠️ العمود "${missing[1]}" غير موجود في الجدول، تم تجاوزه`);
+        dropped.push(missing[1]);
         delete data[missing[1]];
         continue;
       }
@@ -4146,7 +4198,7 @@ ${this.canDiscount() ? `
       </div>
       <div class="form-group">
         <label>اسم الخدمة بالإنجليزي <span style="color: #999;">(اختياري)</span></label>
-        <input type="text" id="editServiceNameEn" value="${esc(service.name_en || '')}" placeholder="e.g. Wheel Balancing" dir="ltr">
+        <input type="text" id="editServiceNameEn" value="${esc(this.serviceNameEn(service))}" placeholder="e.g. Wheel Balancing" dir="ltr">
       </div>
       <div class="form-group">
         <label>السعر *</label>
@@ -4182,7 +4234,9 @@ ${this.canDiscount() ? `
       }
 
       const nameEn = document.getElementById('editServiceNameEn')?.value.trim() || null;
-      this.updateRecord('services', service.id, { name, name_en: nameEn, price }).then(() => {
+      this.updateRecord('services', service.id, { name, name_en: nameEn, price }).then(async (ok) => {
+        if (ok === false) return;
+        await this.afterServiceSaved(service.id, nameEn);
         overlay.classList.remove('active');
         this.switchView('services');
       });
@@ -4662,8 +4716,12 @@ ${this.canDiscount() ? `
         }
 
         const nameEn = document.getElementById('serviceNameEn')?.value.trim() || null;
-        this.addRecord('services', nameEn ? { name, name_en: nameEn, price } : { name, price }).then((ok) => {
+        this.addRecord('services', nameEn ? { name, name_en: nameEn, price } : { name, price }).then(async (ok) => {
           if (ok === false) return;
+          if (nameEn) {
+            const created = [...this.services].reverse().find(sv => sv.name === name) || this.services.find(sv => sv.name === name);
+            await this.afterServiceSaved(created?.id, nameEn);
+          }
           document.getElementById('serviceName').value = '';
           if (document.getElementById('serviceNameEn')) document.getElementById('serviceNameEn').value = '';
           document.getElementById('servicePrice').value = '';
@@ -5135,7 +5193,7 @@ ${this.canDiscount() ? `
               <tbody>
                 ${filteredServices.map(s => `
                   <tr>
-                    <td>${esc(s.name)}</td>
+                    <td>${esc(s.name)}${!isEn() && this.serviceNameEn(s) ? `<div class="text-xs" dir="ltr" style="text-align: right;">${esc(this.serviceNameEn(s))}</div>` : ''}</td>
                     <td class="num">${fmtMoney(parseFloat(s.price) || 0)}</td>
                     <td>${fmtDate(s.createdAt)}</td>
                     ${canEdit ? `<td>
