@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.9.2 (supplier payment method) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.9.3 (warranty 1/2/3/5 years) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1392,6 +1392,8 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 .pay-method.active span { border-color: var(--amber-500); background: var(--amber-100); }
 .pay-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
 .pay-total { background: var(--concrete-100); border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; }
+
+.warranty-grid .warranty-option[data-warranty="noWarranty"] { grid-column: 1 / -1; }
 </style>
 </head>
 <body>
@@ -1459,7 +1461,8 @@ function supplierPaymentMethod(pay) {
   return null;
 }
 
-const WARRANTY_MONTHS = { warranty3M: 3, warranty6M: 6, warranty12M: 12 };
+// الخيارات الحالية: سنة، سنتين، 3 سنوات، 5 سنوات (3 و 6 أشهر للفواتير القديمة فقط)
+const WARRANTY_MONTHS = { warranty3M: 3, warranty6M: 6, warranty12M: 12, warranty24M: 24, warranty36M: 36, warranty60M: 60 };
 
 // تاريخ انتهاء الضمان من تاريخ الفاتورة
 function warrantyEndDate(fromIso, warranty) {
@@ -1513,6 +1516,9 @@ const i18n = {
     warranty3M: 'ضمان 3 أشهر',
     warranty6M: 'ضمان 6 أشهر',
     warranty12M: 'ضمان سنة',
+    warranty24M: 'ضمان سنتين',
+    warranty36M: 'ضمان 3 سنوات',
+    warranty60M: 'ضمان 5 سنوات',
     saveSale: 'حفظ الفاتورة',
     sendWhatsapp: 'إرسال عن طريق واتساب',
     invoiceCreated: 'تم إنشاء الفاتورة',
@@ -1597,7 +1603,10 @@ const i18n = {
     noWarranty: 'No Warranty',
     warranty3M: '3 Months Warranty',
     warranty6M: '6 Months Warranty',
-    warranty12M: '12 Months Warranty',
+    warranty12M: '1-Year Warranty',
+    warranty24M: '2-Year Warranty',
+    warranty36M: '3-Year Warranty',
+    warranty60M: '5-Year Warranty',
     saveSale: 'Save Invoice',
     sendWhatsapp: 'Send via WhatsApp',
     invoiceCreated: 'Invoice Created',
@@ -1656,6 +1665,9 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "ضمان سنتين": "2-Year Warranty",
+  "ضمان 3 سنوات": "3-Year Warranty",
+  "ضمان 5 سنوات": "5-Year Warranty",
   "التالي ←": "Next →",
   "الآفاق المستقبلية المتميزة للإطارات": "Al Afaq Al Mustaqbaliya Al Mutamayiza Tires",
   "الآفاق المستقبلية المتميزة": "Al Afaq Al Mustaqbaliya Al Mutamayiza",
@@ -3469,7 +3481,7 @@ class TireShopApp {
     document.getElementById('previewInvoiceBtn')?.addEventListener('click', () => {
       this.printSaleInvoice({
         invoiceNumber: 'INV-تجريبية', customerName: 'عميل تجريبي', customerPhone: '9xxxxxxx',
-        createdAt: new Date().toISOString(), warranty: 'warranty6M', paymentMethod: 'cash',
+        createdAt: new Date().toISOString(), warranty: 'warranty12M', paymentMethod: 'cash',
         items: [{ description: 'مثال: إطار 205/55R16', quantity: 4, unitPrice: 30 }, { description: 'مثال: ترصيص', quantity: 4, unitPrice: 1 }],
         subtotal: 124, total: 124,
       });
@@ -3630,7 +3642,7 @@ class TireShopApp {
 
   renderWizardStep2() {
     const w = this.saleWizard;
-    const warranties = ['noWarranty', 'warranty3M', 'warranty6M', 'warranty12M'];
+    const warranties = ['noWarranty', 'warranty12M', 'warranty24M', 'warranty36M', 'warranty60M'];
     return `
       <div class="wizard-container wz-wide">
         ${this.wizardProgress(2)}
