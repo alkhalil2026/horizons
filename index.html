@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.8.0 (employee new-sale page) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.9.0 (full English translation) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1369,6 +1369,20 @@ table tbody tr:hover {
 .sale-done h2 { font-size: 24px; font-weight: 800; }
 .sale-done-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
 .sale-done-actions .btn { min-width: 150px; padding: 12px 18px; }
+
+/* ===== اتجاه اليسار لليمين عند الإنجليزية ===== */
+html[dir="ltr"] body { font-family: 'Almarai', 'Segoe UI', Arial, sans-serif; }
+html[dir="ltr"] th, html[dir="ltr"] td { text-align: left; }
+html[dir="ltr"] .side-link { text-align: left; }
+html[dir="ltr"] [style*="text-align: right"] { text-align: left !important; }
+html[dir="ltr"] [style*="border-right: 4px"] { border-right: none !important; border-left: 4px solid var(--info-blue) !important; }
+html[dir="ltr"] .emp-link-arrow { margin-right: 0; margin-left: auto; }
+html[dir="ltr"] .cart-line-total { text-align: right; }
+html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
+
+/* تنبيهات مكدسة فوق بعضها بدل التداخل */
+#toastWrap { position: fixed; bottom: 20px; right: 20px; z-index: 3000; display: flex; flex-direction: column-reverse; gap: 8px; align-items: flex-end; pointer-events: none; }
+#toastWrap .toast { position: static; pointer-events: auto; }
 </style>
 </head>
 <body>
@@ -1389,13 +1403,14 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const SHOP = {
   name: 'الآفاق المستقبلية المتميزة للإطارات',
+  nameEn: 'Al Afaq Al Mustaqbaliya Al Mutamayiza Tires',
   cr: '1554396',
   // القيم الافتراضية — تُعدّل من صفحة "إعدادات المحل" (المدير)
   phone: '99430175',
   instagram: 'Horizon_tire',
   email: 'shop@example.com'
 };
-const SHOP_EDITABLE_KEYS = ['phone', 'instagram'];
+const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn'];
 
 // ===== نوع الملف: 'manager' (ملف المدير) أو 'employee' (ملف الموظف employee.html) =====
 const APP_MODE = 'manager';
@@ -1596,6 +1611,507 @@ function t(key) {
   return i18n[currentLang]?.[key] || key;
 }
 
+// =====================================================================
+// الترجمة الشاملة للإنجليزية
+// كل نص يظهر على الشاشة (صفحات، نوافذ، تنبيهات) يُترجم تلقائياً عند اختيار EN
+// =====================================================================
+const UI_DICT = {
+  "→ رجوع": "← Back",
+  "التالي ←": "Next →",
+  "الآفاق المستقبلية المتميزة للإطارات": "Al Afaq Al Mustaqbaliya Al Mutamayiza Tires",
+  "الآفاق المستقبلية المتميزة": "Al Afaq Al Mustaqbaliya Al Mutamayiza",
+  "ورشتي": "Warshati",
+  "نظام إدارة محل الإطارات الشامل": "Complete Tire Shop Management System",
+  "نظام إدارة محل الإطارات v2.0": "Tire Shop Management System v2.0",
+  "نظام إدارة محل الإطارات": "Tire Shop Management System",
+  "غير متاح، الإعدادات محفوظة على هذا الجهاز فقط": "unavailable, settings are saved on this device only",
+  "غير موجود في الجدول، تم تجاوزه": "does not exist in the table, skipped",
+  "تعذّر الحفظ بعد عدة محاولات": "Could not save after several attempts",
+  "بيانات فارغة!": "Empty data!",
+  "هذه القيمة مسجلة مسبقاً (مكررة)": "This value already exists (duplicate)",
+  "خطأ في التحديث": "Update error",
+  "خطأ في قراءة الملف": "Error reading file",
+  "خطأ في": "Error in",
+  "خطأ": "Error",
+  "المدير": "Manager",
+  "الموظف": "Employee",
+  "مدير": "Manager",
+  "موظف": "Employee",
+  "بيانات خاطئة": "Wrong credentials",
+  "المخزون المتاح من هذا الإطار": "Available stock of this tire",
+  "المخزون المتاح": "Available stock",
+  "فقط": "only",
+  "الخصم — اختياري": "Discount — optional",
+  "الخصم أكبر من المجموع": "Discount is larger than the subtotal",
+  "أقصى نسبة خصم": "Maximum discount is",
+  "الخصم": "Discount",
+  "رقم السجل التجاري": "Commercial Registration No.",
+  "السجل التجاري": "Commercial Registration",
+  "تعديل الفاتورة رقم": "Editing invoice no.",
+  "فاتورة رقم": "Invoice No.",
+  "رقم الفاتورة": "Invoice No.",
+  "التاريخ والوقت": "Date & Time",
+  "التاريخ المضاف": "Date Added",
+  "التاريخ": "Date",
+  "العميل": "Customer",
+  "التفاصيل": "Details",
+  "المجموع النهائي": "Grand Total",
+  "من المجموع": "of the subtotal",
+  "المجموع": "Subtotal",
+  "الإجمالي": "Total",
+  "ر.ع": "OMR",
+  "طريقة الدفع": "Payment Method",
+  "ساري حتى": "valid until",
+  "ساري من": "Valid from",
+  "انستجرام": "Instagram",
+  "شكراً لتعاملك معنا": "Thank you for your business",
+  "السلة فارغة": "The cart is empty",
+  "لم تُحفظ الفاتورة": "Invoice was not saved",
+  "أعمدة غير موجودة في جدول": "Columns missing in table",
+  "ولم تُحفظ": "and were not saved",
+  "حُفظت الفاتورة لكن تعذّر تحديث مخزون": "Invoice saved but stock could not be updated for",
+  "تم تعديل الفاتورة": "Invoice updated",
+  "دخول الموظف": "Employee Login",
+  "دخول المدير": "Manager Login",
+  "أدخل المستخدم وكلمة المرور": "Enter username and password",
+  "أدخل المستخدم": "Enter username",
+  "المستخدم": "Username",
+  "أدخل كلمة المرور": "Enter password",
+  "كلمة المرور": "Password",
+  "تسجيل الدخول": "Log in",
+  "يومية": "Daily",
+  "ثابتة": "Fixed",
+  "إجمالي المبيعات": "Total Sales",
+  "عدد الفواتير": "Number of Invoices",
+  "متوسط الفاتورة": "Average Invoice",
+  "إجمالي المصروفات": "Total Expenses",
+  "فترة محددة": "Custom Period",
+  "مبيعات اليوم": "Today's Sales",
+  "مبيعات أمس": "Yesterday's Sales",
+  "مبيعات الأسبوع": "This Week's Sales",
+  "مبيعات الشهر": "This Month's Sales",
+  "صافي الربح اليومي": "Daily Net Profit",
+  "صافي الربح": "Net Profit",
+  "اليوم": "Today",
+  "أمس": "Yesterday",
+  "الأسبوع": "Week",
+  "الشهر": "Month",
+  "الكاش": "Cash",
+  "الفيزا": "Card",
+  "التحويل": "Transfer",
+  "كاش": "Cash",
+  "فيزا": "Card",
+  "تحويل": "Transfer",
+  "آخر الفواتير": "Latest Invoices",
+  "المبلغ الإجمالي": "Total Amount",
+  "المبلغ الكلي": "Total Amount",
+  "المبلغ أكبر من المتبقي": "Amount is larger than the remaining balance",
+  "المبلغ": "Amount",
+  "لا توجد فواتير": "No invoices",
+  "فاتورة جديدة": "New Invoice",
+  "فاتورة)": "invoices)",
+  "فاتورة": "Invoice",
+  "الفواتير": "Invoices",
+  "الإجراءات": "Actions",
+  "الإجراء": "Action",
+  "حفظ التعديلات": "Save Changes",
+  "حفظ وإرسال واتساب": "Save & Send WhatsApp",
+  "تعديل الإطار": "Edit Tire",
+  "تعديل الموعد": "Edit Appointment",
+  "تعديل": "Edit",
+  "طباعة الفاتورة": "Print Invoice",
+  "طباعة": "Print",
+  "واتس": "WhatsApp",
+  "هذه الصفحة للمدير فقط": "This page is for the manager only",
+  "بيانات تظهر في الفاتورة": "Details shown on the invoice",
+  "الاسم التجاري": "Trade Name",
+  "الاسم التجاري بالإنجليزي": "Trade Name (English)",
+  "رقم المحل": "Shop Phone",
+  "حساب انستجرام (بدون": "Instagram account (without",
+  "الإعدادات محفوظة في قاعدة البيانات وتظهر على كل الأجهزة": "Settings are saved in the database and appear on all devices",
+  "الإعدادات تُحفظ حالياً على هذا الجهاز فقط. لمشاركتها بين كل الأجهزة أنشئ جدول": "Settings are currently saved on this device only. To share them across devices, create the table",
+  "في Supabase": "in Supabase",
+  "معاينة فاتورة تجريبية": "Preview Sample Invoice",
+  "حفظ الدفعة": "Save Payment",
+  "حفظ": "Save",
+  "أدخل رقم المحل": "Enter the shop phone number",
+  "اسم انستجرام يحتوي على أحرف غير مسموحة": "Instagram name contains invalid characters",
+  "تم حفظ الإعدادات": "Settings saved",
+  "تم الحفظ على هذا الجهاز فقط": "Saved on this device only",
+  "تجريبية": "Sample",
+  "عميل تجريبي": "Sample Customer",
+  "مثال: إطار": "Example: Tire",
+  "مثال: ترصيص": "Example: Balancing",
+  "مثال: بنشر": "Example: Puncture repair",
+  "مثال: وقود، أدوات، إلخ": "Example: fuel, tools, etc.",
+  "مثال": "Example",
+  "تم حفظ الفاتورة": "Invoice saved",
+  "إرسال واتساب": "Send WhatsApp",
+  "عملية بيع جديدة": "New Sale",
+  "الأصناف": "Items",
+  "الدفع": "Payment",
+  "الفاتورة": "Invoice",
+  "صنف)": "items)",
+  "اضغط على خدمة أو إطار لإضافته": "Tap a service or tire to add it",
+  "المتوفر": "In stock",
+  "نفد المخزون": "Out of stock",
+  "لا توجد إطارات في المخزون": "No tires in stock",
+  "لا توجد خدمات. أضف خدمة من صفحة الخدمات أولاً": "No services. Add a service from the Services page first",
+  "لا توجد خدمات": "No services",
+  "لا توجد إطارات": "No tires",
+  "الخدمات": "Services",
+  "الإطارات": "Tires",
+  "ابحث بالماركة أو المقاس": "Search by brand or size",
+  "ابحث عن خدمة": "Search for a service",
+  "إلغاء التعديل؟ ستبقى الفاتورة كما كانت": "Cancel editing? The invoice will stay as it was",
+  "إلغاء الفاتورة وحذف الأصناف المختارة؟": "Cancel the invoice and remove the selected items?",
+  "إلغاء": "Cancel",
+  "التالي": "Next",
+  "الضمان والدفع": "Warranty & Payment",
+  "الضمان": "Warranty",
+  "رجوع": "Back",
+  "اكتب الاسم أو اختر عميلاً مسجلاً": "Type a name or choose a registered customer",
+  "استيراج المخزون": "Import Inventory",
+  "إعدادات المحل": "Shop Settings",
+  "تفتح في تبويب جديد": "Opens in a new tab",
+  "صفحة الموظف": "Employee Page",
+  "نسخ رابط صفحة الموظف": "Copy employee page link",
+  "تم نسخ رابط صفحة الموظف": "Employee page link copied",
+  "انسخ رابط صفحة الموظف": "Copy the employee page link",
+  "اسم العميل": "Customer Name",
+  "اسم الخدمة": "Service Name",
+  "اسم الخدمة بالإنجليزي": "Service Name (English)",
+  "اسم المورد": "Supplier Name",
+  "الاسم": "Name",
+  "رقم الهاتف": "Phone Number",
+  "الهاتف": "Phone",
+  "البريد الإلكتروني": "Email",
+  "العنوان الكامل": "Full address",
+  "العنوان": "Address",
+  "أدخل اسم العميل ورقم الهاتف": "Enter the customer name and phone number",
+  "أدخل اسم العميل": "Enter the customer name",
+  "أدخل الاسم": "Enter the name",
+  "فلتر حسب التاريخ": "Filter by Date",
+  "تاريخ محدد": "Specific Date",
+  "من التاريخ": "From Date",
+  "إلى التاريخ": "To Date",
+  "تطبيق الفلتر": "Apply Filter",
+  "تطبيق": "Apply",
+  "مسح": "Clear",
+  "الوصف": "Description",
+  "الكمية الإجمالية": "Total Quantity",
+  "الكمية": "Quantity",
+  "سعر التكلفة": "Cost Price",
+  "سعر البيع": "Selling Price",
+  "متوسط السعر": "Average Price",
+  "السعر": "Price",
+  "حتى": "until",
+  "المورد": "Supplier",
+  "المتبقي": "Remaining",
+  "متبقي": "Remaining",
+  "مبلغ الدفعة": "Payment Amount",
+  "ملاحظات": "Notes",
+  "إضافة دفعة": "Add Payment",
+  "أدخل المبلغ": "Enter the amount",
+  "أدخل البيانات المطلوبة": "Enter the required data",
+  "أدخل جميع البيانات المطلوبة": "Enter all required data",
+  "أدخل البيانات": "Enter the data",
+  "أدخل النوع والمبلغ": "Enter the type and amount",
+  "أدخل البيان والمبلغ": "Enter the description and amount",
+  "اختياري)": "optional)",
+  "اختياري": "optional",
+  "المقاس": "Size",
+  "البراند": "Brand",
+  "الماركة": "Brand",
+  "الموديل": "Model",
+  "اختر مورد": "Choose a supplier",
+  "اختر عميل": "Choose a customer",
+  "اختر خدمة": "Choose a service",
+  "اختر فاتورة": "Choose an invoice",
+  "اختر النوع": "Choose a type",
+  "اختر التاريخين": "Choose both dates",
+  "اختر ملف": "Choose File",
+  "اختر": "Choose",
+  "الخدمة": "Service",
+  "قيمة مكررة": "duplicate value",
+  "تم التحديث": "Updated",
+  "تم الحذف": "Deleted",
+  "حذف الخدمة؟": "Delete this service?",
+  "حذف العميل؟": "Delete this customer?",
+  "حذف الإطار؟": "Delete this tire?",
+  "حذف الموعد؟": "Delete this appointment?",
+  "حذف المورد؟": "Delete this supplier?",
+  "حذف الفاتورة؟ هذا الإجراء غير قابل للتراجع": "Delete this invoice? This cannot be undone",
+  "حذف الفاتورة؟": "Delete this invoice?",
+  "حذف الدفعة؟": "Delete this payment?",
+  "حذف المصروف الثابت؟": "Delete this fixed expense?",
+  "حذف المصروف اليومي؟": "Delete this daily expense?",
+  "حذف المصروفة؟": "Delete this expense?",
+  "هل تريد حذف هذه المصروفة؟": "Delete this expense?",
+  "حذف": "Delete",
+  "صيغة البريد الإلكتروني غير صحيحة (أو اتركه فارغاً)": "Invalid email format (or leave it empty)",
+  "إضافة مصروف ثابت": "Add Fixed Expense",
+  "إضافة مصروف يومي": "Add Daily Expense",
+  "إضافة": "Add",
+  "العملاء": "Customers",
+  "لا توجد عملاء": "No customers",
+  "حجز موعد": "Book Appointment",
+  "المواعيد المنتظرة": "Upcoming Appointments",
+  "المواعيد": "Appointments",
+  "الموعد": "Appointment",
+  "لا توجد مواعيد": "No appointments",
+  "ملخص المبيعات": "Sales Summary",
+  "إجمالي الفواتير": "Total Invoices",
+  "ملخص المخزون": "Inventory Summary",
+  "عدد الأنواع": "Number of Types",
+  "إجمالي الكمية": "Total Quantity",
+  "ملخص العملاء والخدمات": "Customers & Services Summary",
+  "إجمالي العملاء": "Total Customers",
+  "عدد الخدمات": "Number of Services",
+  "الموردين": "Suppliers",
+  "موردين": "Suppliers",
+  "لا توجد موردين": "No suppliers",
+  "صورة الفاتورة": "Invoice Image",
+  "المدفوع": "Paid",
+  "دفع": "Pay",
+  "سجل الدفعات": "Payment History",
+  "لا توجد دفعات": "No payments",
+  "إجمالي المبلغ": "Total Amount",
+  "عدد المصروفات": "Number of Expenses",
+  "وصف تفصيلي (اختياري)": "Detailed description (optional)",
+  "النوع": "Type",
+  "البيان": "Description",
+  "أخرى": "Other",
+  "لا توجد مصروفات ثابتة": "No fixed expenses",
+  "لا توجد مصروفات يومية": "No daily expenses",
+  "لا توجد مصروفات": "No expenses",
+  "الصورة": "Image",
+  "المصروفات اليومية": "Daily Expenses",
+  "المصروفات الثابتة": "Fixed Expenses",
+  "المبيعات": "Sales",
+  "المصروفات": "Expenses",
+  "نوع المصروفة": "Expense Type",
+  "مصروفة يومية": "Daily expense",
+  "مصروفة ثابتة": "Fixed expense",
+  "وصف المصروفة": "Expense description",
+  "الملف فارغ": "The file is empty",
+  "مكتبة": "Library",
+  "لم تُحمل. يرجى استخدام ملف": "did not load. Please use a",
+  "أو إعادة تحميل الصفحة": "file or reload the page",
+  "لم يتم العثور على بيانات صحيحة في الملف": "No valid data found in the file",
+  "تم تحميل": "Loaded",
+  "إطار من الملف": "tires from the file",
+  "يرجى تحميل ملف": "Please upload a",
+  "أولاً": "first",
+  "لا توجد بيانات للاستيراج": "No data to import",
+  "جاري الاستيراج": "Importing",
+  "تم استيراج": "Imported",
+  "إطار بنجاح!": "tires successfully!",
+  "فشل": "Failed",
+  "استيراج الإطارات من": "Import tires from",
+  "متطلبات الملف": "File requirements",
+  "الملف يجب أن يحتوي على الأعمدة": "The file must contain the columns",
+  "الأعمدة الاختيارية": "Optional columns",
+  "معاينة": "Preview",
+  "استيراج": "Import",
+  "البيانات التي ستُضاف": "Data to be added",
+  "إجمالي الإطارات": "Total Tires",
+  "قطعة": "pcs",
+  "من": "From",
+  "إلى": "To",
+  "في": "in",
+  "جدول": "Table",
+  "العمود": "Column",
+  "ماركة": "Brand",
+  "مقاس": "Size",
+  "كمية": "Quantity",
+  "سعر": "Price",
+  "تكلفة": "Cost",
+  "موديل": "Model",
+  "موديل الطراز": "Model",
+  "لوحة التحكم": "Dashboard",
+  "المخزون": "Inventory",
+  "التقارير": "Reports",
+  "الموظف —": "Employee —",
+  "فواتير الموردين": "Supplier Invoices",
+  "دفعات الموردين": "Supplier Payments",
+  "ملخص الموردين": "Supplier Summary",
+  "تسجيل الخروج": "Log out",
+  "نقداً": "Cash",
+  "بطاقة": "Card",
+  "شيك": "Cheque",
+  "تحويل بنكي": "Bank Transfer",
+  "بدون ضمان": "No Warranty",
+  "ضمان 3 أشهر": "3-Month Warranty",
+  "ضمان 6 أشهر": "6-Month Warranty",
+  "ضمان سنة": "1-Year Warranty",
+  "ضمان سنة كاملة": "1-Year Warranty",
+  "3 أشهر": "3 months",
+  "6 أشهر": "6 months",
+  "سنة كاملة": "Full year",
+  "اختر العدد": "Choose Quantity",
+  "بيانات العميل": "Customer Details",
+  "اسم العميل *": "Customer Name *",
+  "حفظ الفاتورة": "Save Invoice",
+  "فاتورة جديدة — اختر الخدمة": "New Invoice — Choose Service"
+};
+
+// أسماء الخدمات والمصروفات الشائعة (تُستخدم إذا لم يُحدَّد اسم إنجليزي للخدمة)
+const SERVICE_GLOSSARY = {
+  "ترصيص": "Wheel Balancing",
+  "ترصيص إطارات": "Wheel Balancing",
+  "وزن أذرعة": "Wheel Alignment",
+  "وزن الأذرعة": "Wheel Alignment",
+  "ميزان": "Wheel Alignment",
+  "ميزانية": "Wheel Alignment",
+  "ضبط الزوايا": "Wheel Alignment",
+  "بنشر": "Puncture Repair",
+  "رقعة": "Tire Patch",
+  "تبديل إطار": "Tire Change",
+  "تبديل إطارات": "Tire Change",
+  "تغيير إطار": "Tire Change",
+  "تركيب إطار": "Tire Fitting",
+  "تركيب إطارات": "Tire Fitting",
+  "فك وتركيب": "Removal & Fitting",
+  "نفخ": "Tire Inflation",
+  "نفخ إطارات": "Tire Inflation",
+  "تعبئة نيتروجين": "Nitrogen Filling",
+  "نيتروجين": "Nitrogen",
+  "تغيير زيت": "Oil Change",
+  "تبديل زيت": "Oil Change",
+  "غسيل": "Car Wash",
+  "فحص": "Inspection",
+  "فحص شامل": "Full Inspection",
+  "بطارية": "Battery",
+  "تبديل بطارية": "Battery Replacement",
+  "فرامل": "Brakes",
+  "تبديل فحمات": "Brake Pad Replacement",
+  "صمام": "Valve",
+  "تبديل صمام": "Valve Replacement",
+  "إيجار": "Rent",
+  "كهرباء": "Electricity",
+  "ماء": "Water",
+  "رواتب": "Salaries",
+  "راتب": "Salary",
+  "وقود": "Fuel",
+  "أدوات": "Tools",
+  "صيانة": "Maintenance",
+  "إنترنت": "Internet",
+  "اتصالات": "Telecom",
+  "نظافة": "Cleaning",
+  "ضيافة": "Hospitality",
+  "مواصلات": "Transport",
+  "ترخيص": "License",
+  "تأمين": "Insurance"
+};
+
+// قاموس ديناميكي: أسماء الخدمات بالإنجليزي من قاعدة البيانات + الاسم التجاري
+let DYN_DICT = {};
+let _trIndex = null;
+const AR_CHAR = /[\u0600-\u06FF]/;
+
+function isEn() {
+  return currentLang === 'en';
+}
+
+function resetTranslations() {
+  _trIndex = null;
+}
+
+function trIndex() {
+  if (_trIndex) return _trIndex;
+  const all = { ...SERVICE_GLOSSARY, ...UI_DICT, ...DYN_DICT };
+  const map = new Map(Object.entries(all).map(([k, v]) => [k.trim(), v]));
+  // العبارات القصيرة جداً (حرفان) تُترجم فقط إذا كانت النص كاملاً
+  const keys = [...map.keys()].filter(k => k.replace(/\s/g, '').length > 2).sort((a, b) => b.length - a.length);
+  const esc = k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = keys.length
+    ? new RegExp('(?<![\\u0621-\\u064A])(' + keys.map(esc).join('|') + ')(?![\\u0621-\\u064A])', 'g')
+    : null;
+  _trIndex = { map, re };
+  return _trIndex;
+}
+
+// ترجمة نص واحد (يحافظ على المسافات والرموز حوله)
+function tr(str) {
+  if (!isEn() || str == null) return str;
+  str = String(str);
+  if (!AR_CHAR.test(str)) return str;
+  const { map, re } = trIndex();
+  const lead = str.match(/^\s*/)[0], trail = str.match(/\s*$/)[0];
+  const core = str.trim();
+  if (map.has(core)) return lead + map.get(core) + trail;
+  // تطابق كامل مع علامة في النهاية مثل "الاسم:" أو "السعر *"
+  const m = core.match(/^(.*?)([\s:*؟?!.]+)$/);
+  if (m && map.has(m[1].trim())) return lead + map.get(m[1].trim()) + m[2].replace('؟', '?') + trail;
+  let out = re ? str.replace(re, k => map.get(k) ?? k) : str;
+  return out.replace(/،/g, ',').replace(/؟/g, '?');
+}
+
+// ترجمة HTML كنص (للطباعة)
+function trHtml(html) {
+  if (!isEn()) return html;
+  return html
+    .replace(/<html lang="ar" dir="rtl">/, '<html lang="en" dir="ltr">')
+    .replace(/>([^<]+)</g, (all, txt) => '>' + tr(txt) + '<');
+}
+
+const TR_ATTRS = ['placeholder', 'title', 'aria-label'];
+function translateDom(root) {
+  if (!isEn() || !root) return;
+  if (root.nodeType === 3) {
+    const v = tr(root.nodeValue);
+    if (v !== root.nodeValue) root.nodeValue = v;
+    return;
+  }
+  if (root.nodeType !== 1 || /^(SCRIPT|STYLE)$/.test(root.tagName)) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    acceptNode: n => {
+      if (n.nodeType === 1 && /^(SCRIPT|STYLE)$/.test(n.tagName)) return NodeFilter.FILTER_REJECT;
+      // لا نترجم ما يكتبه المستخدم داخل مربعات النص
+      if (n.nodeType === 3 && n.parentNode && n.parentNode.tagName === 'TEXTAREA') return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  let n = root;
+  do {
+    if (n.nodeType === 3) {
+      if (AR_CHAR.test(n.nodeValue)) {
+        const v = tr(n.nodeValue);
+        if (v !== n.nodeValue) n.nodeValue = v;
+      }
+    } else if (n.nodeType === 1) {
+      TR_ATTRS.forEach(a => {
+        const v = n.getAttribute(a);
+        if (v && AR_CHAR.test(v)) n.setAttribute(a, tr(v));
+      });
+    }
+  } while ((n = walker.nextNode()));
+}
+
+function applyLangDirection() {
+  const root = document.documentElement;
+  root.lang = isEn() ? 'en' : 'ar';
+  root.dir = isEn() ? 'ltr' : 'rtl';
+  const baseTitle = document.title.split(' | ')[0];
+  document.title = isEn() ? tr(baseTitle) : baseTitle;
+}
+
+// مراقبة أي محتوى جديد يظهر على الشاشة وترجمته فوراً
+(function setupAutoTranslate() {
+  const start = () => {
+    new MutationObserver(muts => {
+      if (!isEn()) return;
+      muts.forEach(m => m.addedNodes.forEach(node => translateDom(node)));
+    }).observe(document.body, { childList: true, subtree: true });
+  };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  ['confirm', 'alert', 'prompt'].forEach(fn => {
+    const orig = window[fn].bind(window);
+    window[fn] = (msg, ...rest) => orig(tr(msg), ...rest);
+  });
+})();
+
 const ICONS = {
   dashboard: '📊',
   tires: '🛞',
@@ -1654,7 +2170,7 @@ function fmtMoney(n) {
 function fmtDate(iso) {
   if (!iso) return '-';
   try {
-    return new Date(iso).toLocaleDateString('ar-OM', {
+    return new Date(iso).toLocaleDateString(currentLang === 'en' ? 'en-GB' : 'ar-OM', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -1799,6 +2315,7 @@ class TireShopApp {
   }
 
   async init() {
+    applyLangDirection();
     try {
       const saved = sessionStorage.getItem('tireshop_user');
       if (saved) {
@@ -1861,6 +2378,18 @@ class TireShopApp {
     SHOP_EDITABLE_KEYS.forEach(k => {
       if (obj && typeof obj[k] === 'string' && obj[k].trim()) SHOP[k] = obj[k].trim();
     });
+    this.rebuildDynamicDict();
+  }
+
+  // أسماء الخدمات بالإنجليزي + الاسم التجاري بالإنجليزي
+  rebuildDynamicDict() {
+    DYN_DICT = {};
+    if (SHOP.nameEn) DYN_DICT[SHOP.name] = SHOP.nameEn;
+    (this.services || []).forEach(sv => {
+      const en = (sv.name_en || '').trim();
+      if (sv.name && en) DYN_DICT[sv.name.trim()] = en;
+    });
+    resetTranslations();
   }
 
   async loadSettings() {
@@ -1945,6 +2474,7 @@ class TireShopApp {
         console.log(`✅ Loaded ${mapped.length} from ${table}`);
       });
       await this.loadSettings();
+      this.rebuildDynamicDict();
     } catch (e) {
       console.error('Data load error:', e);
     } finally {
@@ -2289,7 +2819,7 @@ class TireShopApp {
     msg += `\n📞 ${SHOP.phone}`;
     if (instagramHandle()) msg += `\n📷 انستجرام: @${instagramHandle()}`;
     msg += `\n\nشكراً لتعاملك معنا 🙏`;
-    return msg;
+    return tr(msg);
   }
 
   buildWizardInvoiceMessage(invoiceNumber) {
@@ -2806,6 +3336,10 @@ class TireShopApp {
           <input type="tel" id="settingPhone" value="${esc(SHOP.phone)}" placeholder="99430175" dir="ltr" style="text-align: right;">
         </div>
         <div class="form-group">
+          <label>🔤 الاسم التجاري بالإنجليزي</label>
+          <input type="text" id="settingNameEn" value="${esc(SHOP.nameEn || '')}" placeholder="Trade name in English" dir="ltr" style="text-align: right;">
+        </div>
+        <div class="form-group">
           <label>📷 حساب انستجرام (بدون @)</label>
           <input type="text" id="settingInstagram" value="${esc(instagramHandle())}" placeholder="Horizon_tire" dir="ltr" style="text-align: right;">
         </div>
@@ -2836,7 +3370,8 @@ class TireShopApp {
         showToast('اسم انستجرام يحتوي على أحرف غير مسموحة', 'error');
         return;
       }
-      const where = await this.saveSettings({ phone, instagram });
+      const nameEn = document.getElementById('settingNameEn').value.trim();
+      const where = await this.saveSettings({ phone, instagram, nameEn });
       showToast(where === 'db' ? 'تم حفظ الإعدادات' : 'تم الحفظ على هذا الجهاز فقط', where === 'db' ? 'success' : 'warning');
       this.switchView('shopSettings');
     });
@@ -3101,7 +3636,7 @@ ${this.canDiscount() ? `
   }
 
   renderShell() {
-    const initials = this.currentUser.name.trim().charAt(0);
+    const initials = tr(this.currentUser.name).trim().charAt(0);
     
     let navItems = [
       ['dashboard', t('dashboard'), 'dashboard'],
@@ -3496,7 +4031,7 @@ ${this.canDiscount() ? `
       </body>
       </html>
     `;
-    printWindow.document.write(content);
+    printWindow.document.write(trHtml(content));
     printWindow.document.close();
   }
 
@@ -3610,6 +4145,10 @@ ${this.canDiscount() ? `
         <input type="text" id="editServiceName" value="${esc(service.name)}">
       </div>
       <div class="form-group">
+        <label>اسم الخدمة بالإنجليزي <span style="color: #999;">(اختياري)</span></label>
+        <input type="text" id="editServiceNameEn" value="${esc(service.name_en || '')}" placeholder="e.g. Wheel Balancing" dir="ltr">
+      </div>
+      <div class="form-group">
         <label>السعر *</label>
         <input type="number" id="editServicePrice" step="0.01" value="${service.price}">
       </div>
@@ -3642,7 +4181,8 @@ ${this.canDiscount() ? `
         return;
       }
 
-      this.updateRecord('services', service.id, { name, price }).then(() => {
+      const nameEn = document.getElementById('editServiceNameEn')?.value.trim() || null;
+      this.updateRecord('services', service.id, { name, name_en: nameEn, price }).then(() => {
         overlay.classList.remove('active');
         this.switchView('services');
       });
@@ -3932,8 +4472,7 @@ ${this.canDiscount() ? `
     document.getElementById('langBtn')?.addEventListener('click', () => {
       currentLang = currentLang === 'ar' ? 'en' : 'ar';
       localStorage.setItem('tireshop_lang', currentLang);
-      document.getElementById('htmlRoot').lang = currentLang;
-      document.getElementById('htmlRoot').dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+      applyLangDirection();
       this.render();
     });
 
@@ -4122,8 +4661,11 @@ ${this.canDiscount() ? `
           return;
         }
 
-        this.addRecord('services', { name, price }).then(() => {
+        const nameEn = document.getElementById('serviceNameEn')?.value.trim() || null;
+        this.addRecord('services', nameEn ? { name, name_en: nameEn, price } : { name, price }).then((ok) => {
+          if (ok === false) return;
           document.getElementById('serviceName').value = '';
+          if (document.getElementById('serviceNameEn')) document.getElementById('serviceNameEn').value = '';
           document.getElementById('servicePrice').value = '';
           this.switchView('services');
         });
@@ -4564,6 +5106,10 @@ ${this.canDiscount() ? `
           <div class="form-group">
             <label>اسم الخدمة *</label>
             <input type="text" id="serviceName" placeholder="مثال: بنشر">
+          </div>
+          <div class="form-group">
+            <label>اسم الخدمة بالإنجليزي <span style="color: #999;">(اختياري)</span></label>
+            <input type="text" id="serviceNameEn" placeholder="e.g. Puncture Repair" dir="ltr">
           </div>
           <div class="form-group">
             <label>السعر *</label>
