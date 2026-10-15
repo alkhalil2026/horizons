@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.11.0 (company logo) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.12.0 (HR: attendance + annual leave) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1433,6 +1433,32 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 .logo-preview { width: 120px; height: 110px; border: 1px dashed var(--line); border-radius: 8px; display: flex; align-items: center; justify-content: center; background: #fff; padding: 8px; }
 .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .logo-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; flex: 1; min-width: 180px; }
+
+/* ===== الموارد البشرية ===== */
+.hr-tabs { margin-bottom: 16px; }
+.hr-tabs button { padding: 10px 18px; font-size: 14px; }
+.hr-count { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--brake-red); color: #fff; font-size: 12px; margin-inline-start: 4px; }
+.hr-date { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-family: inherit; }
+.sql-box { background: var(--asphalt-950); color: #e8e4da; padding: 14px; border-radius: 6px; font-size: 12px; max-height: 260px; overflow: auto; white-space: pre; text-align: left; margin-bottom: 10px; }
+.leave-req { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.leave-req .text-xs { margin-top: 3px; }
+.leave-req-actions { display: flex; gap: 6px; }
+.hr-me { display: flex; align-items: center; gap: 12px; padding: 14px 20px; }
+.hr-me select { flex: 1; max-width: 320px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; font-family: inherit; font-size: 15px; }
+.hr-clock-card { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.hr-clock { font-size: 48px; color: var(--text-900); }
+.hr-times { display: flex; gap: 24px; margin: 14px 0; }
+.hr-times div, .hr-bal div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hr-times span, .hr-bal span { font-size: 12px; color: var(--text-muted); font-weight: 700; }
+.hr-times b { font-size: 20px; }
+.hr-big { width: 100%; max-width: 320px; padding: 16px; font-size: 18px; font-weight: 800; }
+.hr-done { padding: 14px; background: var(--tread-green-bg); color: var(--tread-green); border-radius: 8px; font-weight: 800; width: 100%; max-width: 320px; }
+.hr-bal { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.hr-bal div { background: var(--concrete-100); border-radius: 6px; padding: 10px 4px; }
+.hr-bal b { font-size: 22px; }
+.hr-bal .hl { background: var(--tread-green-bg); }
+.hr-bal .hl b { color: var(--tread-green); }
+@media (max-width: 600px) { .hr-bal { grid-template-columns: repeat(2, 1fr); } .hr-clock { font-size: 40px; } }
 </style>
 </head>
 <body>
@@ -1475,7 +1501,7 @@ function shopMark() {
 const APP_MODE = 'manager';
 
 // الصفحات المسموحة للموظف (المدير يرى كل شيء)
-const EMPLOYEE_VIEWS = ['newSale', 'customers', 'appointments', 'tires', 'services', 'dailyExpenses'];
+const EMPLOYEE_VIEWS = ['newSale', 'myHR', 'customers', 'appointments', 'tires', 'services', 'dailyExpenses'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
 
@@ -1510,6 +1536,14 @@ function supplierPaymentMethod(pay) {
 }
 
 // الخيارات الحالية: سنة، سنتين، 3 سنوات، 5 سنوات (3 و 6 أشهر للفواتير القديمة فقط)
+// تاريخ محلي بصيغة YYYY-MM-DD (بدون تحويل للتوقيت العالمي)
+function localDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// أمر إنشاء جداول الموارد البشرية في Supabase
+const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);";
+
 const WARRANTY_MONTHS = { warranty3M: 3, warranty6M: 6, warranty12M: 12, warranty24M: 24, warranty36M: 36, warranty60M: 60 };
 
 // تاريخ انتهاء الضمان من تاريخ الفاتورة
@@ -1713,6 +1747,126 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "هذا السجل موجود مسبقاً (تم تسجيل حضور هذا اليوم)": "This record already exists (attendance already recorded for this day)",
+  "الحالة": "Status",
+  "الموارد البشرية": "Human Resources",
+  "🧑‍💼 الموارد البشرية": "🧑‍💼 Human Resources",
+  "الحضور والإجازات": "Attendance & Leave",
+  "🕘 الحضور والإجازات": "🕘 Attendance & Leave",
+  "الحضور والانصراف": "Attendance",
+  "الإجازات السنوية": "Annual Leave",
+  "قاعدة البيانات غير متاحة": "Database unavailable",
+  "جداول الموارد البشرية غير موجودة بعد في Supabase": "HR tables do not exist yet in Supabase",
+  "تعذّر الحفظ": "Could not save",
+  "⏳ بانتظار الموافقة": "⏳ Pending approval",
+  "بانتظار الموافقة": "Pending",
+  "✅ معتمدة": "✅ Approved",
+  "❌ مرفوضة": "❌ Rejected",
+  "قسم الحضور والإجازات غير مفعّل بعد. اطلب من المدير تفعيله.": "The attendance & leave section is not enabled yet. Ask the manager to enable it.",
+  "تفعيل قسم الموارد البشرية": "Enable the HR section",
+  "هذا القسم يحتاج ثلاثة جداول جديدة في Supabase. افتح": "This section needs three new tables in Supabase. Open",
+  "في Supabase والصق الأمر التالي ثم اضغط": "in Supabase, paste the command below and press",
+  "، وبعدها أعد تحميل الصفحة.": ", then reload the page.",
+  "نسخ الأمر": "Copy command",
+  "تم نسخ الأمر": "Command copied",
+  "انسخ الأمر:": "Copy the command:",
+  "الإجازات": "Leave",
+  "الموظفون": "Employees",
+  "غادر": "Left",
+  "حاضر": "Present",
+  "🌴 في إجازة": "🌴 On leave",
+  "في إجازة": "On leave",
+  "لم يسجّل": "Not checked in",
+  "🕘 حضور يوم": "🕘 Attendance for",
+  "حضور يوم": "Attendance for",
+  "📅 ملخص الشهر": "📅 Monthly Summary",
+  "ملخص الشهر": "Monthly Summary",
+  "الحضور": "Check-in",
+  "الانصراف": "Check-out",
+  "ساعات العمل": "Hours",
+  "أيام الحضور": "Days present",
+  "مجموع الساعات": "Total hours",
+  "متوسط اليوم": "Daily average",
+  "أيام بدون انصراف": "Days without check-out",
+  "لا يوجد موظفون. أضفهم من تبويب \"الموظفون\".": "No employees. Add them from the \"Employees\" tab.",
+  "يوم": "days",
+  "السبب": "Reason",
+  "الرصيد المتبقي": "Remaining balance",
+  "الطلب أكبر من الرصيد": "request exceeds balance",
+  "✅ موافقة": "✅ Approve",
+  "❌ رفض": "❌ Reject",
+  "➕ تسجيل إجازة": "➕ Record Leave",
+  "الموظف *": "Employee *",
+  "من *": "From *",
+  "إلى *": "To *",
+  "➕ تسجيل كإجازة معتمدة": "➕ Record as approved leave",
+  "أضف الموظفين أولاً.": "Add employees first.",
+  "⏳ طلبات بانتظار الموافقة": "⏳ Pending Requests",
+  "لا توجد طلبات جديدة": "No new requests",
+  "📋 سجل الإجازات": "📋 Leave History",
+  "الأيام": "Days",
+  "لا توجد إجازات": "No leave records",
+  "➕ إضافة موظف": "➕ Add Employee",
+  "الاسم *": "Name *",
+  "المسمى الوظيفي": "Job title",
+  "مثال: فني إطارات": "e.g. Tire technician",
+  "رصيد الإجازة السنوية (يوم)": "Annual leave entitlement (days)",
+  "👥 الموظفون": "👥 Employees",
+  "المسمى": "Title",
+  "رصيد الإجازة": "Entitlement",
+  "معلّق)": "pending)",
+  "نشط": "Active",
+  "موقوف": "Inactive",
+  "إيقاف": "Deactivate",
+  "تفعيل": "Activate",
+  "لا يوجد موظفون بعد": "No employees yet",
+  "الرصيد يُحسب للسنة الحالية. أيام الجمعة لا تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.": "Balances are for the current year. Fridays are not counted as leave days. Inactive employees keep their records but are hidden from attendance.",
+  "تعديل حضور": "Edit attendance",
+  "وقت الحضور": "Check-in time",
+  "وقت الانصراف": "Check-out time",
+  "حذف سجل هذا اليوم": "Delete this day's record",
+  "أدخل وقت الحضور": "Enter the check-in time",
+  "وقت الانصراف يجب أن يكون بعد الحضور": "Check-out must be after check-in",
+  "تم الحفظ": "Saved",
+  "يوم (بدون الجمع)": "days (Fridays excluded)",
+  "اختر تاريخ البداية والنهاية بشكل صحيح": "Choose valid start and end dates",
+  "توجد إجازة أخرى في نفس الفترة": "Another leave overlaps this period",
+  "تم تسجيل الإجازة": "Leave recorded",
+  "تمت الموافقة على الإجازة": "Leave approved",
+  "تم رفض الطلب": "Request rejected",
+  "رفض طلب الإجازة؟": "Reject this leave request?",
+  "حذف هذه الإجازة من السجل؟": "Delete this leave from the history?",
+  "أدخل اسم الموظف": "Enter the employee name",
+  "تمت إضافة الموظف": "Employee added",
+  "سيبقى سجلّه محفوظاً.": "Their records will be kept.",
+  "لم يُضف المدير أي موظف بعد.": "The manager has not added any employees yet.",
+  "👤 أنا:": "👤 I am:",
+  "— اختر اسمك —": "— Choose your name —",
+  "✅ تسجيل حضور": "✅ Check in",
+  "🚪 تسجيل انصراف": "🚪 Check out",
+  "✔️ أنهيت دوام اليوم": "✔️ Day completed",
+  "ساعة": "hours",
+  "🌴 لديك إجازة معتمدة اليوم": "🌴 You have approved leave today",
+  "🌴 رصيد الإجازة السنوية": "🌴 Annual Leave Balance",
+  "الرصيد": "Entitlement",
+  "📨 إرسال طلب إجازة": "📨 Send leave request",
+  "🕘 آخر أيام الدوام": "🕘 Recent Work Days",
+  "الساعات": "Hours",
+  "لا يوجد سجل بعد": "No records yet",
+  "📋 طلبات إجازتي": "📋 My Leave Requests",
+  "لا توجد طلبات": "No requests",
+  "سجّلت حضورك اليوم مسبقاً": "You already checked in today",
+  "تم تسجيل حضورك": "Checked in at",
+  "تسجيل الانصراف الآن؟": "Check out now?",
+  "تم تسجيل انصرافك": "Checked out at",
+  "لا يمكن طلب إجازة بتاريخ سابق": "Leave cannot start in the past",
+  "لديك طلب آخر في نفس الفترة": "You have another request in this period",
+  "الطلب": "Request",
+  "يوم) أكبر من رصيدك المتاح": "days) exceeds your available balance",
+  "يوم)": "days)",
+  "تم إرسال طلب الإجازة للمدير": "Leave request sent to the manager",
+  "إلغاء طلب الإجازة؟": "Cancel this leave request?",
+  "تم إلغاء الطلب": "Request cancelled",
   "شعار المحل": "Shop Logo",
   "رفع شعار جديد": "Upload new logo",
   "استعادة الشعار الأصلي": "Restore original logo",
@@ -2260,6 +2414,7 @@ function applyLangDirection() {
 })();
 
 const ICONS = {
+  hr: '🧑‍💼',
   dashboard: '📊',
   tires: '🛞',
   services: '🔧',
@@ -2525,6 +2680,653 @@ class TireShopApp {
     return this.isManager() ? 'dashboard' : EMPLOYEE_VIEWS[0];
   }
 
+  // =====================================================================
+  // الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات السنوية
+  // الجداول: hr_employees, hr_attendance, hr_leaves
+  // =====================================================================
+
+  async loadHR() {
+    this.hrEmployees = this.hrEmployees || [];
+    this.hrAttendance = this.hrAttendance || [];
+    this.hrLeaves = this.hrLeaves || [];
+    this.hrMissing = false;
+    if (!this.sb) return;
+    const tables = { hr_employees: 'hrEmployees', hr_attendance: 'hrAttendance', hr_leaves: 'hrLeaves' };
+    const res = await Promise.all(Object.keys(tables).map(tb => this.sb.from(tb).select('*')));
+    Object.keys(tables).forEach((tb, i) => {
+      const { data, error } = res[i];
+      if (error) {
+        console.warn(`⚠️ جدول ${tb} غير متاح:`, error.message);
+        this.hrMissing = true;
+        return;
+      }
+      this[tables[tb]] = data || [];
+    });
+  }
+
+  // كتابة مباشرة على جداول الموارد البشرية ثم إعادة تحميلها فقط
+  async hrWrite(table, op, data, id) {
+    if (!this.sb) {
+      showToast('قاعدة البيانات غير متاحة', 'error');
+      return false;
+    }
+    let q = this.sb.from(table);
+    q = op === 'insert' ? q.insert([data]) : op === 'update' ? q.update(data).eq('id', id) : q.delete().eq('id', id);
+    const { error } = await q;
+    if (error) {
+      console.error(`HR ${op} ${table}:`, error);
+      const missing = /schema cache|does not exist/.test(error.message || '');
+      const dup = error.code === '23505';
+      showToast(missing ? 'جداول الموارد البشرية غير موجودة بعد في Supabase'
+        : dup ? 'هذا السجل موجود مسبقاً (تم تسجيل حضور هذا اليوم)'
+        : 'تعذّر الحفظ: ' + (error.message || ''), 'error');
+      return false;
+    }
+    await this.loadHR();
+    return true;
+  }
+
+  hrToday() {
+    return localDateStr(new Date());
+  }
+
+  hrActiveEmployees() {
+    return (this.hrEmployees || []).filter(e => e.active !== false).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+  }
+
+  hrEmpName(id) {
+    return (this.hrEmployees || []).find(e => e.id === id)?.name || '—';
+  }
+
+  hrRecord(empId, date) {
+    return (this.hrAttendance || []).find(a => a.employee_id === empId && a.work_date === date);
+  }
+
+  hrHours(rec) {
+    if (!rec || !rec.check_in || !rec.check_out) return null;
+    const h = (new Date(rec.check_out) - new Date(rec.check_in)) / 3600000;
+    return h > 0 ? h : null;
+  }
+
+  fmtHours(h) {
+    if (h == null) return '—';
+    const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+    return `${hh}:${String(mm).padStart(2, '0')}`;
+  }
+
+  fmtTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d) ? '—' : d.toLocaleTimeString(currentLang === 'en' ? 'en-GB' : 'ar-OM', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // أيام الإجازة: من تاريخ إلى تاريخ شاملة، بدون أيام الجمعة
+  leaveDays(start, end) {
+    if (!start || !end) return 0;
+    const a = new Date(start + 'T00:00:00'), b = new Date(end + 'T00:00:00');
+    if (isNaN(a) || isNaN(b) || b < a) return 0;
+    let n = 0;
+    for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== 5) n++;
+    }
+    return n;
+  }
+
+  // رصيد الإجازات للسنة الحالية
+  leaveBalance(emp) {
+    const year = String(new Date().getFullYear());
+    const mine = (this.hrLeaves || []).filter(l => l.employee_id === emp.id && String(l.start_date || '').startsWith(year));
+    const sum = st => mine.filter(l => l.status === st).reduce((s, l) => s + (parseFloat(l.days) || 0), 0);
+    const entitled = parseFloat(emp.annual_leave_days ?? 30) || 0;
+    const used = sum('approved');
+    const pending = sum('pending');
+    return { entitled, used, pending, remaining: entitled - used };
+  }
+
+  // هل الموظف في إجازة معتمدة في هذا التاريخ؟
+  onLeave(empId, date) {
+    return (this.hrLeaves || []).some(l => l.employee_id === empId && l.status === 'approved' && l.start_date <= date && l.end_date >= date);
+  }
+
+  leaveOverlaps(empId, start, end, exceptId) {
+    return (this.hrLeaves || []).some(l => l.id !== exceptId && l.employee_id === empId && l.status !== 'rejected' && l.start_date <= end && l.end_date >= start);
+  }
+
+  leaveStatusBadge(st) {
+    return {
+      pending: '<span class="badge badge-warning">⏳ بانتظار الموافقة</span>',
+      approved: '<span class="badge badge-success">✅ معتمدة</span>',
+      rejected: '<span class="badge badge-danger">❌ مرفوضة</span>',
+    }[st] || '';
+  }
+
+  hrSetupNotice() {
+    if (!this.isManager()) {
+      return '<div class="card"><p class="text-center" style="padding: 30px;">قسم الحضور والإجازات غير مفعّل بعد. اطلب من المدير تفعيله.</p></div>';
+    }
+    return `
+      <div class="card">
+        <div class="card-head"><h3>⚙️ تفعيل قسم الموارد البشرية</h3></div>
+        <p style="margin-bottom: 12px;">هذا القسم يحتاج ثلاثة جداول جديدة في Supabase. افتح <b>SQL Editor</b> في Supabase والصق الأمر التالي ثم اضغط <b>Run</b>، وبعدها أعد تحميل الصفحة.</p>
+        <pre class="sql-box" dir="ltr">${esc(HR_SETUP_SQL)}</pre>
+        <button class="btn btn-ghost btn-sm" id="copyHrSqlBtn">📋 نسخ الأمر</button>
+      </div>
+    `;
+  }
+
+  hrModal(title, body, onSave, saveLabel = 'حفظ') {
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>${title}</h3>
+        <button class="modal-close" id="hrModalClose">✕</button>
+      </div>
+      <div>${body}</div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="hrModalCancel">إلغاء</button>
+        <button class="btn btn-amber" id="hrModalSave">${saveLabel}</button>
+      </div>
+    `;
+    overlay.classList.add('active');
+    const close = () => overlay.classList.remove('active');
+    document.getElementById('hrModalClose').onclick = close;
+    document.getElementById('hrModalCancel').onclick = close;
+    const saveBtn = document.getElementById('hrModalSave');
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      const ok = await onSave();
+      if (ok) close(); else saveBtn.disabled = false;
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // صفحة المدير
+  // ---------------------------------------------------------------------
+  renderHRView() {
+    if (this.hrMissing) return this.hrSetupNotice();
+    const tab = this.hrTab || 'attendance';
+    const pendingCount = (this.hrLeaves || []).filter(l => l.status === 'pending').length;
+    const body = tab === 'leaves' ? this.renderHRLeaves() : tab === 'employees' ? this.renderHREmployees() : this.renderHRAttendance();
+    return `
+      <div class="seg hr-tabs">
+        <button class="${tab === 'attendance' ? 'active' : ''}" data-hr-tab="attendance">🕘 الحضور والانصراف</button>
+        <button class="${tab === 'leaves' ? 'active' : ''}" data-hr-tab="leaves">🌴 الإجازات ${pendingCount ? `<span class="hr-count">${pendingCount}</span>` : ''}</button>
+        <button class="${tab === 'employees' ? 'active' : ''}" data-hr-tab="employees">👥 الموظفون</button>
+      </div>
+      ${body}
+    `;
+  }
+
+  renderHRAttendance() {
+    const date = this.hrDate || this.hrToday();
+    const emps = this.hrActiveEmployees();
+    const month = this.hrMonth || this.hrToday().slice(0, 7);
+
+    const rows = emps.map(e => {
+      const r = this.hrRecord(e.id, date);
+      const leave = this.onLeave(e.id, date);
+      const status = r?.check_out ? '<span class="badge badge-info">غادر</span>'
+        : r?.check_in ? '<span class="badge badge-success">حاضر</span>'
+        : leave ? '<span class="badge badge-warning">🌴 في إجازة</span>'
+        : '<span class="badge badge-danger">لم يسجّل</span>';
+      return `
+        <tr>
+          <td style="font-weight: 700;">${esc(e.name)}</td>
+          <td>${status}</td>
+          <td class="num">${this.fmtTime(r?.check_in)}</td>
+          <td class="num">${this.fmtTime(r?.check_out)}</td>
+          <td class="num">${this.fmtHours(this.hrHours(r))}</td>
+          <td>${esc(r?.notes || '')}</td>
+          <td><button class="btn btn-xs btn-blue" data-hr-edit-att="${e.id}">✏️ تعديل</button></td>
+        </tr>`;
+    }).join('');
+
+    // ملخص الشهر
+    const summary = emps.map(e => {
+      const recs = (this.hrAttendance || []).filter(a => a.employee_id === e.id && String(a.work_date).startsWith(month));
+      const days = recs.filter(a => a.check_in).length;
+      const hours = recs.reduce((s, a) => s + (this.hrHours(a) || 0), 0);
+      const openDays = recs.filter(a => a.check_in && !a.check_out).length;
+      return `
+        <tr>
+          <td style="font-weight: 700;">${esc(e.name)}</td>
+          <td class="num">${days}</td>
+          <td class="num">${this.fmtHours(hours)}</td>
+          <td class="num">${days ? this.fmtHours(hours / Math.max(1, days - openDays)) : '—'}</td>
+          <td class="num">${openDays ? `<span style="color: var(--brake-red);">${openDays}</span>` : '0'}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <div class="card">
+        <div class="card-head rep-head">
+          <h3>🕘 حضور يوم</h3>
+          <input type="date" id="hrDateInput" value="${date}" class="hr-date">
+        </div>
+        ${emps.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>الموظف</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>ساعات العمل</th><th>ملاحظات</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>` : '<p class="text-center" style="padding: 24px;">لا يوجد موظفون. أضفهم من تبويب "الموظفون".</p>'}
+      </div>
+
+      ${emps.length ? `
+      <div class="card">
+        <div class="card-head rep-head">
+          <h3>📅 ملخص الشهر</h3>
+          <input type="month" id="hrMonthInput" value="${month}" class="hr-date">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>الموظف</th><th>أيام الحضور</th><th>مجموع الساعات</th><th>متوسط اليوم</th><th>أيام بدون انصراف</th></tr></thead>
+            <tbody>${summary}</tbody>
+          </table>
+        </div>
+      </div>` : ''}
+    `;
+  }
+
+  renderHRLeaves() {
+    const emps = this.hrActiveEmployees();
+    const leaves = [...(this.hrLeaves || [])].sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)));
+    const pending = leaves.filter(l => l.status === 'pending');
+    const others = leaves.filter(l => l.status !== 'pending');
+
+    const card = l => {
+      const emp = (this.hrEmployees || []).find(e => e.id === l.employee_id);
+      const bal = emp ? this.leaveBalance(emp) : null;
+      const over = bal && (parseFloat(l.days) || 0) > bal.remaining;
+      return `
+        <div class="leave-req">
+          <div>
+            <div style="font-weight: 800;">${esc(this.hrEmpName(l.employee_id))}</div>
+            <div class="text-xs">من <span class="num">${fmtDate(l.start_date)}</span> إلى <span class="num">${fmtDate(l.end_date)}</span> — <b class="num">${l.days}</b> يوم</div>
+            ${l.reason ? `<div class="text-xs">السبب: ${esc(l.reason)}</div>` : ''}
+            ${bal ? `<div class="text-xs" style="${over ? 'color: var(--brake-red); font-weight: 700;' : ''}">الرصيد المتبقي: <span class="num">${+bal.remaining.toFixed(1)}</span> يوم${over ? ' — الطلب أكبر من الرصيد' : ''}</div>` : ''}
+          </div>
+          <div class="leave-req-actions">
+            <button class="btn btn-green btn-sm" data-hr-approve="${l.id}">✅ موافقة</button>
+            <button class="btn btn-danger btn-sm" data-hr-reject="${l.id}">❌ رفض</button>
+          </div>
+        </div>`;
+    };
+
+    return `
+      <div class="grid-2 inv-grid">
+        <div class="card">
+          <div class="card-head"><h3>➕ تسجيل إجازة</h3></div>
+          ${emps.length ? `
+          <div class="form-group">
+            <label>الموظف *</label>
+            <select id="hrLeaveEmp">${emps.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>من *</label><input type="date" id="hrLeaveFrom"></div>
+            <div class="form-group"><label>إلى *</label><input type="date" id="hrLeaveTo"></div>
+          </div>
+          <div class="text-xs" id="hrLeaveDaysHint" style="margin-bottom: 10px;"></div>
+          <div class="form-group"><label>السبب</label><input type="text" id="hrLeaveReason" placeholder="اختياري"></div>
+          <button class="btn btn-amber btn-block" id="hrAddLeaveBtn">➕ تسجيل كإجازة معتمدة</button>
+          ` : '<p class="text-center" style="padding: 20px;">أضف الموظفين أولاً.</p>'}
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-head"><h3>⏳ طلبات بانتظار الموافقة (${pending.length})</h3></div>
+            ${pending.map(card).join('') || '<p class="text-center" style="padding: 16px; color: var(--text-muted);">لا توجد طلبات جديدة</p>'}
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>📋 سجل الإجازات</h3></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>الموظف</th><th>من</th><th>إلى</th><th>الأيام</th><th>الحالة</th><th></th></tr></thead>
+                <tbody>
+                  ${others.map(l => `
+                    <tr>
+                      <td>${esc(this.hrEmpName(l.employee_id))}</td>
+                      <td class="num">${fmtDate(l.start_date)}</td>
+                      <td class="num">${fmtDate(l.end_date)}</td>
+                      <td class="num">${l.days}</td>
+                      <td>${this.leaveStatusBadge(l.status)}</td>
+                      <td><button class="btn btn-xs btn-danger" data-hr-del-leave="${l.id}">🗑️</button></td>
+                    </tr>`).join('') || '<tr><td colspan="6" class="text-center">لا توجد إجازات</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderHREmployees() {
+    const all = [...(this.hrEmployees || [])].sort((a, b) => (b.active !== false) - (a.active !== false) || String(a.name).localeCompare(String(b.name), 'ar'));
+    return `
+      <div class="grid-2 inv-grid">
+        <div class="card">
+          <div class="card-head"><h3>➕ إضافة موظف</h3></div>
+          <div class="form-group"><label>الاسم *</label><input type="text" id="hrEmpName"></div>
+          <div class="form-group"><label>المسمى الوظيفي</label><input type="text" id="hrEmpTitle" placeholder="مثال: فني إطارات"></div>
+          <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="hrEmpPhone"></div>
+          <div class="form-group"><label>رصيد الإجازة السنوية (يوم)</label><input type="number" id="hrEmpLeave" min="0" value="30"></div>
+          <button class="btn btn-amber btn-block" id="hrAddEmpBtn">➕ إضافة</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>👥 الموظفون (${all.length})</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>الاسم</th><th>المسمى</th><th>الهاتف</th><th>رصيد الإجازة</th><th>المستخدم</th><th>المتبقي</th><th>الحالة</th><th></th></tr></thead>
+              <tbody>
+                ${all.map(e => {
+                  const b = this.leaveBalance(e);
+                  const active = e.active !== false;
+                  return `
+                  <tr style="${active ? '' : 'opacity: 0.55;'}">
+                    <td style="font-weight: 700;">${esc(e.name)}</td>
+                    <td>${esc(e.job_title || '—')}</td>
+                    <td class="num" dir="ltr">${esc(e.phone || '—')}</td>
+                    <td class="num">${b.entitled}</td>
+                    <td class="num">${+b.used.toFixed(1)}${b.pending ? ` <span class="text-xs">(+${b.pending} معلّق)</span>` : ''}</td>
+                    <td class="num" style="font-weight: 800; color: ${b.remaining < 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${+b.remaining.toFixed(1)}</td>
+                    <td>${active ? '<span class="badge badge-success">نشط</span>' : '<span class="badge">موقوف</span>'}</td>
+                    <td><div class="action-cell">
+                      <button class="btn btn-xs btn-blue" data-hr-edit-emp="${e.id}">✏️</button>
+                      <button class="btn btn-xs btn-ghost" data-hr-toggle-emp="${e.id}" title="${active ? 'إيقاف' : 'تفعيل'}">${active ? '⏸️' : '▶️'}</button>
+                    </div></td>
+                  </tr>`;
+                }).join('') || '<tr><td colspan="8" class="text-center">لا يوجد موظفون بعد</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          <p class="text-xs" style="margin-top: 10px;">الرصيد يُحسب للسنة الحالية. أيام الجمعة لا تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  bindHREvents() {
+    document.getElementById('copyHrSqlBtn')?.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(HR_SETUP_SQL); showToast('تم نسخ الأمر', 'success'); }
+      catch (e) { prompt('انسخ الأمر:', HR_SETUP_SQL); }
+    });
+    if (this.hrMissing) return;
+    const root = document.getElementById('content');
+    const rerender = () => this.switchView('hr');
+
+    root.querySelectorAll('[data-hr-tab]').forEach(b => b.addEventListener('click', () => { this.hrTab = b.dataset.hrTab; rerender(); }));
+    document.getElementById('hrDateInput')?.addEventListener('change', e => { this.hrDate = e.target.value || this.hrToday(); rerender(); });
+    document.getElementById('hrMonthInput')?.addEventListener('change', e => { this.hrMonth = e.target.value || this.hrToday().slice(0, 7); rerender(); });
+
+    // تعديل حضور يوم
+    root.querySelectorAll('[data-hr-edit-att]').forEach(b => b.addEventListener('click', () => {
+      const empId = b.dataset.hrEditAtt;
+      const date = this.hrDate || this.hrToday();
+      const r = this.hrRecord(empId, date);
+      const hm = iso => { if (!iso) return ''; const d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+      this.hrModal(`تعديل حضور: ${esc(this.hrEmpName(empId))} — ${fmtDate(date)}`, `
+        <div class="form-row">
+          <div class="form-group"><label>وقت الحضور</label><input type="time" id="hrEditIn" value="${hm(r?.check_in)}"></div>
+          <div class="form-group"><label>وقت الانصراف</label><input type="time" id="hrEditOut" value="${hm(r?.check_out)}"></div>
+        </div>
+        <div class="form-group"><label>ملاحظات</label><input type="text" id="hrEditNotes" value="${esc(r?.notes || '')}"></div>
+        ${r ? '<label class="text-xs"><input type="checkbox" id="hrEditDelete"> حذف سجل هذا اليوم</label>' : ''}
+      `, async () => {
+        if (document.getElementById('hrEditDelete')?.checked) return this.hrWrite('hr_attendance', 'delete', null, r.id).then(ok => { if (ok) rerender(); return ok; });
+        const tIn = document.getElementById('hrEditIn').value, tOut = document.getElementById('hrEditOut').value;
+        if (!tIn) { showToast('أدخل وقت الحضور', 'error'); return false; }
+        const toIso = t => t ? new Date(`${date}T${t}:00`).toISOString() : null;
+        if (tOut && tOut <= tIn) { showToast('وقت الانصراف يجب أن يكون بعد الحضور', 'error'); return false; }
+        const data = { employee_id: empId, work_date: date, check_in: toIso(tIn), check_out: toIso(tOut), notes: document.getElementById('hrEditNotes').value.trim() || null };
+        const ok = r ? await this.hrWrite('hr_attendance', 'update', data, r.id) : await this.hrWrite('hr_attendance', 'insert', data);
+        if (ok) { showToast('تم الحفظ', 'success'); rerender(); }
+        return ok;
+      });
+    }));
+
+    // الإجازات
+    const fromI = document.getElementById('hrLeaveFrom'), toI = document.getElementById('hrLeaveTo');
+    const hint = () => {
+      const h = document.getElementById('hrLeaveDaysHint');
+      if (!h) return;
+      const n = this.leaveDays(fromI.value, toI.value);
+      const emp = this.hrEmployees.find(e => e.id === document.getElementById('hrLeaveEmp').value);
+      const bal = emp ? this.leaveBalance(emp) : null;
+      h.textContent = n ? `${n} يوم (بدون الجمع)${bal ? ` — الرصيد المتبقي ${+bal.remaining.toFixed(1)} يوم` : ''}` : '';
+    };
+    [fromI, toI, document.getElementById('hrLeaveEmp')].forEach(el => el?.addEventListener('change', hint));
+    document.getElementById('hrAddLeaveBtn')?.addEventListener('click', async () => {
+      const empId = document.getElementById('hrLeaveEmp').value;
+      const start = fromI.value, end = toI.value;
+      const days = this.leaveDays(start, end);
+      if (!start || !end || !days) { showToast('اختر تاريخ البداية والنهاية بشكل صحيح', 'error'); return; }
+      if (this.leaveOverlaps(empId, start, end)) { showToast('توجد إجازة أخرى في نفس الفترة', 'error'); return; }
+      const ok = await this.hrWrite('hr_leaves', 'insert', { employee_id: empId, start_date: start, end_date: end, days, reason: document.getElementById('hrLeaveReason').value.trim() || null, status: 'approved', decided_at: new Date().toISOString() });
+      if (ok) { showToast('تم تسجيل الإجازة', 'success'); rerender(); }
+    });
+    const decide = async (id, status) => {
+      const ok = await this.hrWrite('hr_leaves', 'update', { status, decided_at: new Date().toISOString() }, id);
+      if (ok) { showToast(status === 'approved' ? 'تمت الموافقة على الإجازة' : 'تم رفض الطلب', 'success'); rerender(); }
+    };
+    root.querySelectorAll('[data-hr-approve]').forEach(b => b.addEventListener('click', () => decide(b.dataset.hrApprove, 'approved')));
+    root.querySelectorAll('[data-hr-reject]').forEach(b => b.addEventListener('click', () => { if (confirm('رفض طلب الإجازة؟')) decide(b.dataset.hrReject, 'rejected'); }));
+    root.querySelectorAll('[data-hr-del-leave]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('حذف هذه الإجازة من السجل؟')) return;
+      if (await this.hrWrite('hr_leaves', 'delete', null, b.dataset.hrDelLeave)) { showToast('تم الحذف', 'success'); rerender(); }
+    }));
+
+    // الموظفون
+    document.getElementById('hrAddEmpBtn')?.addEventListener('click', async () => {
+      const name = document.getElementById('hrEmpName').value.trim();
+      if (!name) { showToast('أدخل اسم الموظف', 'error'); return; }
+      const ok = await this.hrWrite('hr_employees', 'insert', {
+        name,
+        job_title: document.getElementById('hrEmpTitle').value.trim() || null,
+        phone: document.getElementById('hrEmpPhone').value.trim() || null,
+        annual_leave_days: parseFloat(document.getElementById('hrEmpLeave').value) || 0,
+        active: true,
+      });
+      if (ok) { showToast('تمت إضافة الموظف', 'success'); rerender(); }
+    });
+    root.querySelectorAll('[data-hr-toggle-emp]').forEach(b => b.addEventListener('click', async () => {
+      const e = this.hrEmployees.find(x => x.id === b.dataset.hrToggleEmp);
+      if (!e) return;
+      const active = e.active !== false;
+      if (active && !confirm(`إيقاف ${e.name}؟ سيبقى سجلّه محفوظاً.`)) return;
+      if (await this.hrWrite('hr_employees', 'update', { active: !active }, e.id)) rerender();
+    }));
+    root.querySelectorAll('[data-hr-edit-emp]').forEach(b => b.addEventListener('click', () => {
+      const e = this.hrEmployees.find(x => x.id === b.dataset.hrEditEmp);
+      if (!e) return;
+      this.hrModal(`تعديل: ${esc(e.name)}`, `
+        <div class="form-group"><label>الاسم *</label><input type="text" id="hrEdName" value="${esc(e.name)}"></div>
+        <div class="form-group"><label>المسمى الوظيفي</label><input type="text" id="hrEdTitle" value="${esc(e.job_title || '')}"></div>
+        <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="hrEdPhone" value="${esc(e.phone || '')}"></div>
+        <div class="form-group"><label>رصيد الإجازة السنوية (يوم)</label><input type="number" id="hrEdLeave" min="0" value="${parseFloat(e.annual_leave_days ?? 30) || 0}"></div>
+      `, async () => {
+        const name = document.getElementById('hrEdName').value.trim();
+        if (!name) { showToast('أدخل اسم الموظف', 'error'); return false; }
+        const ok = await this.hrWrite('hr_employees', 'update', {
+          name,
+          job_title: document.getElementById('hrEdTitle').value.trim() || null,
+          phone: document.getElementById('hrEdPhone').value.trim() || null,
+          annual_leave_days: parseFloat(document.getElementById('hrEdLeave').value) || 0,
+        }, e.id);
+        if (ok) { showToast('تم التحديث', 'success'); rerender(); }
+        return ok;
+      });
+    }));
+  }
+
+  // ---------------------------------------------------------------------
+  // صفحة الموظف: تسجيل الحضور + طلب إجازة
+  // ---------------------------------------------------------------------
+  hrMe() {
+    let id = null;
+    try { id = localStorage.getItem('tireshop_hr_me'); } catch (e) {}
+    return this.hrActiveEmployees().find(e => e.id === id) || null;
+  }
+
+  renderMyHRView() {
+    if (this.hrMissing) return this.hrSetupNotice();
+    const emps = this.hrActiveEmployees();
+    if (!emps.length) {
+      return '<div class="card"><p class="text-center" style="padding: 30px;">لم يُضف المدير أي موظف بعد.</p></div>';
+    }
+    const me = this.hrMe();
+    const picker = `
+      <div class="card hr-me">
+        <label style="font-weight: 700;">👤 أنا:</label>
+        <select id="hrMeSelect">
+          <option value="">— اختر اسمك —</option>
+          ${emps.map(e => `<option value="${e.id}" ${me && me.id === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}
+        </select>
+      </div>`;
+    if (!me) return picker;
+
+    const today = this.hrToday();
+    const rec = this.hrRecord(me.id, today);
+    const bal = this.leaveBalance(me);
+    const loc = currentLang === 'en' ? 'en-GB' : 'ar-OM';
+    const recent = (this.hrAttendance || []).filter(a => a.employee_id === me.id).sort((a, b) => String(b.work_date).localeCompare(String(a.work_date))).slice(0, 7);
+    const myLeaves = (this.hrLeaves || []).filter(l => l.employee_id === me.id).sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)));
+
+    let action;
+    if (!rec?.check_in) action = `<button class="btn btn-green hr-big" id="hrCheckInBtn">✅ تسجيل حضور</button>`;
+    else if (!rec.check_out) action = `<button class="btn btn-danger hr-big" id="hrCheckOutBtn">🚪 تسجيل انصراف</button>`;
+    else action = `<div class="hr-done">✔️ أنهيت دوام اليوم — <span class="num">${this.fmtHours(this.hrHours(rec))}</span> ساعة</div>`;
+
+    return `
+      ${picker}
+      <div class="grid-2">
+        <div class="card hr-clock-card">
+          <div class="hr-clock num" id="hrClock">${new Date().toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })}</div>
+          <div class="text-xs">${new Date().toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          <div class="hr-times">
+            <div><span>الحضور</span><b class="num">${this.fmtTime(rec?.check_in)}</b></div>
+            <div><span>الانصراف</span><b class="num">${this.fmtTime(rec?.check_out)}</b></div>
+          </div>
+          ${this.onLeave(me.id, today) ? '<div class="text-xs" style="color: var(--amber-600); font-weight: 700;">🌴 لديك إجازة معتمدة اليوم</div>' : ''}
+          ${action}
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>🌴 رصيد الإجازة السنوية</h3></div>
+          <div class="hr-bal">
+            <div><span>الرصيد</span><b class="num">${bal.entitled}</b></div>
+            <div><span>المستخدم</span><b class="num">${+bal.used.toFixed(1)}</b></div>
+            <div><span>بانتظار الموافقة</span><b class="num">${+bal.pending.toFixed(1)}</b></div>
+            <div class="hl"><span>المتبقي</span><b class="num">${+bal.remaining.toFixed(1)}</b></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>من *</label><input type="date" id="myLeaveFrom" min="${today}"></div>
+            <div class="form-group"><label>إلى *</label><input type="date" id="myLeaveTo" min="${today}"></div>
+          </div>
+          <div class="text-xs" id="myLeaveHint" style="margin-bottom: 10px;"></div>
+          <div class="form-group"><label>السبب</label><input type="text" id="myLeaveReason" placeholder="اختياري"></div>
+          <button class="btn btn-amber btn-block" id="myLeaveBtn">📨 إرسال طلب إجازة</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>🕘 آخر أيام الدوام</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>اليوم</th><th>الحضور</th><th>الانصراف</th><th>الساعات</th></tr></thead>
+              <tbody>
+                ${recent.map(a => `<tr><td class="num">${fmtDate(a.work_date)}</td><td class="num">${this.fmtTime(a.check_in)}</td><td class="num">${this.fmtTime(a.check_out)}</td><td class="num">${this.fmtHours(this.hrHours(a))}</td></tr>`).join('') || '<tr><td colspan="4" class="text-center">لا يوجد سجل بعد</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>📋 طلبات إجازتي</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>من</th><th>إلى</th><th>الأيام</th><th>الحالة</th><th></th></tr></thead>
+              <tbody>
+                ${myLeaves.map(l => `
+                  <tr>
+                    <td class="num">${fmtDate(l.start_date)}</td>
+                    <td class="num">${fmtDate(l.end_date)}</td>
+                    <td class="num">${l.days}</td>
+                    <td>${this.leaveStatusBadge(l.status)}</td>
+                    <td>${l.status === 'pending' ? `<button class="btn btn-xs btn-ghost" data-my-cancel-leave="${l.id}">إلغاء</button>` : ''}</td>
+                  </tr>`).join('') || '<tr><td colspan="5" class="text-center">لا توجد طلبات</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  bindMyHREvents() {
+    const rerender = () => this.switchView('myHR');
+    document.getElementById('hrMeSelect')?.addEventListener('change', e => {
+      try { localStorage.setItem('tireshop_hr_me', e.target.value); } catch (err) {}
+      rerender();
+    });
+    const me = this.hrMe();
+    if (!me) return;
+
+    clearInterval(this.hrClockTimer);
+    this.hrClockTimer = setInterval(() => {
+      const el = document.getElementById('hrClock');
+      if (!el) { clearInterval(this.hrClockTimer); return; }
+      el.textContent = new Date().toLocaleTimeString(currentLang === 'en' ? 'en-GB' : 'ar-OM', { hour: '2-digit', minute: '2-digit' });
+    }, 15000);
+
+    document.getElementById('hrCheckInBtn')?.addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true;
+      await this.loadHR(); // تأكد من آخر حالة قبل التسجيل
+      const today = this.hrToday();
+      if (this.hrRecord(me.id, today)?.check_in) { showToast('سجّلت حضورك اليوم مسبقاً', 'warning'); rerender(); return; }
+      const ok = await this.hrWrite('hr_attendance', 'insert', { employee_id: me.id, work_date: today, check_in: new Date().toISOString() });
+      if (ok) showToast(`تم تسجيل حضورك ${this.fmtTime(new Date().toISOString())}`, 'success');
+      rerender();
+    });
+    document.getElementById('hrCheckOutBtn')?.addEventListener('click', async (e) => {
+      if (!confirm('تسجيل الانصراف الآن؟')) return;
+      e.currentTarget.disabled = true;
+      const rec = this.hrRecord(me.id, this.hrToday());
+      if (!rec) { rerender(); return; }
+      const ok = await this.hrWrite('hr_attendance', 'update', { check_out: new Date().toISOString() }, rec.id);
+      if (ok) showToast(`تم تسجيل انصرافك ${this.fmtTime(new Date().toISOString())}`, 'success');
+      rerender();
+    });
+
+    const fromI = document.getElementById('myLeaveFrom'), toI = document.getElementById('myLeaveTo');
+    const hint = () => {
+      const n = this.leaveDays(fromI.value, toI.value);
+      document.getElementById('myLeaveHint').textContent = n ? `${n} يوم (بدون الجمع)` : '';
+    };
+    fromI?.addEventListener('change', () => { if (toI.value < fromI.value) toI.value = fromI.value; toI.min = fromI.value; hint(); });
+    toI?.addEventListener('change', hint);
+    document.getElementById('myLeaveBtn')?.addEventListener('click', async (e) => {
+      const start = fromI.value, end = toI.value;
+      const days = this.leaveDays(start, end);
+      if (!start || !end || !days) { showToast('اختر تاريخ البداية والنهاية بشكل صحيح', 'error'); return; }
+      if (start < this.hrToday()) { showToast('لا يمكن طلب إجازة بتاريخ سابق', 'error'); return; }
+      if (this.leaveOverlaps(me.id, start, end)) { showToast('لديك طلب آخر في نفس الفترة', 'error'); return; }
+      const bal = this.leaveBalance(me);
+      if (days > bal.remaining - bal.pending) { showToast(`الطلب (${days} يوم) أكبر من رصيدك المتاح (${+(bal.remaining - bal.pending).toFixed(1)} يوم)`, 'error'); return; }
+      e.currentTarget.disabled = true;
+      const ok = await this.hrWrite('hr_leaves', 'insert', { employee_id: me.id, start_date: start, end_date: end, days, reason: document.getElementById('myLeaveReason').value.trim() || null, status: 'pending' });
+      if (ok) showToast('تم إرسال طلب الإجازة للمدير', 'success');
+      rerender();
+    });
+    document.querySelectorAll('[data-my-cancel-leave]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('إلغاء طلب الإجازة؟')) return;
+      if (await this.hrWrite('hr_leaves', 'delete', null, b.dataset.myCancelLeave)) { showToast('تم إلغاء الطلب', 'success'); rerender(); }
+    }));
+  }
+
   // ===== إعدادات المحل (انستجرام + رقم المحل) =====
   // تُحفظ في جدول settings على Supabase إن وُجد، وإلا على هذا الجهاز فقط
   applySettings(obj) {
@@ -2693,6 +3495,7 @@ class TireShopApp {
       });
       await this.loadSettings();
       this.rebuildDynamicDict();
+      await this.loadHR();
     } catch (e) {
       console.error('Data load error:', e);
       this.dbOffline = true;
@@ -3968,9 +4771,11 @@ ${this.canDiscount() ? `
       navItems.push(['supplierInvoices', t('supplierInvoices'), 'supplierInvoices']);
       navItems.push(['supplierPayments', t('supplierPayments'), 'supplierPayments']);
       navItems.push(['supplierSummary', t('supplierSummary'), 'supplierSummary']);
+      navItems.push(['hr', 'الموارد البشرية', 'hr']);
       navItems.push(['shopSettings', '⚙️ إعدادات المحل', 'shopSettings']);
     }
     if (!this.isManager()) {
+      navItems.unshift(['myHR', 'الحضور والإجازات', 'hr']);
       navItems.unshift(['newSale', 'عملية بيع جديدة', 'sales']);
     }
     navItems = navItems.filter(([view]) => this.canView(view));
@@ -4055,6 +4860,8 @@ ${this.canDiscount() ? `
       importInventory: '📦 استيراج المخزون',
       shopSettings: '⚙️ إعدادات المحل',
       newSale: '🧾 عملية بيع جديدة',
+      hr: '🧑‍💼 الموارد البشرية',
+      myHR: '🕘 الحضور والإجازات',
     };
     
     document.getElementById('pageTitle').textContent = titles[view] || t('dashboard');
@@ -4075,6 +4882,8 @@ ${this.canDiscount() ? `
       supplierSummary: () => this.renderSupplierSummaryView(),
       shopSettings: () => this.renderShopSettingsView(),
       newSale: () => this.renderNewSaleView(),
+      hr: () => this.renderHRView(),
+      myHR: () => this.renderMyHRView(),
     };
 
     const content = document.getElementById('content');
@@ -4975,6 +5784,8 @@ ${this.canDiscount() ? `
     if (view === 'dashboard') this.bindDashboardEvents();
     if (view === 'sales' || view === 'newSale') this.bindSalesWizardEvents();
     if (view === 'reports') this.bindReportsEvents();
+    if (view === 'hr') this.bindHREvents();
+    if (view === 'myHR') this.bindMyHREvents();
     if (view === 'newSale') this.bindNewSaleDoneEvents();
     if (view === 'shopSettings') this.bindShopSettingsEvents();
     if (view === 'services') this.bindServicesEvents();
