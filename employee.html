@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.12.0 (HR: attendance + annual leave) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.12.1 (HR menu item last) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -4770,12 +4770,12 @@ ${this.canDiscount() ? `
       navItems.push(['supplierInvoices', t('supplierInvoices'), 'supplierInvoices']);
       navItems.push(['supplierPayments', t('supplierPayments'), 'supplierPayments']);
       navItems.push(['supplierSummary', t('supplierSummary'), 'supplierSummary']);
-      navItems.push(['hr', 'الموارد البشرية', 'hr']);
       navItems.push(['shopSettings', '⚙️ إعدادات المحل', 'shopSettings']);
+      navItems.push(['hr', 'الموارد البشرية', 'hr']);
     }
     if (!this.isManager()) {
-      navItems.unshift(['myHR', 'الحضور والإجازات', 'hr']);
       navItems.unshift(['newSale', 'عملية بيع جديدة', 'sales']);
+      navItems.push(['myHR', 'الحضور والإجازات', 'hr']);
     }
     navItems = navItems.filter(([view]) => this.canView(view));
 
