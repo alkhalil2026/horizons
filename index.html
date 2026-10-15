@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.12.1 (HR menu item last) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.13.1 (Friday hours 8-11 / 4-7, leave counts all days) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1459,6 +1459,20 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 .hr-bal .hl { background: var(--tread-green-bg); }
 .hr-bal .hl b { color: var(--tread-green); }
 @media (max-width: 600px) { .hr-bal { grid-template-columns: repeat(2, 1fr); } .hr-clock { font-size: 40px; } }
+
+.hr-flag { font-size: 11px; color: var(--brake-red); font-weight: 700; margin-top: 2px; }
+.hr-shifts { display: flex; gap: 10px; width: 100%; margin: 12px 0; flex-wrap: wrap; justify-content: center; }
+.hr-shift { flex: 1 1 200px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.hr-shift.now { border-color: var(--amber-500); background: var(--amber-100); }
+.hr-shift-name { font-size: 12px; font-weight: 800; color: var(--text-600); }
+.hr-shift .hr-times { margin: 8px 0 0; justify-content: center; }
+.shift-title { font-size: 13px; font-weight: 800; color: var(--text-600); margin: 6px 0 8px; }
+.shift-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.shift-edit > span:first-child { min-width: 110px; font-weight: 700; }
+.shift-edit input { padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; font-family: inherit; }
+
+.shift-sub { font-size: 13px; font-weight: 800; color: var(--text-600); margin: 12px 0 6px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.card-head + .shift-sub { border-top: none; padding-top: 0; margin-top: 0; }
 </style>
 </head>
 <body>
@@ -1490,7 +1504,24 @@ const SHOP = {
 const DEFAULT_LOGO = 'data:image/png;base64,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';
 const LOGO_MARK = 'data:image/png;base64,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';
 SHOP.logo = DEFAULT_LOGO;
-const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo'];
+const DEFAULT_HR_SHIFTS = '08:00-13:00,16:00-20:00';
+const DEFAULT_HR_SHIFTS_FRI = '08:00-11:00,16:00-19:00'; // دوام الجمعة
+SHOP.hrShifts = DEFAULT_HR_SHIFTS;
+SHOP.hrShiftsFri = DEFAULT_HR_SHIFTS_FRI;
+const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri'];
+// هل التاريخ (YYYY-MM-DD أو Date) يوم جمعة؟
+function isFriday(d) {
+  const x = typeof d === 'string' ? new Date(d + 'T12:00:00') : d;
+  return !!x && !isNaN(x) && x.getDay() === 5;
+}
+const toMin = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
+// 16:00 → 4:00 م
+function fmt12(t) {
+  const [h, m] = String(t).split(':').map(Number);
+  const en = typeof currentLang !== 'undefined' && currentLang === 'en';
+  const suffix = h < 12 ? (en ? 'AM' : 'ص') : (en ? 'PM' : 'م');
+  return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')} ${suffix}`;
+}
 
 // الرمز الصغير: رمز الشركة الافتراضي، أو الشعار المرفوع إذا غيّره المدير
 function shopMark() {
@@ -1542,7 +1573,8 @@ function localDateStr(d) {
 }
 
 // أمر إنشاء جداول الموارد البشرية في Supabase
-const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);";
+const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  check_in2 timestamptz,\n  check_out2 timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ndrop policy if exists \"app access\" on hr_employees;\ndrop policy if exists \"app access\" on hr_attendance;\ndrop policy if exists \"app access\" on hr_leaves;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);\n\n-- أعمدة الفترة المسائية (للجداول التي أُنشئت قبل إضافتها)\nalter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
+const HR_SHIFT_SQL = "alter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
 
 const WARRANTY_MONTHS = { warranty3M: 3, warranty6M: 6, warranty12M: 12, warranty24M: 24, warranty36M: 36, warranty60M: 60 };
 
@@ -1747,6 +1779,39 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "دوام الجمعة": "Friday hours",
+  "🕌 يوم الجمعة": "🕌 Friday",
+  "📅 من السبت إلى الخميس": "📅 Saturday to Thursday",
+  "الرصيد يُحسب للسنة الحالية. كل الأيام تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.": "Balances are for the current year. Every day counts as a leave day. Inactive employees keep their records but are hidden from attendance.",
+  "الفترة الصباحية": "Morning shift",
+  "الفترة المسائية": "Evening shift",
+  "مستمر": "Ongoing",
+  "تأخر": "Late",
+  "خروج مبكر": "Left early",
+  "د": "min",
+  "⚠️ خطوة مطلوبة لتسجيل الفترة المسائية": "⚠️ One step needed to record the evening shift",
+  "شغّل هذا الأمر مرة واحدة في SQL Editor في Supabase:": "Run this command once in the Supabase SQL Editor:",
+  "مرات التأخير": "Late count",
+  "مجموع التأخير": "Total lateness",
+  "التأخير والخروج المبكر يُحسبان بعد سماح 5 دقائق. الأوقات بالساعات والدقائق.": "Lateness and early leave are counted after a 5-minute grace period. Times are in hours:minutes.",
+  "⏰ أوقات الدوام": "⏰ Working Hours",
+  "إلى": "to",
+  "💾 حفظ الأوقات": "💾 Save hours",
+  "أدخل وقت الحضور قبل الانصراف": "Enter the check-in time before check-out",
+  "الفترة المسائية يجب أن تبدأ بعد انتهاء الصباحية": "The evening shift must start after the morning shift ends",
+  "شغّل أمر تفعيل الفترة المسائية في Supabase أولاً": "Run the evening-shift command in Supabase first",
+  "تأكد أن الأوقات مرتبة: بداية الصباحية < نهايتها ≤ بداية المسائية < نهايتها": "Make sure the times are in order: morning start < morning end ≤ evening start < evening end",
+  "تم حفظ أوقات الدوام": "Working hours saved",
+  "الصباحية": "Morning",
+  "المسائية": "Evening",
+  "🚪 تسجيل انصراف — الفترة": "🚪 Check out — shift:",
+  "✅ تسجيل حضور — الفترة": "✅ Check in — shift:",
+  "✔️ انتهت الفترة الصباحية — تبدأ المسائية الساعة": "✔️ Morning shift done — evening starts at",
+  "سجّلت حضورك لهذه الفترة مسبقاً": "You already checked in for this shift",
+  "الفترة المسائية غير مفعّلة بعد — اطلب من المدير تفعيلها": "The evening shift is not enabled yet — ask the manager",
+  "دقيقة": "minutes",
+  "ص": "AM",
+  "م": "PM",
   "هذا السجل موجود مسبقاً (تم تسجيل حضور هذا اليوم)": "This record already exists (attendance already recorded for this day)",
   "الحالة": "Status",
   "الموارد البشرية": "Human Resources",
@@ -1820,7 +1885,7 @@ const UI_DICT = {
   "إيقاف": "Deactivate",
   "تفعيل": "Activate",
   "لا يوجد موظفون بعد": "No employees yet",
-  "الرصيد يُحسب للسنة الحالية. أيام الجمعة لا تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.": "Balances are for the current year. Fridays are not counted as leave days. Inactive employees keep their records but are hidden from attendance.",
+  "الرصيد يُحسب للسنة الحالية. كل الأيام تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.": "Balances are for the current year. Fridays are not counted as leave days. Inactive employees keep their records but are hidden from attendance.",
   "تعديل حضور": "Edit attendance",
   "وقت الحضور": "Check-in time",
   "وقت الانصراف": "Check-out time",
@@ -2702,6 +2767,12 @@ class TireShopApp {
       }
       this[tables[tb]] = data || [];
     });
+    // أعمدة الفترة المسائية (check_in2 / check_out2)
+    this.hrNeedsShiftCols = false;
+    if (!this.hrMissing) {
+      const { error } = await this.sb.from('hr_attendance').select('check_in2').limit(1);
+      if (error) this.hrNeedsShiftCols = true;
+    }
   }
 
   // كتابة مباشرة على جداول الموارد البشرية ثم إعادة تحميلها فقط
@@ -2742,10 +2813,71 @@ class TireShopApp {
     return (this.hrAttendance || []).find(a => a.employee_id === empId && a.work_date === date);
   }
 
+  // ===== الفترات (الدوام المقسّم) =====
+  // أوقات الفترتين لتاريخ معيّن (الجمعة لها أوقات خاصة)
+  hrShifts(date) {
+    const fri = date != null && isFriday(date);
+    const def = fri ? DEFAULT_HR_SHIFTS_FRI : DEFAULT_HR_SHIFTS;
+    const parts = String((fri ? SHOP.hrShiftsFri : SHOP.hrShifts) || def).split(',').map(p => p.trim().split('-'));
+    const ok = parts.filter(p => /^\d{2}:\d{2}$/.test(p[0]) && /^\d{2}:\d{2}$/.test(p[1]));
+    return (ok.length === 2 ? ok : def.split(',').map(p => p.split('-'))).map(([start, end]) => ({ start, end }));
+  }
+
+  shiftLabel(i, date) {
+    const s = this.hrShifts(date)[i];
+    const name = i === 0 ? 'الفترة الصباحية' : 'الفترة المسائية';
+    return `${name} (${fmt12(s.start)} – ${fmt12(s.end)})`;
+  }
+
+  // الفترة الحالية حسب الوقت: قبل منتصف الاستراحة = الصباحية
+  currentShift(d = new Date()) {
+    const [a, b] = this.hrShifts(d);
+    const mins = d.getHours() * 60 + d.getMinutes();
+    const cut = (toMin(a.end) + toMin(b.start)) / 2;
+    return mins < cut ? 0 : 1;
+  }
+
+  slot(rec, i) {
+    if (!rec) return { in: null, out: null };
+    return i === 0 ? { in: rec.check_in, out: rec.check_out } : { in: rec.check_in2, out: rec.check_out2 };
+  }
+
+  slotHours(rec, i) {
+    const s = this.slot(rec, i);
+    if (!s.in || !s.out) return 0;
+    const h = (new Date(s.out) - new Date(s.in)) / 3600000;
+    return h > 0 ? h : 0;
+  }
+
+  // دقائق التأخير والخروج المبكر لفترة (سماح 5 دقائق)
+  slotIssues(rec, i, date) {
+    const s = this.slot(rec, i), sh = this.hrShifts(date)[i];
+    const at = t => new Date(`${date}T${t}:00`);
+    const late = s.in ? Math.round((new Date(s.in) - at(sh.start)) / 60000) : 0;
+    const early = s.out ? Math.round((at(sh.end) - new Date(s.out)) / 60000) : 0;
+    return { late: late > 5 ? late : 0, early: early > 5 ? early : 0 };
+  }
+
+  slotCell(rec, i, date) {
+    const s = this.slot(rec, i);
+    if (!s.in) return '<span class="text-xs">—</span>';
+    const iss = this.slotIssues(rec, i, date);
+    return `
+      <div class="num">${this.fmtTime(s.in)} ${currentLang === 'en' ? '→' : '←'} ${s.out ? this.fmtTime(s.out) : '<span class="badge badge-success">مستمر</span>'}</div>
+      ${iss.late ? `<div class="hr-flag">⏰ تأخر <span class="num">${iss.late}</span> د</div>` : ''}
+      ${iss.early ? `<div class="hr-flag">🚪 خروج مبكر <span class="num">${iss.early}</span> د</div>` : ''}`;
+  }
+
   hrHours(rec) {
-    if (!rec || !rec.check_in || !rec.check_out) return null;
-    const h = (new Date(rec.check_out) - new Date(rec.check_in)) / 3600000;
+    if (!rec) return null;
+    const h = this.slotHours(rec, 0) + this.slotHours(rec, 1);
     return h > 0 ? h : null;
+  }
+
+  // الفترة المفتوحة (حضور بدون انصراف)
+  openSlot(rec) {
+    for (const i of [0, 1]) { const s = this.slot(rec, i); if (s.in && !s.out) return i; }
+    return -1;
   }
 
   fmtHours(h) {
@@ -2760,16 +2892,12 @@ class TireShopApp {
     return isNaN(d) ? '—' : d.toLocaleTimeString(currentLang === 'en' ? 'en-GB' : 'ar-OM', { hour: '2-digit', minute: '2-digit' });
   }
 
-  // أيام الإجازة: من تاريخ إلى تاريخ شاملة، بدون أيام الجمعة
+  // أيام الإجازة: من تاريخ إلى تاريخ شاملة (المحل يعمل كل الأيام)
   leaveDays(start, end) {
     if (!start || !end) return 0;
-    const a = new Date(start + 'T00:00:00'), b = new Date(end + 'T00:00:00');
+    const a = new Date(start + 'T12:00:00'), b = new Date(end + 'T12:00:00');
     if (isNaN(a) || isNaN(b) || b < a) return 0;
-    let n = 0;
-    for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
-      if (d.getDay() !== 5) n++;
-    }
-    return n;
+    return Math.round((b - a) / 86400000) + 1;
   }
 
   // رصيد الإجازات للسنة الحالية
@@ -2862,52 +2990,72 @@ class TireShopApp {
     const date = this.hrDate || this.hrToday();
     const emps = this.hrActiveEmployees();
     const month = this.hrMonth || this.hrToday().slice(0, 7);
+    const sh = this.hrShifts();
+    const shF = this.hrShifts('2026-10-16'); // أي يوم جمعة
 
     const rows = emps.map(e => {
       const r = this.hrRecord(e.id, date);
       const leave = this.onLeave(e.id, date);
-      const status = r?.check_out ? '<span class="badge badge-info">غادر</span>'
-        : r?.check_in ? '<span class="badge badge-success">حاضر</span>'
+      const open = this.openSlot(r);
+      const status = open > -1 ? '<span class="badge badge-success">حاضر</span>'
+        : (r?.check_in || r?.check_in2) ? '<span class="badge badge-info">غادر</span>'
         : leave ? '<span class="badge badge-warning">🌴 في إجازة</span>'
         : '<span class="badge badge-danger">لم يسجّل</span>';
       return `
         <tr>
           <td style="font-weight: 700;">${esc(e.name)}</td>
           <td>${status}</td>
-          <td class="num">${this.fmtTime(r?.check_in)}</td>
-          <td class="num">${this.fmtTime(r?.check_out)}</td>
+          <td>${this.slotCell(r, 0, date)}</td>
+          <td>${this.slotCell(r, 1, date)}</td>
           <td class="num">${this.fmtHours(this.hrHours(r))}</td>
           <td>${esc(r?.notes || '')}</td>
           <td><button class="btn btn-xs btn-blue" data-hr-edit-att="${e.id}">✏️ تعديل</button></td>
         </tr>`;
     }).join('');
 
-    // ملخص الشهر
     const summary = emps.map(e => {
       const recs = (this.hrAttendance || []).filter(a => a.employee_id === e.id && String(a.work_date).startsWith(month));
-      const days = recs.filter(a => a.check_in).length;
+      const days = recs.filter(a => a.check_in || a.check_in2).length;
       const hours = recs.reduce((s, a) => s + (this.hrHours(a) || 0), 0);
-      const openDays = recs.filter(a => a.check_in && !a.check_out).length;
+      let lateCount = 0, lateMin = 0, earlyMin = 0;
+      recs.forEach(a => [0, 1].forEach(i => {
+        const iss = this.slotIssues(a, i, a.work_date);
+        if (iss.late) { lateCount++; lateMin += iss.late; }
+        earlyMin += iss.early;
+      }));
+      const openDays = recs.filter(a => this.openSlot(a) > -1 && a.work_date !== this.hrToday()).length;
       return `
         <tr>
           <td style="font-weight: 700;">${esc(e.name)}</td>
           <td class="num">${days}</td>
           <td class="num">${this.fmtHours(hours)}</td>
-          <td class="num">${days ? this.fmtHours(hours / Math.max(1, days - openDays)) : '—'}</td>
+          <td class="num">${lateCount ? `<span style="color: var(--brake-red);">${lateCount}</span>` : '0'}</td>
+          <td class="num">${lateMin ? this.fmtHours(lateMin / 60) : '0'}</td>
+          <td class="num">${earlyMin ? this.fmtHours(earlyMin / 60) : '0'}</td>
           <td class="num">${openDays ? `<span style="color: var(--brake-red);">${openDays}</span>` : '0'}</td>
         </tr>`;
     }).join('');
 
     return `
+      ${this.hrNeedsShiftCols ? `
+      <div class="db-banner">
+        <div>
+          <b>⚠️ خطوة مطلوبة لتسجيل الفترة المسائية</b>
+          <p>شغّل هذا الأمر مرة واحدة في SQL Editor في Supabase:</p>
+          <pre class="sql-box" dir="ltr" style="margin: 8px 0 0;">${esc(HR_SHIFT_SQL)}</pre>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="copyShiftSqlBtn">📋 نسخ الأمر</button>
+      </div>` : ''}
+
       <div class="card">
         <div class="card-head rep-head">
-          <h3>🕘 حضور يوم</h3>
+          <h3>🕘 حضور يوم ${isFriday(date) ? '<span class="badge badge-warning">دوام الجمعة</span>' : ''}</h3>
           <input type="date" id="hrDateInput" value="${date}" class="hr-date">
         </div>
         ${emps.length ? `
         <div class="table-wrap">
           <table>
-            <thead><tr><th>الموظف</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>ساعات العمل</th><th>ملاحظات</th><th></th></tr></thead>
+            <thead><tr><th>الموظف</th><th>الحالة</th><th>${this.shiftLabel(0, date)}</th><th>${this.shiftLabel(1, date)}</th><th>ساعات العمل</th><th>ملاحظات</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>` : '<p class="text-center" style="padding: 24px;">لا يوجد موظفون. أضفهم من تبويب "الموظفون".</p>'}
@@ -2921,11 +3069,35 @@ class TireShopApp {
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>الموظف</th><th>أيام الحضور</th><th>مجموع الساعات</th><th>متوسط اليوم</th><th>أيام بدون انصراف</th></tr></thead>
+            <thead><tr><th>الموظف</th><th>أيام الحضور</th><th>مجموع الساعات</th><th>مرات التأخير</th><th>مجموع التأخير</th><th>خروج مبكر</th><th>أيام بدون انصراف</th></tr></thead>
             <tbody>${summary}</tbody>
           </table>
         </div>
+        <p class="text-xs" style="margin-top: 10px;">التأخير والخروج المبكر يُحسبان بعد سماح 5 دقائق. الأوقات بالساعات والدقائق.</p>
       </div>` : ''}
+
+      <div class="card" style="max-width: 640px;">
+        <div class="card-head"><h3>⏰ أوقات الدوام</h3></div>
+        <div class="shift-sub">📅 من السبت إلى الخميس</div>
+        <div class="shift-edit">
+          <span>الفترة الصباحية</span>
+          <input type="time" id="hrS1Start" value="${sh[0].start}"> <span>إلى</span> <input type="time" id="hrS1End" value="${sh[0].end}">
+        </div>
+        <div class="shift-edit">
+          <span>الفترة المسائية</span>
+          <input type="time" id="hrS2Start" value="${sh[1].start}"> <span>إلى</span> <input type="time" id="hrS2End" value="${sh[1].end}">
+        </div>
+        <div class="shift-sub">🕌 يوم الجمعة</div>
+        <div class="shift-edit">
+          <span>الفترة الصباحية</span>
+          <input type="time" id="hrF1Start" value="${shF[0].start}"> <span>إلى</span> <input type="time" id="hrF1End" value="${shF[0].end}">
+        </div>
+        <div class="shift-edit">
+          <span>الفترة المسائية</span>
+          <input type="time" id="hrF2Start" value="${shF[1].start}"> <span>إلى</span> <input type="time" id="hrF2End" value="${shF[1].end}">
+        </div>
+        <button class="btn btn-amber btn-sm" id="hrSaveShiftsBtn" style="margin-top: 10px;">💾 حفظ الأوقات</button>
+      </div>
     `;
   }
 
@@ -3043,7 +3215,7 @@ class TireShopApp {
               </tbody>
             </table>
           </div>
-          <p class="text-xs" style="margin-top: 10px;">الرصيد يُحسب للسنة الحالية. أيام الجمعة لا تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.</p>
+          <p class="text-xs" style="margin-top: 10px;">الرصيد يُحسب للسنة الحالية. كل الأيام تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.</p>
         </div>
       </div>
     `;
@@ -3062,31 +3234,60 @@ class TireShopApp {
     document.getElementById('hrDateInput')?.addEventListener('change', e => { this.hrDate = e.target.value || this.hrToday(); rerender(); });
     document.getElementById('hrMonthInput')?.addEventListener('change', e => { this.hrMonth = e.target.value || this.hrToday().slice(0, 7); rerender(); });
 
-    // تعديل حضور يوم
+    // تعديل حضور يوم (الفترتان)
     root.querySelectorAll('[data-hr-edit-att]').forEach(b => b.addEventListener('click', () => {
       const empId = b.dataset.hrEditAtt;
       const date = this.hrDate || this.hrToday();
       const r = this.hrRecord(empId, date);
       const hm = iso => { if (!iso) return ''; const d = new Date(iso); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
       this.hrModal(`تعديل حضور: ${esc(this.hrEmpName(empId))} — ${fmtDate(date)}`, `
+        <h4 class="shift-title">${this.shiftLabel(0, date)}</h4>
         <div class="form-row">
-          <div class="form-group"><label>وقت الحضور</label><input type="time" id="hrEditIn" value="${hm(r?.check_in)}"></div>
-          <div class="form-group"><label>وقت الانصراف</label><input type="time" id="hrEditOut" value="${hm(r?.check_out)}"></div>
+          <div class="form-group"><label>الحضور</label><input type="time" id="hrEditIn" value="${hm(r?.check_in)}"></div>
+          <div class="form-group"><label>الانصراف</label><input type="time" id="hrEditOut" value="${hm(r?.check_out)}"></div>
+        </div>
+        <h4 class="shift-title">${this.shiftLabel(1, date)}</h4>
+        <div class="form-row">
+          <div class="form-group"><label>الحضور</label><input type="time" id="hrEditIn2" value="${hm(r?.check_in2)}"></div>
+          <div class="form-group"><label>الانصراف</label><input type="time" id="hrEditOut2" value="${hm(r?.check_out2)}"></div>
         </div>
         <div class="form-group"><label>ملاحظات</label><input type="text" id="hrEditNotes" value="${esc(r?.notes || '')}"></div>
         ${r ? '<label class="text-xs"><input type="checkbox" id="hrEditDelete"> حذف سجل هذا اليوم</label>' : ''}
       `, async () => {
         if (document.getElementById('hrEditDelete')?.checked) return this.hrWrite('hr_attendance', 'delete', null, r.id).then(ok => { if (ok) rerender(); return ok; });
-        const tIn = document.getElementById('hrEditIn').value, tOut = document.getElementById('hrEditOut').value;
-        if (!tIn) { showToast('أدخل وقت الحضور', 'error'); return false; }
+        const v = id => document.getElementById(id).value;
+        const [i1, o1, i2, o2] = [v('hrEditIn'), v('hrEditOut'), v('hrEditIn2'), v('hrEditOut2')];
+        if (!i1 && !i2) { showToast('أدخل وقت الحضور', 'error'); return false; }
+        if ((o1 && !i1) || (o2 && !i2)) { showToast('أدخل وقت الحضور قبل الانصراف', 'error'); return false; }
+        if ((o1 && o1 <= i1) || (o2 && o2 <= i2)) { showToast('وقت الانصراف يجب أن يكون بعد الحضور', 'error'); return false; }
+        if (i2 && o1 && i2 < o1) { showToast('الفترة المسائية يجب أن تبدأ بعد انتهاء الصباحية', 'error'); return false; }
         const toIso = t => t ? new Date(`${date}T${t}:00`).toISOString() : null;
-        if (tOut && tOut <= tIn) { showToast('وقت الانصراف يجب أن يكون بعد الحضور', 'error'); return false; }
-        const data = { employee_id: empId, work_date: date, check_in: toIso(tIn), check_out: toIso(tOut), notes: document.getElementById('hrEditNotes').value.trim() || null };
+        const data = { employee_id: empId, work_date: date, check_in: toIso(i1), check_out: toIso(o1), notes: v('hrEditNotes').trim() || null };
+        if (!this.hrNeedsShiftCols) { data.check_in2 = toIso(i2); data.check_out2 = toIso(o2); }
+        else if (i2 || o2) { showToast('شغّل أمر تفعيل الفترة المسائية في Supabase أولاً', 'error'); return false; }
         const ok = r ? await this.hrWrite('hr_attendance', 'update', data, r.id) : await this.hrWrite('hr_attendance', 'insert', data);
         if (ok) { showToast('تم الحفظ', 'success'); rerender(); }
         return ok;
       });
     }));
+
+    document.getElementById('copyShiftSqlBtn')?.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(HR_SHIFT_SQL); showToast('تم نسخ الأمر', 'success'); }
+      catch (e) { prompt('انسخ الأمر:', HR_SHIFT_SQL); }
+    });
+    document.getElementById('hrSaveShiftsBtn')?.addEventListener('click', async () => {
+      const v = id => document.getElementById(id).value;
+      const valid = ([a, b, c, d]) => a && b && c && d && a < b && b <= c && c < d;
+      const week = [v('hrS1Start'), v('hrS1End'), v('hrS2Start'), v('hrS2End')];
+      const fri = [v('hrF1Start'), v('hrF1End'), v('hrF2Start'), v('hrF2End')];
+      if (!valid(week) || !valid(fri)) { showToast('تأكد أن الأوقات مرتبة: بداية الصباحية < نهايتها ≤ بداية المسائية < نهايتها', 'error'); return; }
+      const where = await this.saveSettings({
+        hrShifts: `${week[0]}-${week[1]},${week[2]}-${week[3]}`,
+        hrShiftsFri: `${fri[0]}-${fri[1]},${fri[2]}-${fri[3]}`,
+      });
+      showToast(where === 'db' ? 'تم حفظ أوقات الدوام' : 'تم الحفظ على هذا الجهاز فقط', where === 'db' ? 'success' : 'warning');
+      rerender();
+    });
 
     // الإجازات
     const fromI = document.getElementById('hrLeaveFrom'), toI = document.getElementById('hrLeaveTo');
@@ -3096,7 +3297,7 @@ class TireShopApp {
       const n = this.leaveDays(fromI.value, toI.value);
       const emp = this.hrEmployees.find(e => e.id === document.getElementById('hrLeaveEmp').value);
       const bal = emp ? this.leaveBalance(emp) : null;
-      h.textContent = n ? `${n} يوم (بدون الجمع)${bal ? ` — الرصيد المتبقي ${+bal.remaining.toFixed(1)} يوم` : ''}` : '';
+      h.textContent = n ? `${n} يوم${bal ? ` — الرصيد المتبقي ${+bal.remaining.toFixed(1)} يوم` : ''}` : '';
     };
     [fromI, toI, document.getElementById('hrLeaveEmp')].forEach(el => el?.addEventListener('change', hint));
     document.getElementById('hrAddLeaveBtn')?.addEventListener('click', async () => {
@@ -3195,9 +3396,15 @@ class TireShopApp {
     const recent = (this.hrAttendance || []).filter(a => a.employee_id === me.id).sort((a, b) => String(b.work_date).localeCompare(String(a.work_date))).slice(0, 7);
     const myLeaves = (this.hrLeaves || []).filter(l => l.employee_id === me.id).sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)));
 
+    // الإجراء التالي: انصراف لفترة مفتوحة، أو حضور للفترة الحالية
+    const open = this.openSlot(rec);
+    const cur = this.currentShift();
+    const curSlot = this.slot(rec, cur);
+    const shiftName = i => i === 0 ? 'الصباحية' : 'المسائية';
     let action;
-    if (!rec?.check_in) action = `<button class="btn btn-green hr-big" id="hrCheckInBtn">✅ تسجيل حضور</button>`;
-    else if (!rec.check_out) action = `<button class="btn btn-danger hr-big" id="hrCheckOutBtn">🚪 تسجيل انصراف</button>`;
+    if (open > -1) action = `<button class="btn btn-danger hr-big" id="hrCheckOutBtn" data-slot="${open}">🚪 تسجيل انصراف — الفترة ${shiftName(open)}</button>`;
+    else if (!curSlot.in) action = `<button class="btn btn-green hr-big" id="hrCheckInBtn" data-slot="${cur}">✅ تسجيل حضور — الفترة ${shiftName(cur)}</button>`;
+    else if (cur === 0) action = `<div class="hr-done">✔️ انتهت الفترة الصباحية — تبدأ المسائية الساعة <span class="num">${fmt12(this.hrShifts(today)[1].start)}</span></div>`;
     else action = `<div class="hr-done">✔️ أنهيت دوام اليوم — <span class="num">${this.fmtHours(this.hrHours(rec))}</span> ساعة</div>`;
 
     return `
@@ -3206,9 +3413,19 @@ class TireShopApp {
         <div class="card hr-clock-card">
           <div class="hr-clock num" id="hrClock">${new Date().toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })}</div>
           <div class="text-xs">${new Date().toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-          <div class="hr-times">
-            <div><span>الحضور</span><b class="num">${this.fmtTime(rec?.check_in)}</b></div>
-            <div><span>الانصراف</span><b class="num">${this.fmtTime(rec?.check_out)}</b></div>
+          <div class="hr-shifts">
+            ${[0, 1].map(i => {
+              const sl = this.slot(rec, i), iss = this.slotIssues(rec, i, today);
+              return `
+              <div class="hr-shift ${i === cur ? 'now' : ''}">
+                <div class="hr-shift-name">${this.shiftLabel(i, today)}</div>
+                <div class="hr-times">
+                  <div><span>الحضور</span><b class="num">${this.fmtTime(sl.in)}</b></div>
+                  <div><span>الانصراف</span><b class="num">${this.fmtTime(sl.out)}</b></div>
+                </div>
+                ${iss.late ? `<div class="hr-flag">⏰ تأخر <span class="num">${iss.late}</span> د</div>` : ''}
+              </div>`;
+            }).join('')}
           </div>
           ${this.onLeave(me.id, today) ? '<div class="text-xs" style="color: var(--amber-600); font-weight: 700;">🌴 لديك إجازة معتمدة اليوم</div>' : ''}
           ${action}
@@ -3237,9 +3454,9 @@ class TireShopApp {
           <div class="card-head"><h3>🕘 آخر أيام الدوام</h3></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>اليوم</th><th>الحضور</th><th>الانصراف</th><th>الساعات</th></tr></thead>
+              <thead><tr><th>اليوم</th><th>الصباحية</th><th>المسائية</th><th>الساعات</th></tr></thead>
               <tbody>
-                ${recent.map(a => `<tr><td class="num">${fmtDate(a.work_date)}</td><td class="num">${this.fmtTime(a.check_in)}</td><td class="num">${this.fmtTime(a.check_out)}</td><td class="num">${this.fmtHours(this.hrHours(a))}</td></tr>`).join('') || '<tr><td colspan="4" class="text-center">لا يوجد سجل بعد</td></tr>'}
+                ${recent.map(a => `<tr><td class="num">${fmtDate(a.work_date)}</td><td>${this.slotCell(a, 0, a.work_date)}</td><td>${this.slotCell(a, 1, a.work_date)}</td><td class="num">${this.fmtHours(this.hrHours(a))}</td></tr>`).join('') || '<tr><td colspan="4" class="text-center">لا يوجد سجل بعد</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -3283,28 +3500,41 @@ class TireShopApp {
     }, 15000);
 
     document.getElementById('hrCheckInBtn')?.addEventListener('click', async (e) => {
-      e.currentTarget.disabled = true;
+      const btn = e.currentTarget;
+      const slotIdx = parseInt(btn.dataset.slot) || 0;
+      btn.disabled = true;
       await this.loadHR(); // تأكد من آخر حالة قبل التسجيل
       const today = this.hrToday();
-      if (this.hrRecord(me.id, today)?.check_in) { showToast('سجّلت حضورك اليوم مسبقاً', 'warning'); rerender(); return; }
-      const ok = await this.hrWrite('hr_attendance', 'insert', { employee_id: me.id, work_date: today, check_in: new Date().toISOString() });
-      if (ok) showToast(`تم تسجيل حضورك ${this.fmtTime(new Date().toISOString())}`, 'success');
+      const rec = this.hrRecord(me.id, today);
+      if (this.slot(rec, slotIdx).in) { showToast('سجّلت حضورك لهذه الفترة مسبقاً', 'warning'); rerender(); return; }
+      if (slotIdx === 1 && this.hrNeedsShiftCols) { showToast('الفترة المسائية غير مفعّلة بعد — اطلب من المدير تفعيلها', 'error'); rerender(); return; }
+      const now = new Date().toISOString();
+      const field = slotIdx === 0 ? { check_in: now } : { check_in2: now };
+      const ok = rec ? await this.hrWrite('hr_attendance', 'update', field, rec.id)
+        : await this.hrWrite('hr_attendance', 'insert', { employee_id: me.id, work_date: today, ...field });
+      if (ok) {
+        const iss = this.slotIssues(this.hrRecord(me.id, today), slotIdx, today);
+        showToast(`تم تسجيل حضورك ${this.fmtTime(now)}${iss.late ? ` — تأخر ${iss.late} دقيقة` : ''}`, iss.late ? 'warning' : 'success');
+      }
       rerender();
     });
     document.getElementById('hrCheckOutBtn')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const slotIdx = parseInt(btn.dataset.slot) || 0;
       if (!confirm('تسجيل الانصراف الآن؟')) return;
-      e.currentTarget.disabled = true;
+      btn.disabled = true;
       const rec = this.hrRecord(me.id, this.hrToday());
       if (!rec) { rerender(); return; }
-      const ok = await this.hrWrite('hr_attendance', 'update', { check_out: new Date().toISOString() }, rec.id);
-      if (ok) showToast(`تم تسجيل انصرافك ${this.fmtTime(new Date().toISOString())}`, 'success');
+      const now = new Date().toISOString();
+      const ok = await this.hrWrite('hr_attendance', 'update', slotIdx === 0 ? { check_out: now } : { check_out2: now }, rec.id);
+      if (ok) showToast(`تم تسجيل انصرافك ${this.fmtTime(now)}`, 'success');
       rerender();
     });
 
     const fromI = document.getElementById('myLeaveFrom'), toI = document.getElementById('myLeaveTo');
     const hint = () => {
       const n = this.leaveDays(fromI.value, toI.value);
-      document.getElementById('myLeaveHint').textContent = n ? `${n} يوم (بدون الجمع)` : '';
+      document.getElementById('myLeaveHint').textContent = n ? `${n} يوم` : '';
     };
     fromI?.addEventListener('change', () => { if (toI.value < fromI.value) toI.value = fromI.value; toI.min = fromI.value; hint(); });
     toI?.addEventListener('change', hint);
