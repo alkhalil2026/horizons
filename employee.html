@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.9.5 (removed import inventory page) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.9.6 (database offline banner) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1397,6 +1397,10 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 
 .inv-grid { grid-template-columns: minmax(300px, 1fr) 2fr; }
 @media (max-width: 900px) { .inv-grid { grid-template-columns: 1fr; } }
+
+.db-banner { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--brake-red-bg); border: 1px solid var(--brake-red); color: var(--brake-red); border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; }
+.db-banner > div { flex: 1 1 260px; min-width: 0; }
+.db-banner p { margin: 4px 0 0; color: var(--text-600); font-size: 14px; }
 </style>
 </head>
 <body>
@@ -1668,6 +1672,12 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "⚠️ تعذّر الاتصال بقاعدة البيانات": "⚠️ Cannot connect to the database",
+  "بياناتك محفوظة ولم تُحذف. السبب غالباً أن مشروع Supabase موقوف مؤقتاً بسبب عدم الاستخدام: سجّل الدخول إلى Supabase ثم اضغط \"إعادة المحاولة\".": "Your data is safe and was not deleted. The Supabase project is most likely paused due to inactivity: sign in to Supabase, then press \"Retry\".",
+  "🔄 إعادة المحاولة": "🔄 Retry",
+  "⏳ جاري المحاولة...": "⏳ Retrying...",
+  "تم الاتصال بقاعدة البيانات": "Connected to the database",
+  "ما زالت قاعدة البيانات غير متاحة": "The database is still unavailable",
   "ضمان سنتين": "2-Year Warranty",
   "ضمان 3 سنوات": "3-Year Warranty",
   "ضمان 5 سنوات": "5-Year Warranty",
@@ -2564,6 +2574,16 @@ class TireShopApp {
         )
       );
 
+      // الجداول الأساسية: إذا فشلت كلها فقاعدة البيانات غير متاحة (غالباً المشروع موقوف مؤقتاً)
+      const core = ['tires', 'services', 'customers', 'sales'];
+      const coreFailed = core.filter(tb => results[tables.indexOf(tb)]?.error).length;
+      this.dbOffline = coreFailed === core.length;
+      if (this.dbOffline) {
+        console.error('❌ قاعدة البيانات غير متاحة', results.map(r => r.error?.message));
+        this.updateDbBanner();
+        return; // لا نمسح البيانات المعروضة حالياً
+      }
+
       results.forEach((result, idx) => {
         const table = tables[idx];
         const { data, error } = result;
@@ -2586,9 +2606,41 @@ class TireShopApp {
       this.rebuildDynamicDict();
     } catch (e) {
       console.error('Data load error:', e);
+      this.dbOffline = true;
     } finally {
       this.isLoading = false;
+      this.updateDbBanner();
     }
+  }
+
+  // رسالة واضحة عند تعذّر الاتصال بقاعدة البيانات بدل جداول فارغة
+  updateDbBanner() {
+    const box = document.getElementById('dbBanner');
+    if (!box) return;
+    if (!this.dbOffline) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = `
+      <div class="db-banner">
+        <div>
+          <b>⚠️ تعذّر الاتصال بقاعدة البيانات</b>
+          <p>بياناتك محفوظة ولم تُحذف. السبب غالباً أن مشروع Supabase موقوف مؤقتاً بسبب عدم الاستخدام: سجّل الدخول إلى Supabase ثم اضغط "إعادة المحاولة".</p>
+        </div>
+        <button class="btn btn-amber" id="dbRetryBtn">🔄 إعادة المحاولة</button>
+      </div>
+    `;
+    document.getElementById('dbRetryBtn')?.addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true;
+      e.currentTarget.textContent = '⏳ جاري المحاولة...';
+      await this.loadAllData();
+      if (!this.dbOffline) {
+        showToast('تم الاتصال بقاعدة البيانات', 'success');
+        this.render();
+      } else {
+        showToast('ما زالت قاعدة البيانات غير متاحة', 'error');
+      }
+    });
   }
 
   // كتابة مرنة: تتجاوز الأعمدة غير الموجودة، وتحوّل null إلى نص فارغ إذا كان العمود لا يقبل الفراغ
@@ -3743,6 +3795,7 @@ ${this.canDiscount() ? `
     }
 
     app.innerHTML = this.renderShell();
+    this.updateDbBanner();
     this.switchView(this.currentView);
   }
 
@@ -3816,6 +3869,7 @@ ${this.canDiscount() ? `
 
         <main class="main">
           <div class="page-title" id="pageTitle"></div>
+          <div id="dbBanner"></div>
           <div id="content"></div>
         </main>
       </div>
