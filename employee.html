@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.13.1 (Friday hours 8-11 / 4-7, leave counts all days) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.14.0 (WhatsApp invoice as image) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1473,6 +1473,13 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 
 .shift-sub { font-size: 13px; font-weight: 800; color: var(--text-600); margin: 12px 0 6px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .card-head + .shift-sub { border-top: none; padding-top: 0; margin-top: 0; }
+
+.inv-img-preview { max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #f6f4ef; padding: 8px; text-align: center; }
+.inv-img-preview img { width: 100%; max-width: 420px; box-shadow: 0 2px 10px rgba(0,0,0,0.12); }
+.inv-img-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.inv-img-actions > .btn { width: 100%; padding: 13px; font-size: 15px; }
+.inv-img-row { display: flex; gap: 8px; }
+.inv-img-row .btn { flex: 1; }
 </style>
 </head>
 <body>
@@ -1779,6 +1786,20 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "⏳ جاري تجهيز صورة الفاتورة...": "⏳ Preparing the invoice image...",
+  "📱 إرسال الفاتورة واتساب": "📱 Send invoice on WhatsApp",
+  "📤 مشاركة الصورة (اختر واتساب)": "📤 Share image (choose WhatsApp)",
+  "📋 نسخ الصورة وفتح محادثة العميل": "📋 Copy image & open customer chat",
+  "📋 نسخ الصورة وفتح محادثة واتساب": "📋 Copy image & open WhatsApp",
+  "⬇️ تحميل الصورة": "⬇️ Download image",
+  "💬 إرسال كنص": "💬 Send as text",
+  "على الجوال: اضغط \"مشاركة\" ثم اختر واتساب والعميل.": "On mobile: tap \"Share\", then choose WhatsApp and the customer.",
+  "على الكمبيوتر: اضغط \"نسخ الصورة\"، وعندما تفتح المحادثة اضغط": "On a computer: press \"Copy image\"; when the chat opens press",
+  "ثم إرسال.": "then send.",
+  "تعذّر إنشاء صورة الفاتورة — سيتم الإرسال كنص": "Could not create the invoice image — sending as text",
+  "تعذّرت المشاركة — استخدم \"نسخ الصورة\"": "Sharing failed — use \"Copy image\"",
+  "تم نسخ صورة الفاتورة — اضغط Ctrl+V داخل المحادثة ثم أرسل": "Invoice image copied — press Ctrl+V in the chat, then send",
+  "تم تحميل الصورة — أرفقها في المحادثة من زر المرفقات 📎": "Image downloaded — attach it in the chat with the 📎 button",
   "دوام الجمعة": "Friday hours",
   "🕌 يوم الجمعة": "🕌 Friday",
   "📅 من السبت إلى الخميس": "📅 Saturday to Thursday",
@@ -2412,6 +2433,14 @@ function tr(str) {
   if (m && map.has(m[1].trim())) return lead + map.get(m[1].trim()) + m[2].replace('؟', '?') + trail;
   let out = re ? str.replace(re, k => map.get(k) ?? k) : str;
   return out.replace(/،/g, ',').replace(/؟/g, '?');
+}
+
+// ترجمة نص فقط إذا كان مطابقاً كاملاً لعبارة معروفة (لأسماء الأصناف)
+function trExact(str) {
+  if (!isEn() || str == null) return str;
+  const { map } = trIndex();
+  const k = String(str).trim();
+  return map.has(k) ? map.get(k) : str;
 }
 
 // ترجمة HTML كنص (للطباعة)
@@ -4228,14 +4257,15 @@ class TireShopApp {
     }
   }
 
-  sendWhatsApp() {
+  // حفظ الفاتورة ثم فتح نافذة إرسالها كصورة
+  async sendWhatsApp() {
     const w = this.saleWizard;
     const invoiceNumber = w.editingInvoiceNumber || ('INV-' + Date.now());
-    const phone = this.normalizePhone(w.customerPhone);
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(this.buildWizardInvoiceMessage(invoiceNumber))}`;
-    // نفتح واتساب أولاً (قبل أي انتظار) حتى لا يمنعه المتصفح
-    window.open(url, '_blank');
-    this.saveSale(invoiceNumber);
+    const phone = w.customerPhone;
+    const ok = await this.saveSale(invoiceNumber);
+    if (!ok) return;
+    const sale = this.sales.find(x => x.invoiceNumber === invoiceNumber);
+    if (sale) this.sendInvoiceViaWhatsApp(sale, phone);
   }
 
   // ===== VIEWS =====
@@ -5387,7 +5417,8 @@ ${this.canDiscount() ? `
     printWindow.document.close();
   }
 
-  sendInvoiceViaWhatsApp(sale, phone) {
+  // إرسال الفاتورة كنص (الطريقة القديمة، متاحة كخيار)
+  sendInvoiceText(sale, phone) {
     const items = this.getSaleItems(sale);
     const discount = parseFloat(sale.discountAmount) || 0;
     const pct = parseFloat(sale.discountPercent) || 0;
@@ -5403,6 +5434,233 @@ ${this.canDiscount() ? `
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
     
     window.open(whatsappUrl, '_blank');
+  }
+
+  // =====================================================================
+  // صورة الفاتورة (للواتساب): تُرسم على Canvas بدون مكتبات خارجية
+  // =====================================================================
+
+  loadImg(src) {
+    return new Promise(resolve => {
+      if (!src) return resolve(null);
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  async renderInvoiceImage(sale) {
+    try { await document.fonts?.load('700 20px Almarai'); await document.fonts?.load('400 20px Almarai'); } catch (e) {}
+    const en = isEn();
+    const T = s => tr(s);
+    const W = 820, P = 40, S = 2;                 // عرض منطقي + مضاعفة للوضوح
+    const font = (size, bold) => `${bold ? 700 : 400} ${size}px Almarai, Tahoma, Arial, sans-serif`;
+    const C = { ink: '#1E1C19', soft: '#5B564C', muted: '#928C7E', line: '#E3DDD0', head: '#20232A', amber: '#F2A71B', amberBg: '#FCEACB', red: '#C4483A' };
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W * S; canvas.height = 3200 * S;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(S, S);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, 3200);
+    ctx.direction = en ? 'ltr' : 'rtl';
+    ctx.textBaseline = 'middle';
+
+    const start = en ? P : W - P, endX = en ? W - P : P;
+    const text = (str, x, y, { size = 16, bold = false, color = C.ink, align = 'start' } = {}) => {
+      ctx.font = font(size, bold); ctx.fillStyle = color;
+      ctx.textAlign = align === 'center' ? 'center' : (align === 'start') === !en ? 'right' : 'left';
+      ctx.fillText(String(str), x, y);
+    };
+    const line = (y, color = C.line, w = 1) => { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(P, y); ctx.lineTo(W - P, y); ctx.stroke(); };
+    const wrap = (str, maxW, size, bold) => {
+      ctx.font = font(size, bold);
+      const words = String(str).split(/\s+/); const out = []; let cur = '';
+      words.forEach(w => { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { out.push(cur); cur = w; } else cur = t; });
+      if (cur) out.push(cur);
+      return out.length ? out : [''];
+    };
+
+    let y = P;
+    // الشعار
+    const logo = await this.loadImg(SHOP.logo);
+    if (logo) {
+      const h = 110, w = Math.min(260, logo.width * h / logo.height);
+      ctx.drawImage(logo, (W - w) / 2, y, w, (w / logo.width) * logo.height);
+      y += (w / logo.width) * logo.height + 14;
+    }
+    text(en ? (SHOP.nameEn || SHOP.name) : SHOP.name, W / 2, y + 14, { size: 26, bold: true, align: 'center' }); y += 40;
+    text(`${T('رقم السجل التجاري')}: ${SHOP.cr}`, W / 2, y, { size: 15, color: C.soft, align: 'center' }); y += 28;
+    text(`${T('رقم الفاتورة')}: ${sale.invoiceNumber || '-'}`, W / 2, y, { size: 18, bold: true, align: 'center' }); y += 26;
+    line(y, C.ink, 2); y += 30;
+
+    // بيانات العميل
+    const half = (W - 2 * P) / 2;
+    const col2 = en ? P + half : W - P - half;
+    const info = [
+      [[T('العميل'), sale.customerName || '-'], [T('التاريخ'), fmtDate(sale.createdAt)]],
+      [[T('الهاتف'), sale.customerPhone || '-'], [T('طريقة الدفع'), sale.paymentMethod ? t(sale.paymentMethod) : '-']],
+    ];
+    info.forEach(row => {
+      row.forEach(([k, v], i) => text(`${k}: ${v}`, i === 0 ? start : col2, y, { size: 16, color: C.ink }));
+      y += 30;
+    });
+    y += 10;
+
+    // جدول الأصناف
+    const items = this.getSaleItems(sale);
+    const tableW = W - 2 * P;
+    const cols = [0.46, 0.14, 0.18, 0.22];          // الوصف، الكمية، السعر، المجموع
+    const colX = []; let acc = 0;
+    cols.forEach(f => { colX.push(acc); acc += f * tableW; });
+    const cellX = (i, align) => {                    // موضع النص داخل العمود
+      const left = en ? P + colX[i] : W - P - colX[i] - cols[i] * tableW;
+      const right = left + cols[i] * tableW;
+      if (align === 'center') return left + cols[i] * tableW / 2;
+      return (align === 'start') === !en ? right - 12 : left + 12;
+    };
+    ctx.fillStyle = C.head; ctx.fillRect(P, y, tableW, 42);
+    [T('الوصف'), T('الكمية'), T('السعر'), T('المجموع')].forEach((h, i) => text(h, cellX(i, i === 0 ? 'start' : 'center'), y + 21, { size: 15, bold: true, color: '#fff', align: i === 0 ? 'start' : 'center' }));
+    y += 42;
+    items.forEach((it, idx) => {
+      const lines = wrap(trExact(it.description), cols[0] * tableW - 24, 16, false);
+      const h = Math.max(44, lines.length * 22 + 20);
+      if (idx % 2) { ctx.fillStyle = '#FAF8F4'; ctx.fillRect(P, y, tableW, h); }
+      lines.forEach((l, li) => text(l, cellX(0, 'start'), y + 22 + li * 22 - (lines.length - 1) * 11, { size: 16 }));
+      text(+(+it.quantity).toFixed(2), cellX(1, 'center'), y + h / 2, { size: 16, align: 'center' });
+      text(fmtMoney(it.unitPrice), cellX(2, 'center'), y + h / 2, { size: 16, align: 'center' });
+      text(fmtMoney(it.unitPrice * it.quantity), cellX(3, 'center'), y + h / 2, { size: 16, bold: true, align: 'center' });
+      y += h;
+      line(y);
+    });
+    y += 14;
+
+    // المجاميع
+    const discount = parseFloat(sale.discountAmount) || 0;
+    const pct = parseFloat(sale.discountPercent) || 0;
+    const total = parseFloat(sale.total) || 0;
+    const subtotal = parseFloat(sale.subtotal) || total + discount;
+    const sumRow = (label, value, opts = {}) => {
+      text(label, start, y + 16, { size: opts.size || 16, bold: opts.bold, color: opts.color || C.soft });
+      text(value, endX, y + 16, { size: opts.size || 16, bold: true, color: opts.color || C.ink, align: 'end' });
+      y += opts.size ? 46 : 32;
+    };
+    if (discount > 0) {
+      sumRow(T('المجموع'), `${fmtMoney(subtotal)} ${T('ر.ع')}`);
+      sumRow(pct > 0 ? `${T('الخصم')} (${+pct.toFixed(2)}%)` : T('الخصم'), `− ${fmtMoney(discount)} ${T('ر.ع')}`, { color: C.red });
+    }
+    ctx.fillStyle = C.amberBg; ctx.fillRect(P, y, tableW, 54);
+    text(T('الإجمالي'), en ? P + 16 : W - P - 16, y + 27, { size: 20, bold: true, align: 'start' });
+    text(`${fmtMoney(total)} ${T('ر.ع')}`, en ? W - P - 16 : P + 16, y + 27, { size: 24, bold: true, align: 'end' });
+    y += 54 + 26;
+
+    // الضمان
+    const wEnd = warrantyEndDate(sale.createdAt, sale.warranty);
+    if (wEnd) {
+      ctx.setLineDash([8, 6]); ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
+      ctx.strokeRect(P, y, tableW, 74); ctx.setLineDash([]);
+      text(`🛡️ ${t(sale.warranty)}`, W / 2, y + 24, { size: 18, bold: true, align: 'center' });
+      text(`${T('ساري من')} ${fmtDate(sale.createdAt)} ${T('حتى')} ${fmtDate(wEnd)}`, W / 2, y + 52, { size: 15, color: C.soft, align: 'center' });
+      y += 74 + 24;
+    }
+
+    // التذييل
+    text(T('شكراً لتعاملك معنا'), W / 2, y + 10, { size: 17, color: C.soft, align: 'center' }); y += 38;
+    const contact = [`📞 ${SHOP.phone}`];
+    if (instagramHandle()) contact.push(`📷 @${instagramHandle()}`);
+    ctx.direction = 'ltr';
+    text(contact.join('     '), W / 2, y, { size: 16, color: C.ink, align: 'center' });
+    y += 30 + P - 10;
+
+    // قص الصورة إلى الطول الفعلي
+    const out = document.createElement('canvas');
+    out.width = W * S; out.height = Math.ceil(y * S);
+    out.getContext('2d').drawImage(canvas, 0, 0);
+    const dataUrl = out.toDataURL('image/png');
+    const blob = await new Promise(res => out.toBlob(res, 'image/png'));
+    return { dataUrl, blob };
+  }
+
+  // نافذة إرسال الفاتورة كصورة
+  async sendInvoiceViaWhatsApp(sale, phone) {
+    if (!sale) return;
+    showToast('⏳ جاري تجهيز صورة الفاتورة...', 'success');
+    let img;
+    try {
+      img = await this.renderInvoiceImage(sale);
+    } catch (e) {
+      console.error('Invoice image error:', e);
+      showToast('تعذّر إنشاء صورة الفاتورة — سيتم الإرسال كنص', 'warning');
+      return this.sendInvoiceText(sale, phone);
+    }
+    const fileName = `invoice-${String(sale.invoiceNumber || 'INV').replace(/[^\w-]/g, '')}.png`;
+    const file = new File([img.blob], fileName, { type: 'image/png' });
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+    const cleanPhone = this.normalizePhone(phone);
+    const caption = `${tr('فاتورة رقم')} ${sale.invoiceNumber} — ${isEn() ? (SHOP.nameEn || SHOP.name) : SHOP.name}`;
+
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>📱 إرسال الفاتورة واتساب</h3>
+        <button class="modal-close" id="invImgClose">✕</button>
+      </div>
+      <div class="inv-img-preview"><img src="${img.dataUrl}" alt=""></div>
+      <div class="inv-img-actions">
+        ${canShare ? `<button class="btn btn-green" id="invShareBtn">📤 مشاركة الصورة (اختر واتساب)</button>` : ''}
+        <button class="btn ${canShare ? 'btn-ghost' : 'btn-green'}" id="invCopyBtn">📋 نسخ الصورة وفتح محادثة ${cleanPhone ? 'العميل' : 'واتساب'}</button>
+        <div class="inv-img-row">
+          <button class="btn btn-ghost btn-sm" id="invDownloadBtn">⬇️ تحميل الصورة</button>
+          <button class="btn btn-ghost btn-sm" id="invTextBtn">💬 إرسال كنص</button>
+        </div>
+        <p class="text-xs">${canShare ? 'على الجوال: اضغط "مشاركة" ثم اختر واتساب والعميل.' : ''} على الكمبيوتر: اضغط "نسخ الصورة"، وعندما تفتح المحادثة اضغط <b dir="ltr">Ctrl + V</b> ثم إرسال.</p>
+      </div>
+    `;
+    overlay.classList.add('active');
+    const close = () => overlay.classList.remove('active');
+    document.getElementById('invImgClose').onclick = close;
+
+    const openChat = (withText) => {
+      const q = withText ? `?text=${encodeURIComponent(caption)}` : '';
+      window.open(`https://wa.me/${cleanPhone}${q}`, '_blank');
+    };
+    const download = () => {
+      const url = URL.createObjectURL(img.blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
+    };
+
+    document.getElementById('invShareBtn')?.addEventListener('click', async () => {
+      try {
+        await navigator.share({ files: [file], text: caption });
+        close();
+      } catch (e) {
+        if (e && e.name === 'AbortError') return; // ألغى المستخدم المشاركة
+        showToast('تعذّرت المشاركة — استخدم "نسخ الصورة"', 'warning');
+      }
+    });
+    document.getElementById('invCopyBtn').addEventListener('click', async () => {
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': img.blob })]);
+          copied = true;
+        }
+      } catch (e) { console.warn('Clipboard image failed:', e); }
+      if (copied) {
+        showToast('تم نسخ صورة الفاتورة — اضغط Ctrl+V داخل المحادثة ثم أرسل', 'success');
+      } else {
+        download();
+        showToast('تم تحميل الصورة — أرفقها في المحادثة من زر المرفقات 📎', 'warning');
+      }
+      openChat(true);
+      close();
+    });
+    document.getElementById('invDownloadBtn').addEventListener('click', download);
+    document.getElementById('invTextBtn').addEventListener('click', () => { this.sendInvoiceText(sale, phone); close(); });
   }
 
   showPaymentModal(invoiceId) {
