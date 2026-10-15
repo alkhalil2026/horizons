@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.9.6 (database offline banner) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.10.0 (sales comparison chart + top products) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1401,6 +1401,28 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 .db-banner { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--brake-red-bg); border: 1px solid var(--brake-red); color: var(--brake-red); border-radius: 8px; padding: 14px 18px; margin-bottom: 16px; }
 .db-banner > div { flex: 1 1 260px; min-width: 0; }
 .db-banner p { margin: 4px 0 0; color: var(--text-600); font-size: 14px; }
+
+/* ===== التقارير ===== */
+.rep-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.rep-tile { background: #fff; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.rep-tile-label { font-size: 13px; font-weight: 700; color: var(--text-600); }
+.rep-tile-value { font-size: 28px; margin: 6px 0 2px; color: var(--text-900); }
+.rep-tile-value small { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.rep-tile-sub { font-size: 12px; color: var(--text-muted); }
+.rep-tile-cmp { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-600); }
+.rep-tile-cmp.up { color: var(--tread-green); }
+.rep-tile-cmp.down { color: var(--brake-red); }
+.rep-head { flex-wrap: wrap; gap: 10px; }
+.rep-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: none; background: #fff; padding: 7px 14px; font-size: 13px; font-weight: 700; color: var(--text-600); cursor: pointer; }
+.seg button + button { border-inline-start: 1px solid var(--line); }
+.seg button.active { background: var(--amber-100); color: var(--text-900); }
+.rep-chart-wrap { position: relative; height: 320px; }
+.share { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.share-bar { height: 8px; background: #D6900F; border-radius: 4px; flex-shrink: 0; max-width: 80px; }
+@media (max-width: 900px) { .rep-tiles { grid-template-columns: 1fr; } .rep-chart-wrap { height: 260px; } }
+.rep-star { color: var(--amber-600); margin-inline-start: 2px; cursor: help; }
 </style>
 </head>
 <body>
@@ -1672,6 +1694,38 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "مقارنة بـأمس": "vs. yesterday",
+  "مقارنة بـالشهر الماضي": "vs. last month",
+  "مقارنة بـالسنة الماضية": "vs. last year",
+  "الشهر الماضي": "Last month",
+  "السنة الماضية": "Last year",
+  "مبيعات هذا الشهر": "This Month's Sales",
+  "مبيعات هذه السنة": "This Year's Sales",
+  "المبيعات اليومية — آخر 30 يوماً": "Daily Sales — Last 30 Days",
+  "المبيعات الشهرية — آخر 12 شهراً": "Monthly Sales — Last 12 Months",
+  "المبيعات السنوية": "Yearly Sales",
+  "يومي": "Daily",
+  "شهري": "Monthly",
+  "سنوي": "Yearly",
+  "عرض كرسم": "Show as chart",
+  "عرض كجدول": "Show as table",
+  "الأعلى مبيعاً": "Top Sellers",
+  "هذا الشهر": "This month",
+  "هذه السنة": "This year",
+  "الكل": "All",
+  "الصنف": "Item",
+  "الكمية المباعة": "Qty Sold",
+  "الإيراد (قبل الخصم)": "Revenue (before discount)",
+  "النسبة من الإيراد": "Share of Revenue",
+  "الفترة": "Period",
+  "إطار": "Tire",
+  "خدمة": "Service",
+  "عرض أعلى 10 فقط": "Show top 10 only",
+  "عرض كل الأصناف": "Show all items",
+  "لا توجد مبيعات في هذه الفترة": "No sales in this period",
+  "تعذّر تحميل مكتبة الرسوم البيانية — استخدم \"عرض كجدول\"": "Could not load the chart library — use \"Show as table\"",
+  "جزء من الكمية من فواتير قديمة بدون تفصيل للأسعار": "Part of the quantity comes from older invoices without per-item prices",
+  "* يشمل كميات من فواتير قديمة لم تُحفظ فيها أسعار كل صنف، لذلك إيرادها غير محسوب هنا.": "* Includes quantities from older invoices that did not store per-item prices, so their revenue is not counted here.",
   "⚠️ تعذّر الاتصال بقاعدة البيانات": "⚠️ Cannot connect to the database",
   "بياناتك محفوظة ولم تُحذف. السبب غالباً أن مشروع Supabase موقوف مؤقتاً بسبب عدم الاستخدام: سجّل الدخول إلى Supabase ثم اضغط \"إعادة المحاولة\".": "Your data is safe and was not deleted. The Supabase project is most likely paused due to inactivity: sign in to Supabase, then press \"Retry\".",
   "🔄 إعادة المحاولة": "🔄 Retry",
@@ -4824,6 +4878,7 @@ ${this.canDiscount() ? `
 
     if (view === 'dashboard') this.bindDashboardEvents();
     if (view === 'sales' || view === 'newSale') this.bindSalesWizardEvents();
+    if (view === 'reports') this.bindReportsEvents();
     if (view === 'newSale') this.bindNewSaleDoneEvents();
     if (view === 'shopSettings') this.bindShopSettingsEvents();
     if (view === 'services') this.bindServicesEvents();
@@ -5579,62 +5634,303 @@ ${this.canDiscount() ? `
     `;
   }
 
+  // ===== التقارير: مقارنة المبيعات + الأعلى مبيعاً =====
+
+  saleDate(s) {
+    const d = new Date(s.createdAt || s.created_at);
+    return isNaN(d) ? null : d;
+  }
+
+  saleTotal(s) {
+    return parseFloat(s.total) || 0;
+  }
+
+  // تجميع المبيعات حسب الفترة: day (آخر 30 يوم) / month (آخر 12 شهر) / year (كل السنوات)
+  salesSeries(mode) {
+    const now = new Date();
+    const loc = currentLang === 'en' ? 'en-GB' : 'ar-OM';
+    const buckets = [];
+    if (mode === 'day') {
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        buckets.push({ key: d.toDateString(), label: d.toLocaleDateString(loc, { day: 'numeric', month: 'short' }), total: 0, count: 0 });
+      }
+    } else if (mode === 'month') {
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        buckets.push({ key: d.getFullYear() + '-' + d.getMonth(), label: d.toLocaleDateString(loc, { month: 'short', year: 'numeric' }), total: 0, count: 0 });
+      }
+    } else {
+      const years = this.sales.map(s => this.saleDate(s)?.getFullYear()).filter(Boolean);
+      const first = Math.min(now.getFullYear() - 2, ...years);
+      for (let y = first; y <= now.getFullYear(); y++) {
+        buckets.push({ key: String(y), label: String(y), total: 0, count: 0 });
+      }
+    }
+    const index = new Map(buckets.map(b => [b.key, b]));
+    this.sales.forEach(s => {
+      const d = this.saleDate(s);
+      if (!d) return;
+      const key = mode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString()
+        : mode === 'month' ? d.getFullYear() + '-' + d.getMonth()
+        : String(d.getFullYear());
+      const b = index.get(key);
+      if (b) { b.total += this.saleTotal(s); b.count++; }
+    });
+    return buckets;
+  }
+
+  // مجموع فترة: today / yesterday / month / lastMonth / year / lastYear
+  periodTotal(which) {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth(), dd = now.getDate();
+    const ranges = {
+      today: [new Date(y, m, dd), new Date(y, m, dd + 1)],
+      yesterday: [new Date(y, m, dd - 1), new Date(y, m, dd)],
+      month: [new Date(y, m, 1), new Date(y, m + 1, 1)],
+      lastMonth: [new Date(y, m - 1, 1), new Date(y, m, 1)],
+      year: [new Date(y, 0, 1), new Date(y + 1, 0, 1)],
+      lastYear: [new Date(y - 1, 0, 1), new Date(y, 0, 1)],
+    };
+    const [from, to] = ranges[which];
+    let total = 0, count = 0;
+    this.sales.forEach(s => {
+      const d = this.saleDate(s);
+      if (d && d >= from && d < to) { total += this.saleTotal(s); count++; }
+    });
+    return { total, count };
+  }
+
+  // الأصناف المباعة (خدمات + إطارات) مع النوع
+  topProducts(range) {
+    const now = new Date();
+    const from = range === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1)
+      : range === 'year' ? new Date(now.getFullYear(), 0, 1) : null;
+    const map = new Map();
+    const add = (name, type, qty, revenue) => {
+      name = String(name || '-').trim();
+      const key = name;
+      const row = map.get(key) || { name, type, qty: 0, revenue: 0, invoices: 0, revenueKnown: true };
+      row.qty += qty;
+      if (revenue == null) row.revenueKnown = false; else row.revenue += revenue;
+      row.invoices++;
+      if (type !== 'unknown') row.type = type;
+      map.set(key, row);
+    };
+    const tireNames = new Set(this.tires.map(t => this.tireLabel(t)));
+    const guessType = name => tireNames.has(name) || /\d{3}\/\d{2}R?\d{2}/i.test(name) ? 'tire'
+      : this.services.some(s => s.name === name) ? 'service' : 'unknown';
+
+    this.sales.forEach(s => {
+      const d = this.saleDate(s);
+      if (from && (!d || d < from)) return;
+      let items = s.items;
+      if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = null; } }
+      if (Array.isArray(items) && items.length) {
+        items.forEach(i => {
+          const q = parseFloat(i.quantity) || 1;
+          const u = parseFloat(i.unitPrice ?? i.unit_price) || 0;
+          const name = i.description || i.name;
+          add(name, i.type === 'tire' || i.type === 'service' ? i.type : guessType(name), q, q * u);
+        });
+      } else if (s.service_name) {
+        const unit = parseFloat(s.unit_price);
+        if (unit) {
+          const q = parseFloat(s.quantity) || 1;
+          add(s.service_name, guessType(s.service_name), q, q * unit);
+        } else {
+          // فاتورة قديمة متعددة الأصناف بدون تفاصيل: نستخرج الأسماء والكميات من النص
+          String(s.service_name).split(/[،,]\s*/).forEach(part => {
+            const m = /^(.*?)\s*×\s*(\d+(?:\.\d+)?)\s*$/.exec(part.trim());
+            const name = m ? m[1] : part;
+            add(name, guessType(name.trim()), m ? parseFloat(m[2]) : 1, null);
+          });
+        }
+      }
+    });
+    return [...map.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+  }
+
   renderReportsView() {
+    const mode = this.reportMode || 'month';
+    const range = this.topRange || 'all';
+    const showAll = !!this.topShowAll;
+    const asTable = !!this.reportAsTable;
+
+    const tile = (label, cur, prev, prevLabel) => {
+      const diff = prev.total ? ((cur.total - prev.total) / prev.total) * 100 : null;
+      const up = diff != null && diff >= 0;
+      return `
+        <div class="rep-tile">
+          <div class="rep-tile-label">${label}</div>
+          <div class="rep-tile-value num">${fmtMoney(cur.total)} <small>ر.ع</small></div>
+          <div class="rep-tile-sub">${cur.count} فاتورة</div>
+          <div class="rep-tile-cmp ${diff == null ? '' : up ? 'up' : 'down'}">
+            ${diff == null ? `${prevLabel}: <span class="num">${fmtMoney(prev.total)}</span>`
+              : `${up ? '▲' : '▼'} <span class="num">${Math.abs(diff).toFixed(0)}%</span> مقارنة بـ${prevLabel} (<span class="num">${fmtMoney(prev.total)}</span>)`}
+          </div>
+        </div>`;
+    };
+
+    const series = this.salesSeries(mode);
+    const products = this.topProducts(range);
+    const shown = showAll ? products : products.slice(0, 10);
+    const totalRevenue = products.reduce((s, p) => s + p.revenue, 0);
+    const modeTitle = { day: 'المبيعات اليومية — آخر 30 يوماً', month: 'المبيعات الشهرية — آخر 12 شهراً', year: 'المبيعات السنوية' }[mode];
+    const typeBadge = { tire: '<span class="badge badge-info">🛞 إطار</span>', service: '<span class="badge badge-success">🔧 خدمة</span>', unknown: '<span class="badge">—</span>' };
+
     return `
+      <div class="rep-tiles">
+        ${tile('مبيعات اليوم', this.periodTotal('today'), this.periodTotal('yesterday'), 'أمس')}
+        ${tile('مبيعات هذا الشهر', this.periodTotal('month'), this.periodTotal('lastMonth'), 'الشهر الماضي')}
+        ${tile('مبيعات هذه السنة', this.periodTotal('year'), this.periodTotal('lastYear'), 'السنة الماضية')}
+      </div>
+
+      <div class="card">
+        <div class="card-head rep-head">
+          <h3>📊 ${modeTitle}</h3>
+          <div class="rep-controls">
+            <div class="seg">
+              <button class="${mode === 'day' ? 'active' : ''}" data-rep-mode="day">يومي</button>
+              <button class="${mode === 'month' ? 'active' : ''}" data-rep-mode="month">شهري</button>
+              <button class="${mode === 'year' ? 'active' : ''}" data-rep-mode="year">سنوي</button>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="repToggleTable">${asTable ? '📊 عرض كرسم' : '📋 عرض كجدول'}</button>
+          </div>
+        </div>
+        ${asTable ? `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>الفترة</th><th>عدد الفواتير</th><th>إجمالي المبيعات</th></tr></thead>
+              <tbody>
+                ${[...series].reverse().map(b => `<tr><td>${esc(b.label)}</td><td class="num">${b.count}</td><td class="num">${fmtMoney(b.total)}</td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>` : `
+          <div class="rep-chart-wrap"><canvas id="salesChart"></canvas></div>
+          ${typeof Chart === 'undefined' ? '<p class="text-center text-xs">تعذّر تحميل مكتبة الرسوم البيانية — استخدم "عرض كجدول"</p>' : ''}`}
+      </div>
+
+      <div class="card">
+        <div class="card-head rep-head">
+          <h3>🏆 الأعلى مبيعاً (${products.length} صنف)</h3>
+          <div class="seg">
+            <button class="${range === 'month' ? 'active' : ''}" data-top-range="month">هذا الشهر</button>
+            <button class="${range === 'year' ? 'active' : ''}" data-top-range="year">هذه السنة</button>
+            <button class="${range === 'all' ? 'active' : ''}" data-top-range="all">الكل</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>الصنف</th><th>النوع</th><th>الكمية المباعة</th><th>عدد الفواتير</th><th>الإيراد (قبل الخصم)</th><th>النسبة من الإيراد</th></tr>
+            </thead>
+            <tbody>
+              ${shown.map((p, i) => {
+                const share = totalRevenue ? (p.revenue / totalRevenue) * 100 : null;
+                return `
+                <tr>
+                  <td class="num">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td>
+                  <td style="font-weight: 700;">${esc(p.name)}</td>
+                  <td>${typeBadge[p.type] || typeBadge.unknown}</td>
+                  <td class="num">${+p.qty.toFixed(2)}</td>
+                  <td class="num">${p.invoices}</td>
+                  <td class="num">${fmtMoney(p.revenue)}${p.revenueKnown ? '' : '<span class="rep-star" title="جزء من الكمية من فواتير قديمة بدون تفصيل للأسعار">*</span>'}</td>
+                  <td>${share == null ? '—' : `<div class="share"><div class="share-bar" style="width: ${Math.max(share, 1)}%"></div><span class="num">${share.toFixed(1)}%</span></div>`}</td>
+                </tr>`;
+              }).join('') || '<tr><td colspan="7" class="text-center">لا توجد مبيعات في هذه الفترة</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        ${products.some(p => !p.revenueKnown) ? '<p class="text-xs" style="margin-top: 10px;">* يشمل كميات من فواتير قديمة لم تُحفظ فيها أسعار كل صنف، لذلك إيرادها غير محسوب هنا.</p>' : ''}
+        ${products.length > 10 ? `<button class="btn btn-ghost btn-block" id="topShowAll" style="margin-top: 12px;">${showAll ? 'عرض أعلى 10 فقط' : `عرض كل الأصناف (${products.length})`}</button>` : ''}
+      </div>
+
       <div class="grid-2">
         <div class="card">
-          <div class="card-head"><h3>ملخص المبيعات</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>إجمالي الفواتير:</span>
-              <span class="num">${this.sales.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>إجمالي المبيعات:</span>
-              <span class="num">${fmtMoney(this.sales.reduce((s, x) => s + (x.total || 0), 0))}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
           <div class="card-head"><h3>ملخص المخزون</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>عدد الأنواع:</span>
-              <span class="num">${this.tires.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>إجمالي الكمية:</span>
-              <span class="num">${this.tires.reduce((s, t) => s + (t.quantity || 0), 0)}</span>
-            </div>
+          <div class="summary-box">
+            <div class="summary-row"><span>عدد الأنواع:</span><span class="num">${this.tires.length}</span></div>
+            <div class="summary-row"><span>إجمالي الكمية:</span><span class="num">${this.tires.reduce((s, t) => s + (parseInt(t.stock) || 0), 0)}</span></div>
           </div>
         </div>
-
         <div class="card">
           <div class="card-head"><h3>ملخص العملاء والخدمات</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line);">
-              <span>إجمالي العملاء:</span>
-              <span class="num">${this.customers.length}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>عدد الخدمات:</span>
-              <span class="num">${this.services.length}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><h3>المواعيد</h3></div>
-          <div style="padding: 16px 0;">
-            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-              <span>المواعيد المنتظرة:</span>
-              <span class="num">${this.appointments.length}</span>
-            </div>
+          <div class="summary-box">
+            <div class="summary-row"><span>إجمالي العملاء:</span><span class="num">${this.customers.length}</span></div>
+            <div class="summary-row"><span>عدد الخدمات:</span><span class="num">${this.services.length}</span></div>
           </div>
         </div>
       </div>
     `;
+  }
+
+  bindReportsEvents() {
+    const root = document.getElementById('content');
+    root.querySelectorAll('[data-rep-mode]').forEach(b => b.addEventListener('click', () => {
+      this.reportMode = b.dataset.repMode;
+      this.switchView('reports');
+    }));
+    root.querySelectorAll('[data-top-range]').forEach(b => b.addEventListener('click', () => {
+      this.topRange = b.dataset.topRange;
+      this.topShowAll = false;
+      this.switchView('reports');
+    }));
+    document.getElementById('repToggleTable')?.addEventListener('click', () => {
+      this.reportAsTable = !this.reportAsTable;
+      this.switchView('reports');
+    });
+    document.getElementById('topShowAll')?.addEventListener('click', () => {
+      this.topShowAll = !this.topShowAll;
+      this.switchView('reports');
+    });
+    this.drawSalesChart();
+  }
+
+  drawSalesChart() {
+    if (this.salesChart) { try { this.salesChart.destroy(); } catch (e) {} this.salesChart = null; }
+    const canvas = document.getElementById('salesChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const series = this.salesSeries(this.reportMode || 'month');
+    const css = getComputedStyle(document.documentElement);
+    const ink = (css.getPropertyValue('--text-600') || '#5B564C').trim();
+    const grid = (css.getPropertyValue('--line') || '#E3DDD0').trim();
+    const maxIdx = series.reduce((mi, b, i, arr) => b.total > arr[mi].total ? i : mi, 0);
+    this.salesChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: series.map(b => b.label),
+        datasets: [{
+          label: tr('إجمالي المبيعات'),
+          data: series.map(b => +b.total.toFixed(3)),
+          backgroundColor: series.map((b, i) => i === maxIdx && b.total > 0 ? '#B87A08' : '#D6900F'),
+          borderRadius: { topLeft: 4, topRight: 4 },
+          borderSkipped: 'bottom',
+          maxBarThickness: 40,
+          categoryPercentage: 0.8,
+          barPercentage: 0.9,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        locale: currentLang === 'en' ? 'en-GB' : 'ar-OM',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            rtl: currentLang !== 'en',
+            callbacks: {
+              label: ctx => `${tr('إجمالي المبيعات')}: ${fmtMoney(ctx.parsed.y)} ${tr('ر.ع')}`,
+              afterLabel: ctx => `${tr('عدد الفواتير')}: ${series[ctx.dataIndex].count}`,
+            },
+          },
+        },
+        scales: {
+          x: { reverse: currentLang !== 'en', grid: { display: false }, ticks: { color: ink, font: { family: 'Almarai' }, maxRotation: 0, autoSkip: true } },
+          y: { beginAtZero: true, position: currentLang !== 'en' ? 'right' : 'left', grid: { color: grid, drawBorder: false }, ticks: { color: ink, font: { family: 'Almarai' }, callback: v => fmtMoney(v) } },
+        },
+      },
+    });
   }
 
   renderSuppliersView() {
