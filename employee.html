@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.16.0 (sequential invoice numbers + employee/manager phones) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.17.0 (past invoices: custom date + manual number) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1489,6 +1489,11 @@ label > input[type="checkbox"] { width: auto; margin: 0; vertical-align: middle;
 label.text-xs:has(> input[type="checkbox"]) { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 
 .form-row > .form-group { flex: 1; min-width: 160px; }
+
+.past-inv-box { border: 1px dashed var(--line, #E3DDD0); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+.past-inv-box.is-past { border-color: #F2A71B; background: #FFF8EA; }
+.past-inv-box .form-group { margin-bottom: 8px; }
+.past-inv-box p.text-xs { margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -1839,6 +1844,15 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "📅 تاريخ الفاتورة": "📅 Invoice date",
+  "🔢 رقم الفاتورة (اختياري)": "🔢 Invoice number (optional)",
+  "تلقائي": "Automatic",
+  "📌 فاتورة سابقة — ستُسجَّل بتاريخ": "📌 Past invoice — will be recorded on",
+  "وتظهر في تقارير ذلك اليوم.": "and will appear in that day's reports.",
+  "خصم الإطارات من المخزون": "Deduct tires from stock",
+  "ألغِ هذا الخيار إذا كان المخزون في النظام قد خُصم منه هذا البيع من قبل.": "Untick this if the stock in the system already reflects this sale.",
+  "اترك الرقم فارغاً ليأخذ الرقم التالي تلقائياً، أو اكتب رقمه من دفتر الفواتير الورقي (مثال: 245).": "Leave empty to use the next number automatically, or enter its number from the paper invoice book (e.g. 245).",
+  "لا يمكن أن يكون تاريخ الفاتورة في المستقبل": "The invoice date can't be in the future",
   "رقم الموظف": "Employee phone",
   "رقم المسؤول": "Manager phone",
   "👤 رقم الموظف": "👤 Employee phone",
@@ -2658,6 +2672,13 @@ function esc(str) {
 
 function fmtMoney(n) {
   return (Number(n) || 0).toFixed(2);
+}
+
+// تاريخ محلي بصيغة YYYY-MM-DD (لحقول التاريخ)
+function localYMD(d) {
+  const x = d ? new Date(d) : new Date();
+  if (isNaN(x)) return '';
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 }
 
 function fmtDate(iso) {
@@ -3850,6 +3871,8 @@ class TireShopApp {
           .replace('supplier_invoices', 'supplierInvoices')
           .replace('supplier_payments', 'supplierPayments');
         
+        // المبيعات مرتبة بتاريخ الفاتورة (الأحدث أولاً) — مهم للفواتير السابقة المضافة لاحقاً
+        if (table === 'sales') mapped.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         this[propName] = mapped;
         console.log(`✅ Loaded ${mapped.length} from ${table}`);
       });
@@ -4018,6 +4041,10 @@ class TireShopApp {
       editingSaleId: null,
       editingInvoiceNumber: null,
       originalTireQty: {},
+      invoiceDate: localYMD(),   // تاريخ الفاتورة (للمدير: يمكن اختيار تاريخ سابق)
+      originalCreatedAt: null,
+      manualNumber: '',          // رقم من دفتر الفواتير الورقي (اختياري)
+      deductStock: true,         // خصم الإطارات من المخزون للفاتورة السابقة
     };
   }
 
@@ -4083,6 +4110,8 @@ class TireShopApp {
       editingSaleId: sale.id,
       editingInvoiceNumber: sale.invoiceNumber,
       originalTireQty,
+      invoiceDate: localYMD(sale.createdAt) || localYMD(),
+      originalCreatedAt: sale.createdAt || null,
     };
     this.switchView(this.saleView());
   }
@@ -4304,6 +4333,44 @@ class TireShopApp {
     // التعديل يحتفظ برقمه، والفاتورة الجديدة تأخذ الرقم التالي في التسلسل
     let invoiceNumber = w.editingInvoiceNumber || null;
 
+    // ===== تاريخ الفاتورة (المدير فقط يستطيع اختيار تاريخ سابق) =====
+    const today = localYMD();
+    let chosenDate = this.isManager() ? (w.invoiceDate || today) : today;
+    if (editingId && !this.isManager()) chosenDate = localYMD(w.originalCreatedAt) || today;
+    if (chosenDate > today) {
+      showToast('لا يمكن أن يكون تاريخ الفاتورة في المستقبل', 'warning');
+      this.isSavingSale = false;
+      return false;
+    }
+    let createdAt;
+    if (editingId && w.originalCreatedAt && localYMD(w.originalCreatedAt) === chosenDate) {
+      createdAt = w.originalCreatedAt;                 // لم يتغير اليوم: نحتفظ بالوقت الأصلي
+    } else if (chosenDate === today) {
+      createdAt = new Date().toISOString();
+    } else {
+      const [yy, mm, dd] = chosenDate.split('-').map(Number);
+      createdAt = new Date(yy, mm - 1, dd, 12, 0, 0).toISOString(); // منتصف اليوم المختار
+    }
+    const isBackdated = !editingId && chosenDate < today;
+
+    // ===== رقم يدوي من الدفتر الورقي (فاتورة جديدة فقط) =====
+    if (!editingId && this.isManager() && String(w.manualNumber || '').trim()) {
+      let manual = String(w.manualNumber).trim().toUpperCase().replace(/\s+/g, '');
+      if (/^\d{1,7}$/.test(manual)) manual = formatInvoiceNumber(parseInt(manual, 10));
+      else if (/^INV-\d{1,7}$/.test(manual)) manual = formatInvoiceNumber(parseInt(manual.slice(4), 10));
+      let exists = this.sales.some(x => String(x.invoiceNumber).toUpperCase() === manual);
+      if (!exists && this.sb) {
+        const { data } = await this.sb.from('sales').select('id').eq('invoice_number', manual).limit(1);
+        exists = !!(data && data.length);
+      }
+      if (exists) {
+        showToast(`رقم الفاتورة ${manual} مستخدم من قبل`, 'error');
+        this.isSavingSale = false;
+        return false;
+      }
+      invoiceNumber = manual;
+    }
+
     const row = {
       invoice_number: invoiceNumber,
       customer_name: w.customerName,
@@ -4318,6 +4385,7 @@ class TireShopApp {
       discount_percent: percent,
       total: total,
       items: items,
+      created_at: createdAt,
     };
 
     try {
@@ -4329,6 +4397,8 @@ class TireShopApp {
       Object.entries(w.originalTireQty || {}).forEach(([id, q]) => {
         stockDelta[id] = (stockDelta[id] || 0) - q;
       });
+      // فاتورة سابقة والمخزون محسوب مسبقاً: لا نخصم
+      if (isBackdated && w.deductStock === false) Object.keys(stockDelta).forEach(k => delete stockDelta[k]);
 
       if (!invoiceNumber) {
         invoiceNumber = await this.nextInvoiceNumber();
@@ -4338,10 +4408,11 @@ class TireShopApp {
       if (!this.sb) {
         if (editingId) {
           const idx = this.sales.findIndex(x => x.id === editingId);
-          if (idx > -1) this.sales[idx] = { ...this.sales[idx], ...rowFromDb({ ...row, created_at: this.sales[idx].createdAt }, 'sales'), id: editingId };
+          if (idx > -1) this.sales[idx] = { ...this.sales[idx], ...rowFromDb({ ...row }, 'sales'), id: editingId };
         } else {
-          this.sales.unshift({ ...rowFromDb({ ...row, id: uid(), created_at: new Date().toISOString() }, 'sales') });
+          this.sales.unshift({ ...rowFromDb({ ...row, id: uid() }, 'sales') });
         }
+        this.sales.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         Object.entries(stockDelta).forEach(([id, d]) => {
           const tire = this.tires.find(x => x.id === id);
           if (tire && d) tire.stock = (parseInt(tire.stock) || 0) - d;
@@ -4380,7 +4451,7 @@ class TireShopApp {
         await this.loadAllData();
       }
 
-      showToast(editingId ? 'تم تعديل الفاتورة' : `${t('invoiceCreated')} — ${invoiceNumber}`, 'success');
+      showToast(editingId ? 'تم تعديل الفاتورة' : `${t('invoiceCreated')} — ${invoiceNumber}${isBackdated ? ' (' + fmtDate(createdAt) + ')' : ''}`, 'success');
       this.lastSavedInvoiceNumber = invoiceNumber;
       if (!this.isManager()) this.lastSaleNumber = invoiceNumber;
       this.saleWizard = this.emptySaleWizard();
@@ -5244,6 +5315,34 @@ ${this.canDiscount() ? `
     `;
   }
 
+  // للمدير: تاريخ الفاتورة + رقم يدوي (لإدخال الفواتير السابقة)
+  renderInvoiceDateBox() {
+    const w = this.saleWizard;
+    const today = localYMD();
+    const past = (w.invoiceDate || today) < today;
+    const hasTires = w.cart.some(l => l.type === 'tire');
+    return `
+      <div class="past-inv-box ${past ? 'is-past' : ''}">
+        <div class="form-row">
+          <div class="form-group">
+            <label>📅 تاريخ الفاتورة</label>
+            <input type="date" id="invoiceDateInput" value="${esc(w.invoiceDate || today)}" max="${today}">
+          </div>
+          ${w.editingSaleId ? '' : `
+          <div class="form-group">
+            <label>🔢 رقم الفاتورة (اختياري)</label>
+            <input type="text" id="manualNumberInput" value="${esc(w.manualNumber || '')}" placeholder="تلقائي" dir="ltr" style="text-align: right;">
+          </div>`}
+        </div>
+        ${past ? `<p class="text-xs">📌 فاتورة سابقة — ستُسجَّل بتاريخ <b>${esc(fmtDate(w.invoiceDate))}</b> وتظهر في تقارير ذلك اليوم.</p>` : ''}
+        ${past && hasTires && !w.editingSaleId ? `
+          <label class="text-xs"><input type="checkbox" id="deductStockInput" ${w.deductStock !== false ? 'checked' : ''}> خصم الإطارات من المخزون</label>
+          <p class="text-xs">ألغِ هذا الخيار إذا كان المخزون في النظام قد خُصم منه هذا البيع من قبل.</p>` : ''}
+        ${w.editingSaleId ? '' : `<p class="text-xs">اترك الرقم فارغاً ليأخذ الرقم التالي تلقائياً، أو اكتب رقمه من دفتر الفواتير الورقي (مثال: 245).</p>`}
+      </div>
+    `;
+  }
+
   renderWizardStep3() {
     const w = this.saleWizard;
     return `
@@ -5263,6 +5362,7 @@ ${this.canDiscount() ? `
               <label>${t('customerPhone')} *</label>
               <input type="tel" id="customerPhoneInput" value="${esc(w.customerPhone)}" placeholder="9xxxxxxx">
             </div>
+            ${this.isManager() ? this.renderInvoiceDateBox() : ''}
             <div class="summary-box">
               <div class="summary-row"><span>الضمان:</span><span>${t(w.warranty)}</span></div>
               <div class="summary-row"><span>طريقة الدفع:</span><span>${t(w.paymentMethod)}</span></div>
@@ -7043,6 +7143,18 @@ ${this.canDiscount() ? `
         }
       });
       phoneInput?.addEventListener('input', (e) => { w.customerPhone = e.target.value; });
+      document.getElementById('invoiceDateInput')?.addEventListener('change', (e) => {
+        const v = e.target.value;
+        if (v && v > localYMD()) {
+          showToast('لا يمكن أن يكون تاريخ الفاتورة في المستقبل', 'warning');
+          e.target.value = w.invoiceDate;
+          return;
+        }
+        w.invoiceDate = v || localYMD();
+        this.switchView(this.saleView());   // لإظهار/إخفاء ملاحظة الفاتورة السابقة
+      });
+      document.getElementById('manualNumberInput')?.addEventListener('input', (e) => { w.manualNumber = e.target.value; });
+      document.getElementById('deductStockInput')?.addEventListener('change', (e) => { w.deductStock = e.target.checked; });
 
       const checkCustomer = () => {
         if (!w.customerName.trim() || !w.customerPhone.trim()) {
