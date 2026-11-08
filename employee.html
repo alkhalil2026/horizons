@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.15.2 (signature label: المدير المسؤول) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.16.0 (sequential invoice numbers + employee/manager phones) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1487,6 +1487,8 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 
 label > input[type="checkbox"] { width: auto; margin: 0; vertical-align: middle; }
 label.text-xs:has(> input[type="checkbox"]) { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+.form-row > .form-group { flex: 1; min-width: 160px; }
 </style>
 </head>
 <body>
@@ -1528,9 +1530,27 @@ const DEFAULT_WARRANTY_POLICY = "الضمان يشمل:\n* سطح الإطار �
 SHOP.address = DEFAULT_ADDRESS;
 SHOP.warrantyPolicy = DEFAULT_WARRANTY_POLICY;
 SHOP.signature = '';
+SHOP.employeePhone = '';   // رقم الموظف (يظهر أسفل الفاتورة)
+SHOP.managerPhone = '';    // رقم المسؤول (يظهر أسفل الفاتورة)
+SHOP.invoiceStart = '1';   // رقم أول فاتورة في الترقيم المتسلسل
 // هذه المفاتيح يمكن تفريغها عمداً (لإخفائها من الفاتورة)
-const SHOP_CLEARABLE_KEYS = ['address', 'warrantyPolicy', 'signature'];
-const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature'];
+const SHOP_CLEARABLE_KEYS = ['address', 'warrantyPolicy', 'signature', 'employeePhone', 'managerPhone'];
+const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature', 'employeePhone', 'managerPhone', 'invoiceStart'];
+
+// ===== ترقيم الفواتير المتسلسل: INV-0001, INV-0002 ... =====
+// الأرقام القديمة العشوائية (INV-1790670643117) لا تدخل في الحساب
+const INVOICE_SEQ_RE = /^INV-(\d{1,7})$/;
+function formatInvoiceNumber(n) {
+  return 'INV-' + String(n).padStart(4, '0');
+}
+
+// أرقام التواصل أسفل الفاتورة
+function invoiceContacts() {
+  const list = [{ icon: '📞', label: 'رقم المحل', value: SHOP.phone }];
+  if (SHOP.employeePhone) list.push({ icon: '👤', label: 'رقم الموظف', value: SHOP.employeePhone });
+  if (SHOP.managerPhone) list.push({ icon: '👔', label: 'رقم المسؤول', value: SHOP.managerPhone });
+  return list.filter(c => c.value);
+}
 
 // سياسة الضمان → بنود: عنوان (ينتهي بـ :)، بند (يبدأ بـ * أو - أو •)، أو ملاحظة
 // البنود تحت عنوان فيه "لا يشمل" تُعلَّم كاستثناء
@@ -1819,6 +1839,13 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "رقم الموظف": "Employee phone",
+  "رقم المسؤول": "Manager phone",
+  "👤 رقم الموظف": "👤 Employee phone",
+  "👔 رقم المسؤول": "👔 Manager phone",
+  "🔢 رقم أول فاتورة": "🔢 First invoice number",
+  "الفواتير تُرقَّم بالتسلسل: INV-0001، INV-0002... إذا كان عندك دفتر فواتير ورقي، اكتب الرقم الذي تريد أن يبدأ منه النظام. الفاتورة التالية:": "Invoices are numbered in sequence: INV-0001, INV-0002... If you have a paper invoice book, enter the number the system should start from. Next invoice:",
+  "رقم الهاتف غير صحيح": "Invalid phone number",
   "الآفاق المستقبلية للإطارات": "Al Afaq Al Mustaqbaliya Tires",
   "نزوى، كرشا الصناعية — محافظة الداخلية، سلطنة عُمان": "Nizwa, Karsha Industrial Area — Ad Dakhiliyah Governorate, Sultanate of Oman",
   "نزوى": "Nizwa",
@@ -4205,7 +4232,7 @@ class TireShopApp {
     if (d.paymentMethod) msg += `*طريقة الدفع:* ${t(d.paymentMethod)}\n`;
     const end = warrantyEndDate(d.date, d.warranty);
     if (end) msg += `\n🛡️ *${t(d.warranty)}* — ساري حتى ${fmtDate(end)}\n`;
-    msg += `\n📞 ${SHOP.phone}`;
+    invoiceContacts().forEach(c => { msg += `\n${c.icon} ${c.label}: ${c.value}`; });
     if (instagramHandle()) msg += `\n📷 انستجرام: @${instagramHandle()}`;
     msg += `\n\nشكراً لتعاملك معنا 🙏`;
     return tr(msg);
@@ -4241,7 +4268,23 @@ class TireShopApp {
     return { ok: false, error: { message: 'too many retries' } };
   }
 
-  async saveSale(invoiceNumber) {
+  // الرقم التالي: أكبر رقم متسلسل في قاعدة البيانات + 1 (أو رقم البداية من الإعدادات)
+  async nextInvoiceNumber() {
+    let numbers = (this.sales || []).map(x => x.invoiceNumber);
+    if (this.sb) {
+      const { data, error } = await this.sb.from('sales').select('invoice_number');
+      if (!error && data) numbers = data.map(r => r.invoice_number);
+    }
+    let max = 0;
+    numbers.forEach(n => {
+      const m = INVOICE_SEQ_RE.exec(String(n || '').trim());
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    });
+    const start = Math.max(1, parseInt(SHOP.invoiceStart, 10) || 1);
+    return formatInvoiceNumber(Math.max(max + 1, start));
+  }
+
+  async saveSale() {
     const w = this.saleWizard;
     if (!w.cart.length) {
       showToast('السلة فارغة', 'warning');
@@ -4258,7 +4301,8 @@ class TireShopApp {
       quantity: l.quantity, unitPrice: l.unitPrice,
     }));
     const editingId = w.editingSaleId;
-    invoiceNumber = w.editingInvoiceNumber || invoiceNumber || ('INV-' + Date.now());
+    // التعديل يحتفظ برقمه، والفاتورة الجديدة تأخذ الرقم التالي في التسلسل
+    let invoiceNumber = w.editingInvoiceNumber || null;
 
     const row = {
       invoice_number: invoiceNumber,
@@ -4286,6 +4330,11 @@ class TireShopApp {
         stockDelta[id] = (stockDelta[id] || 0) - q;
       });
 
+      if (!invoiceNumber) {
+        invoiceNumber = await this.nextInvoiceNumber();
+        row.invoice_number = invoiceNumber;
+      }
+
       if (!this.sb) {
         if (editingId) {
           const idx = this.sales.findIndex(x => x.id === editingId);
@@ -4298,9 +4347,18 @@ class TireShopApp {
           if (tire && d) tire.stock = (parseInt(tire.stock) || 0) - d;
         });
       } else {
-        const res = editingId
-          ? await this.writeWithRetry(row, d => this.sb.from('sales').update(d).eq('id', editingId)).then(r => ({ ok: !r.error, error: r.error, dropped: [] }))
-          : await this.insertSaleRow(row);
+        let res;
+        if (editingId) {
+          res = await this.writeWithRetry(row, d => this.sb.from('sales').update(d).eq('id', editingId)).then(r => ({ ok: !r.error, error: r.error, dropped: [] }));
+        } else {
+          // إذا سبقنا جهاز آخر بنفس الرقم (قيد عدم التكرار)، نأخذ الرقم التالي ونعيد المحاولة
+          for (let attempt = 0; attempt < 5; attempt++) {
+            res = await this.insertSaleRow(row);
+            if (res.ok || res.error?.code !== '23505') break;
+            invoiceNumber = await this.nextInvoiceNumber();
+            row.invoice_number = invoiceNumber;
+          }
+        }
         if (!res.ok) {
           showToast('لم تُحفظ الفاتورة: ' + (res.error?.message || ''), 'error');
           return false;
@@ -4322,7 +4380,8 @@ class TireShopApp {
         await this.loadAllData();
       }
 
-      showToast(editingId ? 'تم تعديل الفاتورة' : t('invoiceCreated'), 'success');
+      showToast(editingId ? 'تم تعديل الفاتورة' : `${t('invoiceCreated')} — ${invoiceNumber}`, 'success');
+      this.lastSavedInvoiceNumber = invoiceNumber;
       if (!this.isManager()) this.lastSaleNumber = invoiceNumber;
       this.saleWizard = this.emptySaleWizard();
       this.switchView(this.saleView());
@@ -4334,12 +4393,10 @@ class TireShopApp {
 
   // حفظ الفاتورة ثم فتح نافذة إرسالها كصورة
   async sendWhatsApp() {
-    const w = this.saleWizard;
-    const invoiceNumber = w.editingInvoiceNumber || ('INV-' + Date.now());
-    const phone = w.customerPhone;
-    const ok = await this.saveSale(invoiceNumber);
+    const phone = this.saleWizard.customerPhone;
+    const ok = await this.saveSale();
     if (!ok) return;
-    const sale = this.sales.find(x => x.invoiceNumber === invoiceNumber);
+    const sale = this.sales.find(x => x.invoiceNumber === this.lastSavedInvoiceNumber);
     if (sale) this.sendInvoiceViaWhatsApp(sale, phone);
   }
 
@@ -4739,6 +4796,21 @@ class TireShopApp {
             </div>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>👤 رقم الموظف</label>
+            <input type="tel" id="settingEmpPhone" value="${esc(SHOP.employeePhone || '')}" placeholder="اختياري" dir="ltr" style="text-align: right;">
+          </div>
+          <div class="form-group">
+            <label>👔 رقم المسؤول</label>
+            <input type="tel" id="settingMgrPhone" value="${esc(SHOP.managerPhone || '')}" placeholder="اختياري" dir="ltr" style="text-align: right;">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>🔢 رقم أول فاتورة</label>
+          <input type="number" id="settingInvoiceStart" min="1" step="1" value="${esc(String(parseInt(SHOP.invoiceStart, 10) || 1))}" dir="ltr" style="text-align: right; max-width: 200px;">
+          <p class="text-xs">الفواتير تُرقَّم بالتسلسل: INV-0001، INV-0002... إذا كان عندك دفتر فواتير ورقي، اكتب الرقم الذي تريد أن يبدأ منه النظام. الفاتورة التالية: <b class="num" dir="ltr">${esc(this.previewNextInvoice || '...')}</b></p>
+        </div>
         <div class="form-group">
           <label>📍 عنوان المحل</label>
           <input type="text" id="settingAddress" value="${esc(SHOP.address || '')}" placeholder="المدينة، المنطقة — المحافظة">
@@ -4877,6 +4949,15 @@ class TireShopApp {
   }
 
   bindShopSettingsEvents() {
+    // عرض رقم الفاتورة التالية
+    this.nextInvoiceNumber().then(n => {
+      const changed = this.previewNextInvoice !== n;
+      this.previewNextInvoice = n;
+      if (changed && this.currentView === 'shopSettings') {
+        const b = document.querySelector('#settingInvoiceStart + .text-xs b');
+        if (b) b.textContent = n;
+      }
+    });
     document.getElementById('logoFileInput')?.addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -4934,16 +5015,26 @@ class TireShopApp {
       }
       const nameEn = document.getElementById('settingNameEn').value.trim();
       const address = document.getElementById('settingAddress').value.trim();
+      const employeePhone = document.getElementById('settingEmpPhone').value.trim();
+      const managerPhone = document.getElementById('settingMgrPhone').value.trim();
+      const invoiceStart = String(Math.max(1, parseInt(document.getElementById('settingInvoiceStart').value, 10) || 1));
+      const badPhone = [employeePhone, managerPhone].find(p => p && !/^[+\d\s-]{6,20}$/.test(p));
+      if (badPhone) {
+        showToast('رقم الهاتف غير صحيح: ' + badPhone, 'error');
+        return;
+      }
       const warrantyPolicy = document.getElementById('settingPolicy').value.trim();
-      const where = await this.saveSettings({ phone, instagram, nameEn, address, warrantyPolicy });
+      const where = await this.saveSettings({ phone, instagram, nameEn, address, warrantyPolicy, employeePhone, managerPhone, invoiceStart });
       SHOP.address = address;
+      SHOP.employeePhone = employeePhone;
+      SHOP.managerPhone = managerPhone;
       SHOP.warrantyPolicy = warrantyPolicy;
       showToast(where === 'db' ? 'تم حفظ الإعدادات' : 'تم الحفظ على هذا الجهاز فقط', where === 'db' ? 'success' : 'warning');
       this.switchView('shopSettings');
     });
     document.getElementById('previewInvoiceBtn')?.addEventListener('click', () => {
       this.printSaleInvoice({
-        invoiceNumber: 'INV-تجريبية', customerName: 'عميل تجريبي', customerPhone: '9xxxxxxx',
+        invoiceNumber: 'INV-0000', customerName: 'عميل تجريبي', customerPhone: '9xxxxxxx',
         createdAt: new Date().toISOString(), warranty: 'warranty12M', paymentMethod: 'cash',
         items: [{ description: 'مثال: إطار 205/55R16', quantity: 4, unitPrice: 30 }, { description: 'مثال: ترصيص', quantity: 4, unitPrice: 1 }],
         subtotal: 124, total: 124,
@@ -5619,7 +5710,7 @@ ${this.canDiscount() ? `
           <div class="footer">
             <p>شكراً لتعاملك معنا</p>
             <div class="contact">
-              <div>📞 رقم المحل: <span>${esc(SHOP.phone)}</span></div>
+              ${invoiceContacts().map(c => `<div>${c.icon} ${c.label}: <span>${esc(c.value)}</span></div>`).join('')}
               ${instagramHandle() ? `<div>📷 انستجرام: <span>@${esc(instagramHandle())}</span></div>` : ''}
             </div>
           </div>
@@ -5827,11 +5918,19 @@ ${this.canDiscount() ? `
 
     // التذييل
     text(T('شكراً لتعاملك معنا'), W / 2, y + 10, { size: 17, color: C.soft, align: 'center' }); y += 38;
-    const contact = [`📞 ${SHOP.phone}`];
-    if (instagramHandle()) contact.push(`📷 @${instagramHandle()}`);
-    ctx.direction = 'ltr';
-    text(contact.join('     '), W / 2, y, { size: 16, color: C.ink, align: 'center' });
-    y += 30 + P - 10;
+    ctx.direction = en ? 'ltr' : 'rtl';
+    const phones = invoiceContacts().map(c => `${c.icon} ${T(c.label)}: \u2066${c.value}\u2069`);
+    // سطر لكل رقمين حتى لا يزدحم
+    for (let i = 0; i < phones.length; i += 2) {
+      text(phones.slice(i, i + 2).join('      '), W / 2, y, { size: 15, color: C.ink, align: 'center' });
+      y += 26;
+    }
+    if (instagramHandle()) {
+      ctx.direction = 'ltr';
+      text(`📷 @${instagramHandle()}`, W / 2, y, { size: 15, color: C.ink, align: 'center' });
+      y += 26;
+    }
+    y += P - 16;
 
     // قص الصورة إلى الطول الفعلي
     const out = document.createElement('canvas');
