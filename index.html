@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.18.1 (dashboard period filter works) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.19.0 (net profit per invoice) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1514,6 +1514,12 @@ tr.rep-total td { font-weight: 700; border-top: 2px solid var(--line, #E3DDD0); 
 .dash-period-label { margin-inline-start: auto; font-size: 14px; color: var(--text-600, #5B564C); }
 .dash-active { box-shadow: 0 0 0 2px rgba(214,144,15,.35); }
 .dash-section-title { font-size: 15px; font-weight: 700; margin: 18px 0 10px; }
+
+.profit-chip { border: 0; border-radius: 999px; padding: 3px 10px; font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.profit-chip small { font-weight: 400; opacity: .75; margin-inline-start: 4px; }
+.profit-chip.pos { background: var(--tread-green-bg, #E6F4EA); color: var(--tread-green, #1E7B3A); }
+.profit-chip.neg { background: #FBE5E2; color: var(--brake-red, #C4483A); }
+.profit-chip:hover { filter: brightness(.95); }
 </style>
 </head>
 <body>
@@ -1900,6 +1906,16 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "التكلفة": "Cost",
+  "تفاصيل الربح": "Profit details",
+  "المجموع قبل الخصم:": "Subtotal before discount:",
+  "إجمالي الفاتورة:": "Invoice total:",
+  "تكلفة الأصناف:": "Cost of items:",
+  "صافي الربح:": "Net profit:",
+  "إغلاق": "Close",
+  "💹 ربح الفاتورة": "💹 Invoice profit",
+  "صافي ربح الفاتورة = إجمالي الفاتورة (بعد الخصم) − تكلفة الأصناف (سعر التكلفة). اضغط على مبلغ الربح لرؤية التفصيل. * صنف بدون سعر تكلفة مسجّل.": "Invoice net profit = invoice total (after discount) − cost of items (cost price). Click the profit amount to see the breakdown. * item without a recorded cost price.",
+  "* صنف بدون سعر تكلفة مسجّل — أضف سعر التكلفة من صفحة المخزون أو الإكسسوارات ليكون الربح دقيقاً.": "* Item without a recorded cost price — add the cost price from the Inventory or Accessories page for an accurate profit.",
   "🗂️ الكل": "🗂️ All",
   "المعروض:": "Showing:",
   "كل الفترات": "All periods",
@@ -5083,16 +5099,24 @@ class TireShopApp {
                 <th>رقم الفاتورة</th>
                 <th>العميل</th>
                 <th>المبلغ</th>
+                <th>التكلفة</th>
+                <th>صافي الربح</th>
                 <th>التاريخ</th>
                 <th>الإجراءات</th>
               </tr>
             </thead>
             <tbody>
-              ${filteredSales.map(s => `
+              ${filteredSales.map(s => {
+                const pr = this.saleProfit(s);
+                return `
                 <tr>
                   <td>${esc(s.invoiceNumber || '-')}</td>
                   <td>${esc(s.customerName)}</td>
                   <td class="num">${fmtMoney(s.total || 0)}</td>
+                  <td class="num" style="color: var(--text-600);">${fmtMoney(pr.cost)}</td>
+                  <td class="num">
+                    <button class="profit-chip ${pr.profit >= 0 ? 'pos' : 'neg'}" data-profit-sale="${s.id}" title="تفاصيل الربح">${fmtMoney(pr.profit)}${pr.missingCost ? '*' : ''} <small>${pr.margin.toFixed(0)}%</small></button>
+                  </td>
                   <td>${fmtDate(s.createdAt)}</td>
                   <td>
                     <button class="btn btn-xs btn-amber" data-edit-sale="${s.id}">✏️ تعديل</button>
@@ -5100,11 +5124,16 @@ class TireShopApp {
                     <button class="btn btn-xs btn-green" data-whatsapp-invoice="${s.id}" data-customer-phone="${s.customerPhone || ''}">📱 واتس</button>
                     <button class="btn btn-xs btn-danger" data-delete-sale="${s.id}">🗑️</button>
                   </td>
-                </tr>
-              `).join('') || '<tr><td colspan="5" class="text-center">لا توجد فواتير</td></tr>'}
+                </tr>`;
+              }).join('') || '<tr><td colspan="7" class="text-center">لا توجد فواتير</td></tr>'}
             </tbody>
+            ${filteredSales.length ? (() => {
+              const T = filteredSales.reduce((a, s) => { const p = this.saleProfit(s); return { t: a.t + p.total, c: a.c + p.cost, p: a.p + p.profit }; }, { t: 0, c: 0, p: 0 });
+              return `<tfoot><tr class="rep-total"><td colspan="2">المجموع</td><td class="num">${fmtMoney(T.t)}</td><td class="num">${fmtMoney(T.c)}</td><td class="num" style="color: ${T.p >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(T.p)}</td><td colspan="2"></td></tr></tfoot>`;
+            })() : ''}
           </table>
         </div>
+        <p class="text-xs" style="margin-top: 10px;">صافي ربح الفاتورة = إجمالي الفاتورة (بعد الخصم) − تكلفة الأصناف (سعر التكلفة). اضغط على مبلغ الربح لرؤية التفصيل. * صنف بدون سعر تكلفة مسجّل.</p>
       </div>
     `;
   }
@@ -7021,6 +7050,12 @@ ${this.canDiscount() ? `
           }
         }
 
+        const profitBtn = e.target.closest('[data-profit-sale]');
+        if (profitBtn) {
+          const sale = this.sales.find(x => x.id === profitBtn.dataset.profitSale);
+          if (sale) this.showSaleProfitModal(sale);
+        }
+
         if (e.target.matches('[data-edit-sale]')) {
           this.startEditSale(e.target.dataset.editSale);
         }
@@ -8236,6 +8271,80 @@ ${this.canDiscount() ? `
       return (parseFloat(s.quantity) || 1) * this.currentCost('unknown', null, s.service_name);
     }
     return 0;
+  }
+
+  // ربح فاتورة: الإجمالي بعد الخصم − تكلفة الأصناف، مع تفصيل لكل صنف
+  saleProfit(s) {
+    let items = s.items;
+    if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = null; } }
+    const lines = [];
+    let missingCost = false;
+    if (Array.isArray(items) && items.length) {
+      items.forEach(i => {
+        const q = parseFloat(i.quantity) || 1;
+        const price = parseFloat(i.unitPrice ?? i.unit_price) || 0;
+        const name = i.description || i.name || '-';
+        const type = ['tire', 'service', 'accessory'].includes(i.type) ? i.type : 'unknown';
+        const unitCost = this.itemUnitCost(i, type);
+        if ((type === 'tire' || type === 'accessory') && !unitCost) missingCost = true;
+        lines.push({ name, type, q, price, unitCost, revenue: q * price, cost: q * unitCost, profit: q * (price - unitCost) });
+      });
+    } else if (s.service_name) {
+      const cost = this.saleCost(s);
+      const rev = parseFloat(s.subtotal) || parseFloat(s.total) || 0;
+      lines.push({ name: s.service_name, type: 'unknown', q: parseFloat(s.quantity) || 1, price: null, unitCost: null, revenue: rev, cost, profit: rev - cost });
+    }
+    const total = parseFloat(s.total) || 0;
+    const subtotal = lines.reduce((a, l) => a + l.revenue, 0);
+    const discount = Math.max(0, Math.round((subtotal - total) * 1000) / 1000);
+    const cost = lines.reduce((a, l) => a + l.cost, 0);
+    const profit = total - cost;
+    return { lines, subtotal, discount, total, cost, profit, margin: total ? (profit / total) * 100 : 0, missingCost };
+  }
+
+  showSaleProfitModal(sale) {
+    const p = this.saleProfit(sale);
+    const typeIcon = { tire: '🛞', accessory: '🧩', service: '🔧', unknown: '📝' };
+    const money = v => v == null ? '—' : fmtMoney(v);
+    const body = `
+      <div class="text-xs" style="margin-bottom: 10px;">${esc(sale.customerName || '')} — ${fmtDate(sale.createdAt)}</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الصنف</th><th>الكمية</th><th>سعر البيع</th><th>سعر التكلفة</th><th>الربح</th></tr></thead>
+          <tbody>
+            ${p.lines.map(l => `<tr>
+              <td>${typeIcon[l.type] || ''} ${esc(l.name)}</td>
+              <td class="num">${+l.q.toFixed(2)}</td>
+              <td class="num">${money(l.price)}</td>
+              <td class="num" style="color: var(--text-600);">${l.type === 'service' ? '—' : money(l.unitCost)}${(l.type === 'tire' || l.type === 'accessory') && !l.unitCost ? ' <span class="rep-star" title="لا يوجد سعر تكلفة مسجّل">*</span>' : ''}</td>
+              <td class="num" style="font-weight: 700; color: ${l.profit >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(l.profit)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="summary-box" style="margin-top: 12px;">
+        <div class="summary-row"><span>المجموع قبل الخصم:</span><span class="num">${fmtMoney(p.subtotal)}</span></div>
+        ${p.discount > 0 ? `<div class="summary-row"><span>الخصم:</span><span class="num">− ${fmtMoney(p.discount)}</span></div>` : ''}
+        <div class="summary-row"><span>إجمالي الفاتورة:</span><span class="num">${fmtMoney(p.total)}</span></div>
+        <div class="summary-row"><span>تكلفة الأصناف:</span><span class="num">− ${fmtMoney(p.cost)}</span></div>
+        <div class="summary-row total"><span>صافي الربح:</span><span class="num" style="color: ${p.profit >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(p.profit)} <small>(${p.margin.toFixed(0)}%)</small></span></div>
+      </div>
+      ${p.missingCost ? '<p class="text-xs" style="margin-top: 8px;">* صنف بدون سعر تكلفة مسجّل — أضف سعر التكلفة من صفحة المخزون أو الإكسسوارات ليكون الربح دقيقاً.</p>' : ''}
+    `;
+    const overlay = document.getElementById('modalOverlay');
+    const box = document.getElementById('modalBox');
+    box.innerHTML = `
+      <div class="modal-head">
+        <h3>💹 ربح الفاتورة ${esc(sale.invoiceNumber || '')}</h3>
+        <button class="modal-close" id="profitModalClose">✕</button>
+      </div>
+      <div>${body}</div>
+      <div class="modal-footer"><button class="btn btn-ghost" id="profitModalOk">إغلاق</button></div>
+    `;
+    overlay.classList.add('active');
+    const close = () => overlay.classList.remove('active');
+    document.getElementById('profitModalClose').onclick = close;
+    document.getElementById('profitModalOk').onclick = close;
   }
 
   // تاريخ المصروف
