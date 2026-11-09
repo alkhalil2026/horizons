@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.17.0 (past invoices: custom date + manual number) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.18.0 (price raise, accessories, split pay, supplier paid, profit reports) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1494,6 +1494,22 @@ label.text-xs:has(> input[type="checkbox"]) { display: inline-flex; align-items:
 .past-inv-box.is-past { border-color: #F2A71B; background: #FFF8EA; }
 .past-inv-box .form-group { margin-bottom: 8px; }
 .past-inv-box p.text-xs { margin: 4px 0; }
+
+/* v2.18 */
+.cart-price-edit { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.cart-price-input { width: 84px !important; padding: 3px 6px !important; font-size: 13px !important; height: auto !important; text-align: center; }
+.price-up { color: var(--tread-green); font-weight: 700; }
+.wz-price-hint { color: var(--text-muted); align-self: center; flex: 1; text-align: center; }
+.split-box { margin-top: 10px; border: 1px solid var(--line, #E3DDD0); border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
+.split-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; }
+.split-row label { margin: 0; font-size: 13px; }
+.split-status { font-size: 13px; padding: 6px 8px; border-radius: 8px; }
+.split-status.ok { background: var(--tread-green-bg, #E6F4EA); color: var(--tread-green, #1E7B3A); }
+.split-status.bad { background: var(--amber-100, #FCEACB); color: var(--amber-600, #8A5A00); }
+.inv-fixed-box { border: 1px solid var(--line, #E3DDD0); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 14px; }
+.inv-fixed-list { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
+.inv-fixed-list .no { color: var(--text-muted); }
+tr.rep-total td { font-weight: 700; border-top: 2px solid var(--line, #E3DDD0); }
 </style>
 </head>
 <body>
@@ -1597,7 +1613,7 @@ function shopMark() {
 const APP_MODE = 'employee';
 
 // الصفحات المسموحة للموظف (المدير يرى كل شيء)
-const EMPLOYEE_VIEWS = ['newSale', 'myHR', 'customers', 'appointments', 'tires', 'services', 'dailyExpenses'];
+const EMPLOYEE_VIEWS = ['newSale', 'myHR', 'customers', 'appointments', 'tires', 'accessories', 'services', 'dailyExpenses'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
 
@@ -1619,6 +1635,39 @@ function paymentMethodPicker(name, selected = 'cash') {
   `;
 }
 
+// ===== طرق دفع المبيعات + تقسيم الدفع =====
+// الفاتورة المقسّمة تُحفظ في عمود payment_method بالشكل: split:cash=10;card=20;transfer=5
+const SALE_SPLIT_KEYS = ['cash', 'card', 'transfer'];
+function normPayKey(k) { return k === 'creditCard' ? 'card' : k; }
+function parseSplit(method) {
+  const out = {};
+  String(method || '').replace(/^split:/, '').split(';').forEach(p => {
+    const [k, v] = p.split('=');
+    const n = parseFloat(v);
+    if (k && n > 0) out[normPayKey(k.trim())] = n;
+  });
+  return out;
+}
+function encodeSplit(obj) {
+  return 'split:' + SALE_SPLIT_KEYS.filter(k => (parseFloat(obj[k]) || 0) > 0).map(k => `${k}=${+(parseFloat(obj[k])).toFixed(3)}`).join(';');
+}
+function isSplitPay(method) { return String(method || '').startsWith('split'); }
+// نص طريقة الدفع للعرض (يدعم التقسيم)
+function paymentText(method) {
+  if (!method) return '-';
+  if (isSplitPay(method)) {
+    const parts = parseSplit(method);
+    return Object.entries(parts).map(([k, v]) => `${t(k)} ${fmtMoney(v)}`).join(' + ') || t('split');
+  }
+  return t(normPayKey(method));
+}
+// المبالغ المدفوعة بكل طريقة في فاتورة
+function salePayments(sale) {
+  const total = parseFloat(sale.total) || 0;
+  if (isSplitPay(sale.paymentMethod)) return parseSplit(sale.paymentMethod);
+  return { [normPayKey(sale.paymentMethod || 'cash')]: total };
+}
+
 function readPaymentMethod(name) {
   return document.querySelector(`input[name="${name}"]:checked`)?.value || 'cash';
 }
@@ -1638,6 +1687,7 @@ function localDateStr(d) {
 }
 
 // أمر إنشاء جداول الموارد البشرية في Supabase
+const V218_SQL = "-- ورشتي 2.18: جدول الإعدادات (لتظهر نفس الإعدادات والتوقيع على كل الأجهزة) + جدول الإكسسوارات\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists settings (\n  key text primary key,\n  value text,\n  updated_at timestamptz default now()\n);\n\ncreate table if not exists accessories (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  price numeric not null default 0,\n  cost numeric default 0,\n  stock integer default 0,\n  created_at timestamptz default now()\n);\n\nalter table settings enable row level security;\nalter table accessories enable row level security;\ndrop policy if exists \"app access\" on settings;\ndrop policy if exists \"app access\" on accessories;\ncreate policy \"app access\" on settings for all using (true) with check (true);\ncreate policy \"app access\" on accessories for all using (true) with check (true);\n";
 const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  check_in2 timestamptz,\n  check_out2 timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ndrop policy if exists \"app access\" on hr_employees;\ndrop policy if exists \"app access\" on hr_attendance;\ndrop policy if exists \"app access\" on hr_leaves;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);\n\n-- أعمدة الفترة المسائية (للجداول التي أُنشئت قبل إضافتها)\nalter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
 const HR_SHIFT_SQL = "alter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
 
@@ -1710,6 +1760,7 @@ const i18n = {
     card: 'بطاقة',
     check: 'شيك',
     transfer: 'تحويل',
+    split: 'تقسيم الدفع',
     expenses: 'المصروفات',
     fixedExpenses: 'المصروفات الثابتة',
     dailyExpenses: 'المصروفات اليومية',
@@ -1798,6 +1849,7 @@ const i18n = {
     card: 'Card',
     check: 'Check',
     transfer: 'Transfer',
+    split: 'Split payment',
     expenses: 'Expenses',
     fixedExpenses: 'Fixed Expenses',
     dailyExpenses: 'Daily Expenses',
@@ -1844,6 +1896,52 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "الإكسسوارات": "Accessories",
+  "🧩 الإكسسوارات": "🧩 Accessories",
+  "➕ إضافة إكسسوار": "➕ Add Accessory",
+  "اسم الصنف *": "Item name *",
+  "مثال: غطاء صمام، معطر، مضخة هواء": "e.g. valve cap, air freshener, air pump",
+  "سعر البيع *": "Selling price *",
+  "الكمية في المخزون": "Quantity in stock",
+  "لا توجد إكسسوارات": "No accessories",
+  "تعديل الإكسسوار": "Edit Accessory",
+  "حذف هذا الصنف؟": "Delete this item?",
+  "أدخل اسم الصنف وسعر البيع": "Enter the item name and selling price",
+  "⚙️ تفعيل قسم الإكسسوارات": "⚙️ Enable the Accessories section",
+  "قسم الإكسسوارات غير مفعّل بعد. اطلب من المدير تفعيله.": "The accessories section isn't enabled yet. Ask the manager to enable it.",
+  "🧩 إكسسوار": "🧩 Accessory",
+  "ابحث عن صنف...": "Search for an item...",
+  "لا توجد إكسسوارات. أضفها من صفحة الإكسسوارات أولاً.": "No accessories. Add them from the Accessories page first.",
+  "قسم الإكسسوارات يحتاج تجهيز قاعدة البيانات — افتح صفحة الإكسسوارات": "The accessories section needs database setup — open the Accessories page",
+  "💡 يمكنك زيادة سعر الإطار أو الإكسسوار من خانة السعر في الفاتورة": "💡 You can raise the price of a tire or accessory from the price box in the invoice",
+  "يمكنك زيادة السعر": "You can raise the price",
+  "لا يمكن أن يكون السعر أقل من سعر البيع": "The price can't be lower than the selling price",
+  "➗ تقسيم الدفع": "➗ Split payment",
+  "الباقي": "Rest",
+  "ضع المبلغ المتبقي هنا": "Put the remaining amount here",
+  "✅ المجموع مطابق للإجمالي": "✅ The sum matches the total",
+  "المتبقي:": "Remaining:",
+  "المبلغ أكثر من الإجمالي بـ": "Amount exceeds the total by",
+  "في تقسيم الدفع أدخل مبلغين على الأقل (مثلاً كاش + فيزا)": "For a split payment enter at least two amounts (e.g. cash + card)",
+  "هل الفاتورة مدفوعة؟": "Is the invoice paid?",
+  "❌ لا": "❌ No",
+  "✅ نعم": "✅ Yes",
+  "المبلغ المدفوع *": "Amount paid *",
+  "كامل المبلغ": "Full amount",
+  "أدخل المبلغ المدفوع": "Enter the amount paid",
+  "المبلغ المدفوع أكبر من إجمالي الفاتورة": "The amount paid is more than the invoice total",
+  "المتبقي على الفاتورة:": "Remaining on the invoice:",
+  "✅ مدفوعة بالكامل": "✅ Fully paid",
+  "⚠️ المبلغ أكبر من الإجمالي": "⚠️ Amount is more than the total",
+  "دفعة عند تسجيل الفاتورة": "Payment when recording the invoice",
+  "الربح": "Profit",
+  "النسبة من الربح": "Share of Profit",
+  "تكلفة الأصناف": "Cost of Items",
+  "صافي الربح = المبيعات (بعد الخصم) − تكلفة الأصناف المباعة (سعر التكلفة) − المصروفات اليومية والثابتة.": "Net profit = sales (after discount) − cost of items sold (cost price) − daily and fixed expenses.",
+  "الربح = الإيراد − (سعر التكلفة × الكمية). الخدمات بدون تكلفة، فربحها = إيرادها. الأصناف التي ليس لها سعر تكلفة مسجّل يُحسب ربحها كامل الإيراد.": "Profit = revenue − (cost price × quantity). Services have no cost, so their profit equals their revenue. Items without a recorded cost price count their full revenue as profit.",
+  "يظهر تلقائياً في كل فاتورة (بدون إدخاله كل مرة):": "Shown automatically on every invoice (no need to enter it each time):",
+  "التوقيع": "Signature",
+  "لكي تظهر هذه البيانات على جهاز الموظف وكل الأجهزة، شغّل هذا الأمر مرة واحدة في SQL Editor في Supabase ثم أعد تحميل الصفحة:": "To show this information on the employee's device and all devices, run this command once in the Supabase SQL Editor, then reload the page:",
   "📅 تاريخ الفاتورة": "📅 Invoice date",
   "🔢 رقم الفاتورة (اختياري)": "🔢 Invoice number (optional)",
   "تلقائي": "Automatic",
@@ -2622,6 +2720,7 @@ const ICONS = {
   hr: '🧑‍💼',
   dashboard: '📊',
   tires: '🛞',
+  accessories: '🧩',
   services: '🔧',
   customers: '👥',
   appointments: '📅',
@@ -2698,7 +2797,7 @@ function showToast(msg, type = 'success') {
   const wrap = document.getElementById('toastWrap');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.innerHTML = `${icon(type === 'error' ? 'alert' : 'check')} <span>${esc(msg)}</span>`;
+  el.innerHTML = `${type === 'warning' ? '⚠️' : icon(type === 'error' ? 'alert' : 'check')} <span>${esc(msg)}</span>`;
   wrap.appendChild(el);
   setTimeout(() => {
     el.style.opacity = '0';
@@ -2722,6 +2821,7 @@ const FIELD_MAP = {
     supplier_id: 'supplierId'
   },
   services: {},
+  accessories: {},
   customers: {},
   appointments: { customer_id: 'customerId', customer_name: 'customerName', service_name: 'serviceName', appointment_time: 'appointmentTime' },
   sales: {
@@ -2812,6 +2912,7 @@ class TireShopApp {
     
     // Database collections
     this.tires = [];
+    this.accessories = [];
     this.services = [];
     this.customers = [];
     this.appointments = [];
@@ -3777,10 +3878,35 @@ class TireShopApp {
     resetTranslations();
   }
 
+  // حفظ محلي آمن: الصور (الشعار/التوقيع) في مفاتيح مستقلة حتى لا تمنع امتلاء الذاكرة حفظ باقي الإعدادات
+  readLocalSettings() {
+    let obj = {};
+    try { obj = JSON.parse(localStorage.getItem('tireshop_settings') || '{}') || {}; } catch (e) {}
+    ['logo', 'signature'].forEach(k => {
+      try {
+        const v = localStorage.getItem('tireshop_set_' + k);
+        if (v !== null) obj[k] = v;
+      } catch (e) {}
+    });
+    return obj;
+  }
+
+  writeLocalSettings(obj) {
+    const rest = { ...obj };
+    ['logo', 'signature'].forEach(k => {
+      if (k in rest) {
+        try { localStorage.setItem('tireshop_set_' + k, rest[k] || ''); } catch (e) { console.warn('تعذّر حفظ ' + k + ' محلياً (الذاكرة ممتلئة)'); }
+        delete rest[k];
+      }
+    });
+    try { localStorage.setItem('tireshop_settings', JSON.stringify(rest)); } catch (e) {}
+  }
+
   async loadSettings() {
     this.loadServiceEnMap();
+    const local = this.readLocalSettings();
     try {
-      this.applySettings(JSON.parse(localStorage.getItem('tireshop_settings') || '{}'));
+      this.applySettings(local);
     } catch (e) {}
     this.settingsInDb = false;
     if (!this.sb) return;
@@ -3793,9 +3919,16 @@ class TireShopApp {
       this.settingsInDb = true;
       const obj = {};
       (data || []).forEach(r => { obj[r.key] = r.value; });
+      // إعدادات حُفظت سابقاً على هذا الجهاز فقط (قبل إنشاء الجدول): نرفعها لقاعدة البيانات
+      const missing = SHOP_EDITABLE_KEYS.filter(k => !(k in obj) && typeof local[k] === 'string' && local[k].trim());
+      if (missing.length && this.isManager && this.isManager()) {
+        const rows = missing.map(k => ({ key: k, value: local[k] }));
+        const { error: upErr } = await this.sb.from('settings').upsert(rows, { onConflict: 'key' });
+        if (!upErr) missing.forEach(k => { obj[k] = local[k]; });
+      }
       this.loadServiceEnMap(obj.serviceNamesEn);
       this.applySettings(obj);
-      localStorage.setItem('tireshop_settings', JSON.stringify(obj));
+      this.writeLocalSettings({ ...local, ...obj });
     } catch (e) {
       console.warn('Settings load error:', e);
     }
@@ -3805,10 +3938,7 @@ class TireShopApp {
     // نحفظ فقط المفاتيح المرسلة حتى لا تُمسح الإعدادات الأخرى (مثل الشعار)
     const clean = {};
     SHOP_EDITABLE_KEYS.filter(k => k in values).forEach(k => { clean[k] = String(values[k] || '').trim(); });
-    try {
-      const stored = JSON.parse(localStorage.getItem('tireshop_settings') || '{}') || {};
-      localStorage.setItem('tireshop_settings', JSON.stringify({ ...stored, ...clean }));
-    } catch (e) {}
+    this.writeLocalSettings({ ...this.readLocalSettings(), ...clean });
     this.applySettings(clean);
     if (!this.sb) return 'local';
     const rows = Object.entries(clean).map(([key, value]) => ({ key, value }));
@@ -3836,7 +3966,7 @@ class TireShopApp {
     try {
       const tables = [
         'tires', 'services', 'customers', 'appointments', 'sales',
-        'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses'
+        'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses', 'accessories'
       ];
 
       // تحميل جميع الجداول بالتوازي بدلاً من التسلسل
@@ -3860,6 +3990,7 @@ class TireShopApp {
         const table = tables[idx];
         const { data, error } = result;
         
+        if (table === 'accessories') this.accessoriesMissing = !!error;
         if (error) {
           console.error(`Error loading ${table}:`, error);
           return;
@@ -3948,8 +4079,9 @@ class TireShopApp {
   async addRecord(table, data) {
     if (!this.sb) {
       const id = uid();
-      const record = { id, ...data, createdAt: new Date().toISOString() };
-      this[table].unshift(record);
+      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments');
+      const record = { ...rowFromDb({ ...data, id, created_at: new Date().toISOString() }, table) };
+      (this[prop] = this[prop] || []).unshift(record);
       return true;
     }
 
@@ -4041,6 +4173,8 @@ class TireShopApp {
       editingSaleId: null,
       editingInvoiceNumber: null,
       originalTireQty: {},
+      originalAccQty: {},
+      paySplit: { cash: '', card: '', transfer: '' },
       invoiceDate: localYMD(),   // تاريخ الفاتورة (للمدير: يمكن اختيار تاريخ سابق)
       originalCreatedAt: null,
       manualNumber: '',          // رقم من دفتر الفواتير الورقي (اختياري)
@@ -4049,10 +4183,54 @@ class TireShopApp {
   }
 
   // الكمية المتاحة للبيع = المخزون الحالي + ما كان في الفاتورة الأصلية (عند التعديل)
-  availableStock(tireId) {
-    const tire = this.tires.find(x => x.id === tireId);
+  availableStock(refId, type = 'tire') {
+    if (type === 'accessory') {
+      const acc = this.accessories.find(x => x.id === refId);
+      return (parseInt(acc?.stock) || 0) + (this.saleWizard.originalAccQty?.[refId] || 0);
+    }
+    const tire = this.tires.find(x => x.id === refId);
     const stock = parseInt(tire?.stock) || 0;
-    return stock + (this.saleWizard.originalTireQty?.[tireId] || 0);
+    return stock + (this.saleWizard.originalTireQty?.[refId] || 0);
+  }
+
+  // سعر البيع الحالي من القائمة (null للخدمات والأسطر الحرة: سعرها غير محدود)
+  listPrice(type, refId) {
+    if (type === 'tire') {
+      const x = this.tires.find(t => t.id === refId);
+      return x ? parseFloat(x.sellingPrice) || 0 : null;
+    }
+    if (type === 'accessory') {
+      const x = this.accessories.find(a => a.id === refId);
+      return x ? parseFloat(x.price) || 0 : null;
+    }
+    return null;
+  }
+
+  // سعر التكلفة الحالي (الخدمات بدون تكلفة)
+  currentCost(type, refId, name) {
+    if (type === 'tire' || type === 'unknown' || type === 'custom') {
+      const x = this.tires.find(t => t.id === refId) || (name ? this.tires.find(t => this.tireLabel(t) === name) : null);
+      if (x) return parseFloat(x.cost) || 0;
+    }
+    if (type === 'accessory' || type === 'unknown' || type === 'custom') {
+      const x = this.accessories.find(a => a.id === refId) || (name ? this.accessories.find(a => a.name === name) : null);
+      if (x) return parseFloat(x.cost) || 0;
+    }
+    return 0;
+  }
+
+  // تغيير سعر صنف في السلة (زيادة فقط: لا يقل عن سعر البيع)
+  setCartPrice(key, value) {
+    const line = this.saleWizard.cart.find(l => l.key === key);
+    if (!line) return;
+    const v = Math.round((parseFloat(value) || 0) * 1000) / 1000;
+    const min = line.basePrice ?? 0;
+    if (v < min) {
+      showToast(`لا يمكن أن يكون السعر أقل من سعر البيع (${fmtMoney(min)})`, 'warning');
+    } else {
+      line.unitPrice = v;
+    }
+    this.switchView(this.saleView());
   }
 
   startEditSale(saleId) {
@@ -4067,12 +4245,17 @@ class TireShopApp {
     const cart = [];
     if (Array.isArray(items) && items.length) {
       items.forEach((i, idx) => {
-        const type = i.type === 'tire' || i.type === 'service' ? i.type : 'custom';
+        const type = ['tire', 'service', 'accessory'].includes(i.type) ? i.type : 'custom';
         const refId = i.refId || ('c' + idx);
+        const unitPrice = parseFloat(i.unitPrice ?? i.unit_price) || 0;
+        const list = this.listPrice(type, refId);
         cart.push({
           key: type + ':' + refId, type, refId,
           description: i.description || '-',
-          unitPrice: parseFloat(i.unitPrice ?? i.unit_price) || 0,
+          unitPrice,
+          // الحد الأدنى للسعر: سعر البيع الحالي أو سعر الفاتورة الأصلي (الأقل)
+          basePrice: list == null ? null : Math.min(list, unitPrice || list),
+          unitCost: i.unitCost != null ? parseFloat(i.unitCost) || 0 : this.currentCost(type, refId),
           quantity: parseFloat(i.quantity) || 1,
         });
       });
@@ -4093,6 +4276,11 @@ class TireShopApp {
     cart.filter(l => l.type === 'tire').forEach(l => {
       originalTireQty[l.refId] = (originalTireQty[l.refId] || 0) + l.quantity;
     });
+    const originalAccQty = {};
+    cart.filter(l => l.type === 'accessory').forEach(l => {
+      originalAccQty[l.refId] = (originalAccQty[l.refId] || 0) + l.quantity;
+    });
+    const split = isSplitPay(sale.paymentMethod) ? parseSplit(sale.paymentMethod) : null;
 
     const pct = parseFloat(sale.discountPercent) || 0;
     const amt = parseFloat(sale.discountAmount) || 0;
@@ -4102,7 +4290,8 @@ class TireShopApp {
       active: true,
       cart,
       warranty: sale.warranty || 'noWarranty',
-      paymentMethod: sale.paymentMethod || 'cash',
+      paymentMethod: split ? 'split' : normPayKey(sale.paymentMethod || 'cash'),
+      paySplit: split ? { cash: split.cash || '', card: split.card || '', transfer: split.transfer || '' } : { cash: '', card: '', transfer: '' },
       discountType: pct > 0 ? 'percent' : 'amount',
       discount: pct > 0 ? pct : amt,
       customerName: sale.customerName || '',
@@ -4110,6 +4299,7 @@ class TireShopApp {
       editingSaleId: sale.id,
       editingInvoiceNumber: sale.invoiceNumber,
       originalTireQty,
+      originalAccQty,
       invoiceDate: localYMD(sale.createdAt) || localYMD(),
       originalCreatedAt: sale.createdAt || null,
     };
@@ -4126,7 +4316,23 @@ class TireShopApp {
     this.switchView(this.saleView());
   }
 
+  // التحقق من تقسيم الدفع: يرجع رسالة الخطأ أو null
+  splitError() {
+    const w = this.saleWizard;
+    if (w.paymentMethod !== 'split') return null;
+    const { total } = this.cartTotals();
+    const sum = SALE_SPLIT_KEYS.reduce((a, k) => a + (parseFloat(w.paySplit?.[k]) || 0), 0);
+    const used = SALE_SPLIT_KEYS.filter(k => (parseFloat(w.paySplit?.[k]) || 0) > 0).length;
+    if (used < 2) return 'في تقسيم الدفع أدخل مبلغين على الأقل (مثلاً كاش + فيزا)';
+    if (Math.abs(sum - total) > 0.0005) return `مجموع المبالغ (${fmtMoney(sum)}) لا يساوي إجمالي الفاتورة (${fmtMoney(total)})`;
+    return null;
+  }
+
   nextWizardStep() {
+    if (this.saleWizard.step === 2) {
+      const err = this.splitError();
+      if (err) { showToast(err, 'warning'); return; }
+    }
     if (this.saleWizard.step < 3) {
       this.saleWizard.step++;
       this.switchView(this.saleView());
@@ -4160,7 +4366,24 @@ class TireShopApp {
         return;
       }
       if (line) line.quantity++;
-      else cart.push({ key, type, refId, description: this.tireLabel(tire), unitPrice: parseFloat(tire.sellingPrice) || 0, quantity: 1 });
+      else {
+        const price = parseFloat(tire.sellingPrice) || 0;
+        cart.push({ key, type, refId, description: this.tireLabel(tire), unitPrice: price, basePrice: price, unitCost: parseFloat(tire.cost) || 0, quantity: 1 });
+      }
+    } else if (type === 'accessory') {
+      const acc = this.accessories.find(x => x.id === refId);
+      if (!acc) return;
+      const stock = this.availableStock(refId, 'accessory');
+      const inCart = line ? line.quantity : 0;
+      if (inCart + 1 > stock) {
+        showToast(`المخزون المتاح من هذا الصنف: ${stock} فقط`, 'warning');
+        return;
+      }
+      if (line) line.quantity++;
+      else {
+        const price = parseFloat(acc.price) || 0;
+        cart.push({ key, type, refId, description: acc.name, unitPrice: price, basePrice: price, unitCost: parseFloat(acc.cost) || 0, quantity: 1 });
+      }
     } else {
       const service = this.services.find(x => x.id === refId);
       if (!service) return;
@@ -4178,8 +4401,8 @@ class TireShopApp {
     if (next < 1) {
       this.saleWizard.cart = cart.filter(l => l.key !== key);
     } else {
-      if (line.type === 'tire') {
-        const stock = this.availableStock(line.refId);
+      if (line.type === 'tire' || line.type === 'accessory') {
+        const stock = this.availableStock(line.refId, line.type);
         if (next > stock) {
           showToast(`المخزون المتاح: ${stock} فقط`, 'warning');
           return;
@@ -4258,7 +4481,7 @@ class TireShopApp {
       msg += `\n*المجموع:* ${fmtMoney(d.subtotal)}\n*${d.discountLabel}:* ${fmtMoney(d.discount)}\n`;
     }
     msg += `\n*الإجمالي:* ${fmtMoney(d.total)} ر.ع\n`;
-    if (d.paymentMethod) msg += `*طريقة الدفع:* ${t(d.paymentMethod)}\n`;
+    if (d.paymentMethod) msg += `*طريقة الدفع:* ${paymentText(d.paymentMethod)}\n`;
     const end = warrantyEndDate(d.date, d.warranty);
     if (end) msg += `\n🛡️ *${t(d.warranty)}* — ساري حتى ${fmtDate(end)}\n`;
     invoiceContacts().forEach(c => { msg += `\n${c.icon} ${c.label}: ${c.value}`; });
@@ -4274,7 +4497,7 @@ class TireShopApp {
     return this.buildInvoiceMessage({
       invoiceNumber, date: original?.createdAt || new Date().toISOString(),
       customerName: w.customerName, items: w.cart, subtotal, discount,
-      discountLabel: this.discountLabel(), total, warranty: w.warranty, paymentMethod: w.paymentMethod,
+      discountLabel: this.discountLabel(), total, warranty: w.warranty, paymentMethod: w.paymentMethod === 'split' ? encodeSplit(w.paySplit) : w.paymentMethod,
     });
   }
 
@@ -4328,7 +4551,20 @@ class TireShopApp {
     const items = w.cart.map(l => ({
       type: l.type, refId: l.refId, description: l.description,
       quantity: l.quantity, unitPrice: l.unitPrice,
+      unitCost: l.unitCost != null ? l.unitCost : this.currentCost(l.type, l.refId, l.description),
     }));
+
+    // تقسيم الدفع: المجموع يجب أن يساوي الإجمالي
+    let paymentMethod = w.paymentMethod;
+    if (paymentMethod === 'split') {
+      const err = this.splitError();
+      if (err) {
+        showToast(err, 'warning');
+        this.isSavingSale = false;
+        return false;
+      }
+      paymentMethod = encodeSplit(w.paySplit);
+    }
     const editingId = w.editingSaleId;
     // التعديل يحتفظ برقمه، والفاتورة الجديدة تأخذ الرقم التالي في التسلسل
     let invoiceNumber = w.editingInvoiceNumber || null;
@@ -4375,7 +4611,7 @@ class TireShopApp {
       invoice_number: invoiceNumber,
       customer_name: w.customerName,
       customer_phone: w.customerPhone,
-      payment_method: w.paymentMethod,
+      payment_method: paymentMethod,
       warranty: w.warranty,
       service_name: summary,
       quantity: totalQty,
@@ -4390,13 +4626,23 @@ class TireShopApp {
 
     try {
       // فرق كميات الإطارات: الجديد − الأصلي (عند الفاتورة الجديدة الأصلي = 0)
+      // المفاتيح: tire:<id> أو accessory:<id>
       const stockDelta = {};
-      w.cart.filter(l => l.type === 'tire').forEach(l => {
-        stockDelta[l.refId] = (stockDelta[l.refId] || 0) + l.quantity;
+      w.cart.filter(l => l.type === 'tire' || l.type === 'accessory').forEach(l => {
+        const k = l.type + ':' + l.refId;
+        stockDelta[k] = (stockDelta[k] || 0) + l.quantity;
       });
       Object.entries(w.originalTireQty || {}).forEach(([id, q]) => {
-        stockDelta[id] = (stockDelta[id] || 0) - q;
+        stockDelta['tire:' + id] = (stockDelta['tire:' + id] || 0) - q;
       });
+      Object.entries(w.originalAccQty || {}).forEach(([id, q]) => {
+        stockDelta['accessory:' + id] = (stockDelta['accessory:' + id] || 0) - q;
+      });
+      const stockItem = k => {
+        const [type, id] = [k.slice(0, k.indexOf(':')), k.slice(k.indexOf(':') + 1)];
+        const list = type === 'accessory' ? this.accessories : this.tires;
+        return { type, id, table: type === 'accessory' ? 'accessories' : 'tires', item: list.find(x => x.id === id) };
+      };
       // فاتورة سابقة والمخزون محسوب مسبقاً: لا نخصم
       if (isBackdated && w.deductStock === false) Object.keys(stockDelta).forEach(k => delete stockDelta[k]);
 
@@ -4413,9 +4659,9 @@ class TireShopApp {
           this.sales.unshift({ ...rowFromDb({ ...row, id: uid() }, 'sales') });
         }
         this.sales.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-        Object.entries(stockDelta).forEach(([id, d]) => {
-          const tire = this.tires.find(x => x.id === id);
-          if (tire && d) tire.stock = (parseInt(tire.stock) || 0) - d;
+        Object.entries(stockDelta).forEach(([k, d]) => {
+          const { item } = stockItem(k);
+          if (item && d) item.stock = (parseInt(item.stock) || 0) - d;
         });
       } else {
         let res;
@@ -4437,15 +4683,15 @@ class TireShopApp {
         if (res.dropped.length) console.warn('⚠️ أعمدة غير موجودة في جدول sales ولم تُحفظ:', res.dropped);
 
         // تحديث مخزون الإطارات بالفرق فقط
-        for (const [id, d] of Object.entries(stockDelta)) {
+        for (const [k, d] of Object.entries(stockDelta)) {
           if (!d) continue;
-          const tire = this.tires.find(x => x.id === id);
-          if (!tire) continue;
-          const newStock = Math.max(0, (parseInt(tire.stock) || 0) - d);
-          const { error } = await this.sb.from('tires').update({ stock: newStock }).eq('id', id);
+          const { type, id, table, item } = stockItem(k);
+          if (!item) continue;
+          const newStock = Math.max(0, (parseInt(item.stock) || 0) - d);
+          const { error } = await this.sb.from(table).update({ stock: newStock }).eq('id', id);
           if (error) {
             console.error('Stock update error:', error);
-            showToast('حُفظت الفاتورة لكن تعذّر تحديث مخزون: ' + this.tireLabel(tire), 'error');
+            showToast('حُفظت الفاتورة لكن تعذّر تحديث مخزون: ' + (type === 'accessory' ? item.name : this.tireLabel(item)), 'error');
           }
         }
         await this.loadAllData();
@@ -4540,17 +4786,12 @@ class TireShopApp {
     const avgInvoice = invoiceCount > 0 ? totalSales / invoiceCount : 0;
 
     // حسابات الدفعات حسب الطريقة
-    const cashSales = this.sales
-      .filter(s => s.paymentMethod === 'cash')
-      .reduce((s, x) => s + (x.total || 0), 0);
-    
-    const creditCardSales = this.sales
-      .filter(s => s.paymentMethod === 'creditCard')
-      .reduce((s, x) => s + (x.total || 0), 0);
-    
-    const transferSales = this.sales
-      .filter(s => s.paymentMethod === 'transfer')
-      .reduce((s, x) => s + (x.total || 0), 0);
+    // (الفاتورة المقسّمة تُوزّع على طرقها)
+    const payTotal = k => this.sales.reduce((a, x) => a + (salePayments(x)[k] || 0), 0);
+    const payCount = k => this.sales.filter(x => (salePayments(x)[k] || 0) > 0).length;
+    const cashSales = payTotal('cash');
+    const creditCardSales = payTotal('card');
+    const transferSales = payTotal('transfer');
 
     // حسابات الدفعات الجزئية المدفوعة للموردين
     const totalSupplierPartialPayments = this.supplierPayments.reduce((s, x) => s + (x.paymentAmount || 0), 0);
@@ -4670,7 +4911,7 @@ class TireShopApp {
           <div class="card-head"><h3>الكاش</h3></div>
           <div style="text-align: center; padding: 20px 0;">
             <p class="num" style="color: var(--tread-green); font-size: 24px;">${fmtMoney(cashSales)}</p>
-            <small style="color: var(--text-muted);">${this.sales.filter(s => s.paymentMethod === 'cash').length} فاتورة</small>
+            <small style="color: var(--text-muted);">${payCount('cash')} فاتورة</small>
           </div>
         </div>
 
@@ -4678,7 +4919,7 @@ class TireShopApp {
           <div class="card-head"><h3>الفيزا</h3></div>
           <div style="text-align: center; padding: 20px 0;">
             <p class="num" style="color: var(--info-blue); font-size: 24px;">${fmtMoney(creditCardSales)}</p>
-            <small style="color: var(--text-muted);">${this.sales.filter(s => s.paymentMethod === 'creditCard').length} فاتورة</small>
+            <small style="color: var(--text-muted);">${payCount('card')} فاتورة</small>
           </div>
         </div>
 
@@ -4686,7 +4927,7 @@ class TireShopApp {
           <div class="card-head"><h3>التحويل</h3></div>
           <div style="text-align: center; padding: 20px 0;">
             <p class="num" style="color: var(--amber-500); font-size: 24px;">${fmtMoney(transferSales)}</p>
-            <small style="color: var(--text-muted);">${this.sales.filter(s => s.paymentMethod === 'transfer').length} فاتورة</small>
+            <small style="color: var(--text-muted);">${payCount('transfer')} فاتورة</small>
           </div>
         </div>
       </div>
@@ -4718,10 +4959,10 @@ class TireShopApp {
                       font-size: 12px;
                       font-weight: 600;
                       ${s.paymentMethod === 'cash' ? 'background: var(--tread-green-bg); color: var(--tread-green);' : ''}
-                      ${s.paymentMethod === 'creditCard' ? 'background: var(--info-blue-bg); color: var(--info-blue);' : ''}
-                      ${s.paymentMethod === 'transfer' ? 'background: var(--amber-100); color: var(--amber-600);' : ''}
+                      ${normPayKey(s.paymentMethod) === 'card' ? 'background: var(--info-blue-bg); color: var(--info-blue);' : ''}
+                      ${s.paymentMethod === 'transfer' || isSplitPay(s.paymentMethod) ? 'background: var(--amber-100); color: var(--amber-600);' : ''}
                     ">
-                      ${s.paymentMethod === 'cash' ? '💵 كاش' : s.paymentMethod === 'creditCard' ? '💳 فيزا' : '🏦 تحويل'}
+                      ${isSplitPay(s.paymentMethod) ? '➗ ' + esc(paymentText(s.paymentMethod)) : s.paymentMethod === 'cash' ? '💵 كاش' : normPayKey(s.paymentMethod) === 'card' ? '💳 فيزا' : s.paymentMethod === 'check' ? '🧾 شيك' : '🏦 تحويل'}
                     </span>
                   </td>
                   <td>${fmtDate(s.createdAt)}</td>
@@ -4920,6 +5161,17 @@ class TireShopApp {
             ? '✅ الإعدادات محفوظة في قاعدة البيانات وتظهر على كل الأجهزة.'
             : '⚠️ الإعدادات تُحفظ حالياً على هذا الجهاز فقط. لمشاركتها بين كل الأجهزة أنشئ جدول settings في Supabase.'}
         </div>
+        <div class="inv-fixed-box">
+          <b>يظهر تلقائياً في كل فاتورة (بدون إدخاله كل مرة):</b>
+          <div class="inv-fixed-list">
+            ${[['التوقيع', SHOP.signature], ['رقم المحل', SHOP.phone], ['رقم الموظف', SHOP.employeePhone], ['رقم المسؤول', SHOP.managerPhone], ['العنوان', SHOP.address], ['سياسة الضمان', SHOP.warrantyPolicy]]
+              .map(([l, v]) => `<span class="${v ? 'ok' : 'no'}">${v ? '✅' : '⬜'} ${l}</span>`).join('')}
+          </div>
+          ${!this.settingsInDb && this.sb ? `
+            <p class="text-xs" style="margin-top: 8px; color: var(--brake-red);">لكي تظهر هذه البيانات على جهاز الموظف وكل الأجهزة، شغّل هذا الأمر مرة واحدة في SQL Editor في Supabase ثم أعد تحميل الصفحة:</p>
+            <pre class="sql-box" dir="ltr">${esc(V218_SQL)}</pre>
+            <button class="btn btn-ghost btn-sm" data-copy-sql="v218">📋 نسخ الأمر</button>` : ''}
+        </div>
 
         <div class="modal-footer">
           <button class="btn btn-ghost" id="previewInvoiceBtn">🖨️ معاينة فاتورة تجريبية</button>
@@ -5020,6 +5272,10 @@ class TireShopApp {
   }
 
   bindShopSettingsEvents() {
+    document.querySelectorAll('[data-copy-sql="v218"]').forEach(b => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(V218_SQL); showToast('تم نسخ الأمر', 'success'); }
+      catch (e) { prompt('انسخ الأمر:', V218_SQL); }
+    }));
     // عرض رقم الفاتورة التالية
     this.nextInvoiceNumber().then(n => {
       const changed = this.previewNextInvoice !== n;
@@ -5178,10 +5434,16 @@ class TireShopApp {
     const lines = w.cart.map(l => `
       <div class="cart-line">
         <div class="cart-desc">
-          <span class="cart-type">${l.type === 'tire' ? '🛞' : l.type === 'custom' ? '📝' : '🔧'}</span>
+          <span class="cart-type">${l.type === 'tire' ? '🛞' : l.type === 'accessory' ? '🧩' : l.type === 'custom' ? '📝' : '🔧'}</span>
           <div>
             <div class="cart-name">${esc(l.description)}</div>
-            <div class="text-xs" style="color: var(--text-muted);">${fmtMoney(l.unitPrice)} × ${l.quantity}</div>
+            ${editable && (l.type === 'tire' || l.type === 'accessory') ? `
+              <div class="cart-price-edit">
+                <input type="number" class="cart-price-input" data-cart-price="${esc(l.key)}" value="${+(+l.unitPrice).toFixed(3)}" min="${l.basePrice ?? 0}" step="0.5" title="يمكنك زيادة السعر">
+                <span class="text-xs">× ${l.quantity}</span>
+                ${l.basePrice != null && l.unitPrice > l.basePrice ? `<span class="text-xs price-up">▲ ${fmtMoney(l.unitPrice - l.basePrice)}</span>` : ''}
+              </div>`
+            : `<div class="text-xs" style="color: var(--text-muted);">${fmtMoney(l.unitPrice)} × ${l.quantity}</div>`}
           </div>
         </div>
         ${editable ? `
@@ -5239,9 +5501,25 @@ class TireShopApp {
       `;
     }).join('');
 
-    const isTires = w.tab === 'tires';
-    const list = isTires ? tireCards : serviceCards;
-    const emptyMsg = isTires ? 'لا توجد إطارات في المخزون' : 'لا توجد خدمات. أضف خدمة من صفحة الخدمات أولاً.';
+    const accCards = this.accessories.map(a => {
+      const q = inCart('accessory', a.id);
+      const stock = this.availableStock(a.id, 'accessory');
+      return `
+        <div class="service-card pick-card ${q ? 'selected' : ''} ${stock <= 0 ? 'out' : ''}" ${stock > 0 ? `data-add-item="accessory" data-ref-id="${a.id}"` : ''} data-search="${esc(a.name).toLowerCase()}">
+          ${q ? `<span class="pick-badge">${q}</span>` : ''}
+          <h4>${esc(a.name)}</h4>
+          <div class="price num">${fmtMoney(parseFloat(a.price) || 0)}</div>
+          <div class="text-xs" style="color: ${stock > 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${stock > 0 ? 'المتوفر: ' + stock : 'نفد المخزون'}</div>
+        </div>
+      `;
+    }).join('');
+
+    const tab = ['tires', 'accessories'].includes(w.tab) ? w.tab : 'services';
+    const isTires = tab === 'tires';
+    const list = tab === 'tires' ? tireCards : tab === 'accessories' ? accCards : serviceCards;
+    const emptyMsg = tab === 'tires' ? 'لا توجد إطارات في المخزون'
+      : tab === 'accessories' ? (this.accessoriesMissing ? 'قسم الإكسسوارات يحتاج تجهيز قاعدة البيانات — افتح صفحة الإكسسوارات' : 'لا توجد إكسسوارات. أضفها من صفحة الإكسسوارات أولاً.')
+      : 'لا توجد خدمات. أضف خدمة من صفحة الخدمات أولاً.';
 
     return `
       <div class="wizard-container wz-wide">
@@ -5249,16 +5527,18 @@ class TireShopApp {
         <div class="wz-layout">
           <div class="card">
             <div class="wz-tabs">
-              <button class="wz-tab ${!isTires ? 'active' : ''}" data-wz-tab="services">🔧 الخدمات</button>
-              <button class="wz-tab ${isTires ? 'active' : ''}" data-wz-tab="tires">🛞 الإطارات</button>
+              <button class="wz-tab ${tab === 'services' ? 'active' : ''}" data-wz-tab="services">🔧 الخدمات</button>
+              <button class="wz-tab ${tab === 'tires' ? 'active' : ''}" data-wz-tab="tires">🛞 الإطارات</button>
+              <button class="wz-tab ${tab === 'accessories' ? 'active' : ''}" data-wz-tab="accessories">🧩 الإكسسوارات</button>
             </div>
-            <input type="search" id="wzSearch" class="wz-search" placeholder="${isTires ? 'ابحث بالماركة أو المقاس...' : 'ابحث عن خدمة...'}">
+            <input type="search" id="wzSearch" class="wz-search" placeholder="${isTires ? 'ابحث بالماركة أو المقاس...' : tab === 'accessories' ? 'ابحث عن صنف...' : 'ابحث عن خدمة...'}">
             ${list ? `<div class="service-grid">${list}</div>` : `<p class="text-center" style="padding: 30px;">${emptyMsg}</p>`}
           </div>
           ${this.renderCartPanel(true)}
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" id="cancelWizardBtn">إلغاء</button>
+          <span class="text-xs wz-price-hint">💡 يمكنك زيادة سعر الإطار أو الإكسسوار من خانة السعر في الفاتورة</span>
           <button class="btn btn-amber" id="nextStep1Btn" ${w.cart.length ? '' : 'disabled'}>التالي ←</button>
         </div>
       </div>
@@ -5288,8 +5568,18 @@ class TireShopApp {
               <div class="form-group">
                 <label>طريقة الدفع</label>
                 <select id="paymentMethodSelect">
-                  ${['cash', 'card', 'check', 'transfer'].map(k => `<option value="${k}" ${w.paymentMethod === k ? 'selected' : ''}>${t(k)}</option>`).join('')}
+                  ${['cash', 'card', 'check', 'transfer', 'split'].map(k => `<option value="${k}" ${w.paymentMethod === k ? 'selected' : ''}>${k === 'split' ? '➗ ' : ''}${t(k)}</option>`).join('')}
                 </select>
+                ${w.paymentMethod === 'split' ? `
+                  <div class="split-box">
+                    ${SALE_SPLIT_KEYS.map(k => `
+                      <div class="split-row">
+                        <label for="split_${k}">${{ cash: '💵', card: '💳', transfer: '🏦' }[k]} ${t(k)}</label>
+                        <input type="number" id="split_${k}" data-split="${k}" min="0" step="0.001" value="${w.paySplit?.[k] ?? ''}" placeholder="0.000">
+                        <button type="button" class="btn btn-ghost btn-xs" data-split-rest="${k}" title="ضع المبلغ المتبقي هنا">الباقي</button>
+                      </div>`).join('')}
+                    <div class="split-status" id="splitStatus"></div>
+                  </div>` : ''}
               </div>
 ${this.canDiscount() ? `
               <div class="form-group">
@@ -5365,7 +5655,7 @@ ${this.canDiscount() ? `
             ${this.isManager() ? this.renderInvoiceDateBox() : ''}
             <div class="summary-box">
               <div class="summary-row"><span>الضمان:</span><span>${t(w.warranty)}</span></div>
-              <div class="summary-row"><span>طريقة الدفع:</span><span>${t(w.paymentMethod)}</span></div>
+              <div class="summary-row"><span>طريقة الدفع:</span><span>${w.paymentMethod === 'split' ? esc(paymentText(encodeSplit(w.paySplit))) : t(w.paymentMethod)}</span></div>
             </div>
           </div>
           ${this.renderCartPanel(false)}
@@ -5401,6 +5691,7 @@ ${this.canDiscount() ? `
       ['services', t('services'), 'services'],
       ['customers', t('customers'), 'customers'],
       ['tires', t('tires'), 'tires'],
+      ['accessories', 'الإكسسوارات', 'accessories'],
       ['appointments', t('appointments'), 'appointments'],
       ['sales', t('sales'), 'sales'],
       ['reports', t('reports'), 'reports'],
@@ -5488,6 +5779,7 @@ ${this.canDiscount() ? `
     const titles = {
       dashboard: t('dashboard'),
       tires: t('tires'),
+      accessories: '🧩 الإكسسوارات',
       services: t('services'),
       customers: t('customers'),
       appointments: t('appointments'),
@@ -5514,6 +5806,7 @@ ${this.canDiscount() ? `
       services: () => this.renderServicesView(),
       customers: () => this.renderCustomersView(),
       tires: () => this.renderTiresView(),
+      accessories: () => this.renderAccessoriesView(),
       appointments: () => this.renderAppointmentsView(),
       reports: () => this.renderReportsView(),
       fixedExpenses: () => this.renderFixedExpensesView(),
@@ -5911,7 +6204,7 @@ ${this.canDiscount() ? `
     const col2 = en ? P + half : W - P - half;
     const info = [
       [[T('العميل'), sale.customerName || '-'], [T('التاريخ'), fmtDate(sale.createdAt)]],
-      [[T('الهاتف'), sale.customerPhone || '-'], [T('طريقة الدفع'), sale.paymentMethod ? t(sale.paymentMethod) : '-']],
+      [[T('الهاتف'), sale.customerPhone || '-'], [T('طريقة الدفع'), paymentText(sale.paymentMethod)]],
     ];
     info.forEach(row => {
       row.forEach(([k, v], i) => text(`${k}: ${v}`, i === 0 ? start : col2, y, { size: 16, color: C.ink }));
@@ -6513,9 +6806,11 @@ ${this.canDiscount() ? `
 
   async updateRecord(table, id, data) {
     if (!this.sb) {
-      const idx = this[table].findIndex(x => x.id === id);
+      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments');
+      const list = this[prop] || [];
+      const idx = list.findIndex(x => x.id === id);
       if (idx > -1) {
-        this[table][idx] = { ...this[table][idx], ...data };
+        list[idx] = { ...list[idx], ...rowFromDb({ ...data }, table), createdAt: list[idx].createdAt };
       }
       return true;
     }
@@ -6738,6 +7033,7 @@ ${this.canDiscount() ? `
     if (view === 'services') this.bindServicesEvents();
     if (view === 'customers') this.bindCustomersEvents();
     if (view === 'tires') this.bindTiresEvents();
+    if (view === 'accessories') this.bindAccessoriesEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
     if (view === 'fixedExpenses') this.bindFixedExpensesEvents();
     if (view === 'dailyExpenses') this.bindDailyExpensesEvents();
@@ -6969,6 +7265,19 @@ ${this.canDiscount() ? `
           return;
         }
 
+        // مدفوعة؟ نسجّل الدفعة في سجل الدفعات حتى تظهر في كشف المورد
+        const isPaid = readPaymentMethod('invPaid') === 'yes';
+        const paidAmount = isPaid ? Math.round((parseFloat(document.getElementById('invPaidAmount').value) || 0) * 1000) / 1000 : 0;
+        if (isPaid && !paidAmount) {
+          showToast('أدخل المبلغ المدفوع', 'error');
+          return;
+        }
+        if (paidAmount > totalAmount + 0.0001) {
+          showToast('المبلغ المدفوع أكبر من إجمالي الفاتورة', 'error');
+          return;
+        }
+        const payMethod = readPaymentMethod('invPayMethod');
+
         const recordData = {
           supplier_id: supplierId,
           invoice_number: invoiceNumber,
@@ -6982,7 +7291,21 @@ ${this.canDiscount() ? `
           recordData.invoice_image = this.invoiceImage;
         }
 
-        this.addRecord('supplier_invoices', recordData).then(() => {
+        addBtn.disabled = true;
+        this.addRecord('supplier_invoices', recordData).then(async (ok) => {
+          addBtn.disabled = false;
+          if (ok === false) return;
+          if (paidAmount > 0) {
+            const created = this.supplierInvoices
+              .filter(i => (i.supplierId || i.supplier_id) === supplierId && (i.invoiceNumber || i.invoice_number) === invoiceNumber)
+              .sort((a, b) => String(b.createdAt || b.invoiceDate || '').localeCompare(String(a.createdAt || a.invoiceDate || '')))[0];
+            if (created) {
+              if (!created.totalAmount && created.total_amount) created.totalAmount = created.total_amount;
+              await this.saveSupplierPayment(created, paidAmount, payMethod, 'دفعة عند تسجيل الفاتورة');
+            } else {
+              showToast('حُفظت الفاتورة — سجّل الدفعة من زر "دفع"', 'warning');
+            }
+          }
           document.getElementById('invoiceSupplier').value = '';
           document.getElementById('invoiceNumber').value = '';
           document.getElementById('invoiceTotal').value = '';
@@ -6993,6 +7316,35 @@ ${this.canDiscount() ? `
         });
       });
     }
+
+    // خيار "مدفوعة؟"
+    const paidBox = document.getElementById('invPaidBox');
+    const hint = () => {
+      const total = parseFloat(document.getElementById('invoiceTotal')?.value) || 0;
+      const paid = parseFloat(document.getElementById('invPaidAmount')?.value) || 0;
+      const el = document.getElementById('invPaidHint');
+      if (!el) return;
+      if (!total || !paid) { el.textContent = ''; return; }
+      const rest = Math.round((total - paid) * 1000) / 1000;
+      el.innerHTML = rest > 0 ? `المتبقي على الفاتورة: <b class="num">${fmtMoney(rest)}</b>`
+        : rest === 0 ? '✅ مدفوعة بالكامل' : '⚠️ المبلغ أكبر من الإجمالي';
+      el.style.color = rest < 0 ? 'var(--brake-red)' : 'var(--text-muted)';
+    };
+    document.querySelectorAll('input[name="invPaid"]').forEach(r => r.addEventListener('change', () => {
+      const yes = readPaymentMethod('invPaid') === 'yes';
+      if (paidBox) paidBox.style.display = yes ? '' : 'none';
+      if (yes && !document.getElementById('invPaidAmount').value) {
+        document.getElementById('invPaidAmount').value = document.getElementById('invoiceTotal').value || '';
+      }
+      hint();
+    }));
+    document.getElementById('invPaidFull')?.addEventListener('click', () => {
+      document.getElementById('invPaidAmount').value = document.getElementById('invoiceTotal').value || '';
+      hint();
+    });
+    document.getElementById('invPaidAmount')?.addEventListener('input', hint);
+    document.getElementById('invoiceTotal')?.addEventListener('input', hint);
+    this.bindPayMethodPickers();
   }
 
   bindSupplierPaymentsEvents() {
@@ -7070,6 +7422,39 @@ ${this.canDiscount() ? `
       root.querySelectorAll('[data-cart-inc]').forEach(el => el.addEventListener('click', () => this.changeCartQty(el.dataset.cartInc, 1)));
       root.querySelectorAll('[data-cart-dec]').forEach(el => el.addEventListener('click', () => this.changeCartQty(el.dataset.cartDec, -1)));
       root.querySelectorAll('[data-cart-remove]').forEach(el => el.addEventListener('click', () => this.removeFromCart(el.dataset.cartRemove)));
+      root.querySelectorAll('[data-cart-price]').forEach(el => {
+        el.addEventListener('change', () => this.setCartPrice(el.dataset.cartPrice, el.value));
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
+      });
+
+      // تقسيم الدفع: تحديث المتبقي مباشرة
+      const refreshSplit = () => {
+        const box = document.getElementById('splitStatus');
+        if (!box) return;
+        const { total } = this.cartTotals();
+        const sum = SALE_SPLIT_KEYS.reduce((a, k) => a + (parseFloat(w.paySplit[k]) || 0), 0);
+        const rest = Math.round((total - sum) * 1000) / 1000;
+        box.className = 'split-status ' + (Math.abs(rest) < 0.0005 ? 'ok' : 'bad');
+        box.innerHTML = Math.abs(rest) < 0.0005
+          ? `✅ المجموع مطابق للإجمالي (<span class="num">${fmtMoney(total)}</span>)`
+          : rest > 0 ? `المتبقي: <b class="num">${fmtMoney(rest)}</b> من <span class="num">${fmtMoney(total)}</span>`
+          : `المبلغ أكثر من الإجمالي بـ <b class="num">${fmtMoney(-rest)}</b>`;
+      };
+      root.querySelectorAll('[data-split]').forEach(el => el.addEventListener('input', () => {
+        w.paySplit[el.dataset.split] = el.value;
+        refreshSplit();
+      }));
+      root.querySelectorAll('[data-split-rest]').forEach(el => el.addEventListener('click', () => {
+        const k = el.dataset.splitRest;
+        const { total } = this.cartTotals();
+        const others = SALE_SPLIT_KEYS.filter(x => x !== k).reduce((a, x) => a + (parseFloat(w.paySplit[x]) || 0), 0);
+        const rest = Math.max(0, Math.round((total - others) * 1000) / 1000);
+        w.paySplit[k] = rest ? String(rest) : '';
+        const input = document.getElementById('split_' + k);
+        if (input) input.value = w.paySplit[k];
+        refreshSplit();
+      }));
+      refreshSplit();
       root.querySelectorAll('[data-wz-tab]').forEach(el => el.addEventListener('click', () => {
         w.tab = el.dataset.wzTab;
         this.switchView(this.saleView());
@@ -7099,7 +7484,9 @@ ${this.canDiscount() ? `
         });
       });
       document.getElementById('paymentMethodSelect')?.addEventListener('change', (e) => {
+        const wasSplit = w.paymentMethod === 'split';
         w.paymentMethod = e.target.value;
+        if (wasSplit !== (w.paymentMethod === 'split')) { this.switchView(this.saleView()); return; }
       });
       const refreshDiscount = () => {
         const box = document.getElementById('wzCartBox');
@@ -7205,6 +7592,152 @@ ${this.canDiscount() ? `
       this.currentCustomToDate = toInput;
       this.switchView(this.saleView());
     });
+  }
+
+  // ===== الإكسسوارات =====
+  accessoriesSetupNotice() {
+    if (!this.isManager()) {
+      return '<div class="card"><p class="text-center" style="padding: 30px;">قسم الإكسسوارات غير مفعّل بعد. اطلب من المدير تفعيله.</p></div>';
+    }
+    return `
+      <div class="card">
+        <div class="card-head"><h3>⚙️ تفعيل قسم الإكسسوارات</h3></div>
+        <p style="margin-bottom: 12px;">هذا القسم يحتاج جدولاً جديداً في Supabase. افتح <b>SQL Editor</b> في Supabase والصق الأمر التالي ثم اضغط <b>Run</b>، وبعدها أعد تحميل الصفحة.</p>
+        <pre class="sql-box" dir="ltr">${esc(V218_SQL)}</pre>
+        <button class="btn btn-ghost btn-sm" data-copy-sql="v218">📋 نسخ الأمر</button>
+      </div>
+    `;
+  }
+
+  renderAccessoriesView() {
+    if (this.accessoriesMissing && this.sb) return this.accessoriesSetupNotice();
+    const canEdit = this.isManager();
+    const list = [...this.accessories].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+    return `
+      <div class="${canEdit ? 'grid-2' : ''}">
+        ${canEdit ? `<div class="card">
+          <div class="card-head"><h3>➕ إضافة إكسسوار</h3></div>
+          <div class="form-group">
+            <label>اسم الصنف *</label>
+            <input type="text" id="accName" placeholder="مثال: غطاء صمام، معطر، مضخة هواء">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>سعر البيع *</label>
+              <input type="number" id="accPrice" min="0" step="0.01" placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label>سعر التكلفة</label>
+              <input type="number" id="accCost" min="0" step="0.01" placeholder="0.00">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>الكمية في المخزون</label>
+            <input type="number" id="accStock" min="0" step="1" placeholder="0">
+          </div>
+          <button class="btn btn-amber btn-block" id="addAccBtn">${icon('add')} إضافة</button>
+        </div>` : ''}
+
+        <div class="card">
+          <div class="card-head"><h3>🧩 الإكسسوارات (${list.length})</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الصنف</th>
+                  <th>سعر البيع</th>
+                  ${canEdit ? '<th>سعر التكلفة</th>' : ''}
+                  <th>الكمية</th>
+                  ${canEdit ? '<th>الإجراءات</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${list.map(a => {
+                  const st = parseInt(a.stock) || 0;
+                  return `
+                  <tr>
+                    <td style="font-weight: 700;">${esc(a.name)}</td>
+                    <td class="num">${fmtMoney(parseFloat(a.price) || 0)}</td>
+                    ${canEdit ? `<td class="num" style="color: var(--text-600);">${fmtMoney(parseFloat(a.cost) || 0)}</td>` : ''}
+                    <td class="num" style="color: ${st > 0 ? 'var(--tread-green)' : 'var(--brake-red)'}; font-weight: 700;">${st}</td>
+                    ${canEdit ? `<td>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-accessory="${a.id}">${icon('edit')}</button>
+                        <button class="btn btn-xs btn-danger" data-delete-accessory="${a.id}">${icon('delete')}</button>
+                      </div>
+                    </td>` : ''}
+                  </tr>`;
+                }).join('') || `<tr><td colspan="${canEdit ? 5 : 3}" class="text-center">لا توجد إكسسوارات</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  accessoryForm(a = {}) {
+    return `
+      <div class="form-group">
+        <label>اسم الصنف *</label>
+        <input type="text" id="mAccName" value="${esc(a.name || '')}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>سعر البيع *</label>
+          <input type="number" id="mAccPrice" min="0" step="0.01" value="${parseFloat(a.price) || ''}">
+        </div>
+        <div class="form-group">
+          <label>سعر التكلفة</label>
+          <input type="number" id="mAccCost" min="0" step="0.01" value="${parseFloat(a.cost) || 0}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>الكمية في المخزون</label>
+        <input type="number" id="mAccStock" min="0" step="1" value="${parseInt(a.stock) || 0}">
+      </div>`;
+  }
+
+  readAccessoryForm(prefix) {
+    const v = id => document.getElementById(prefix + id)?.value || '';
+    return {
+      name: v('Name').trim(),
+      price: parseFloat(v('Price')) || 0,
+      cost: parseFloat(v('Cost')) || 0,
+      stock: Math.max(0, parseInt(v('Stock'), 10) || 0),
+    };
+  }
+
+  bindAccessoriesEvents() {
+    document.querySelectorAll('[data-copy-sql="v218"]').forEach(b => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(V218_SQL); showToast('تم نسخ الأمر', 'success'); }
+      catch (e) { prompt('انسخ الأمر:', V218_SQL); }
+    }));
+    if (!this.isManager()) return;
+    document.getElementById('addAccBtn')?.addEventListener('click', async (e) => {
+      const data = this.readAccessoryForm('acc');
+      if (!data.name || !data.price) { showToast('أدخل اسم الصنف وسعر البيع', 'error'); return; }
+      e.target.disabled = true;
+      const ok = await this.addRecord('accessories', data);
+      e.target.disabled = false;
+      if (ok !== false) this.switchView('accessories');
+    });
+    document.querySelectorAll('[data-edit-accessory]').forEach(b => b.addEventListener('click', () => {
+      const a = this.accessories.find(x => x.id === b.dataset.editAccessory);
+      if (!a) return;
+      this.hrModal('تعديل الإكسسوار', this.accessoryForm(a), async () => {
+        const data = this.readAccessoryForm('mAcc');
+        if (!data.name || !data.price) { showToast('أدخل اسم الصنف وسعر البيع', 'error'); return false; }
+        const ok = await this.updateRecord('accessories', a.id, data);
+        if (ok !== false) this.switchView('accessories');
+        return ok !== false;
+      });
+    }));
+    document.querySelectorAll('[data-delete-accessory]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('حذف هذا الصنف؟')) return;
+      await this.deleteRecord('accessories', b.dataset.deleteAccessory);
+      this.switchView('accessories');
+    }));
   }
 
   renderServicesView() {
@@ -7519,18 +8052,18 @@ ${this.canDiscount() ? `
     if (mode === 'day') {
       for (let i = 29; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-        buckets.push({ key: d.toDateString(), label: d.toLocaleDateString(loc, { day: 'numeric', month: 'short' }), total: 0, count: 0 });
+        buckets.push({ key: d.toDateString(), label: d.toLocaleDateString(loc, { day: 'numeric', month: 'short' }), total: 0, count: 0, cost: 0, expenses: 0 });
       }
     } else if (mode === 'month') {
       for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        buckets.push({ key: d.getFullYear() + '-' + d.getMonth(), label: d.toLocaleDateString(loc, { month: 'short', year: 'numeric' }), total: 0, count: 0 });
+        buckets.push({ key: d.getFullYear() + '-' + d.getMonth(), label: d.toLocaleDateString(loc, { month: 'short', year: 'numeric' }), total: 0, count: 0, cost: 0, expenses: 0 });
       }
     } else {
       const years = this.sales.map(s => this.saleDate(s)?.getFullYear()).filter(Boolean);
       const first = Math.min(now.getFullYear() - 2, ...years);
       for (let y = first; y <= now.getFullYear(); y++) {
-        buckets.push({ key: String(y), label: String(y), total: 0, count: 0 });
+        buckets.push({ key: String(y), label: String(y), total: 0, count: 0, cost: 0, expenses: 0 });
       }
     }
     const index = new Map(buckets.map(b => [b.key, b]));
@@ -7541,8 +8074,19 @@ ${this.canDiscount() ? `
         : mode === 'month' ? d.getFullYear() + '-' + d.getMonth()
         : String(d.getFullYear());
       const b = index.get(key);
-      if (b) { b.total += this.saleTotal(s); b.count++; }
+      if (b) { b.total += this.saleTotal(s); b.count++; b.cost += this.saleCost(s); }
     });
+    // المصروفات (اليومية والثابتة) حسب تاريخها
+    (this.expenses || []).forEach(e => {
+      const d = this.expenseDate(e);
+      if (!d) return;
+      const key = mode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString()
+        : mode === 'month' ? d.getFullYear() + '-' + d.getMonth()
+        : String(d.getFullYear());
+      const b = index.get(key);
+      if (b) b.expenses += parseFloat(e.amount) || 0;
+    });
+    buckets.forEach(b => { b.net = b.total - b.cost - b.expenses; });
     return buckets;
   }
 
@@ -7573,19 +8117,21 @@ ${this.canDiscount() ? `
     const from = range === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1)
       : range === 'year' ? new Date(now.getFullYear(), 0, 1) : null;
     const map = new Map();
-    const add = (name, type, qty, revenue) => {
+    const add = (name, type, qty, revenue, cost = 0) => {
       name = String(name || '-').trim();
       const key = name;
-      const row = map.get(key) || { name, type, qty: 0, revenue: 0, invoices: 0, revenueKnown: true };
+      const row = map.get(key) || { name, type, qty: 0, revenue: 0, cost: 0, profit: 0, invoices: 0, revenueKnown: true };
       row.qty += qty;
-      if (revenue == null) row.revenueKnown = false; else row.revenue += revenue;
+      if (revenue == null) row.revenueKnown = false;
+      else { row.revenue += revenue; row.cost += cost; row.profit += revenue - cost; }
       row.invoices++;
       if (type !== 'unknown') row.type = type;
       map.set(key, row);
     };
     const tireNames = new Set(this.tires.map(t => this.tireLabel(t)));
     const guessType = name => tireNames.has(name) || /\d{3}\/\d{2}R?\d{2}/i.test(name) ? 'tire'
-      : this.services.some(s => s.name === name) ? 'service' : 'unknown';
+      : this.services.some(s => s.name === name) ? 'service'
+      : this.accessories.some(a => a.name === name) ? 'accessory' : 'unknown';
 
     this.sales.forEach(s => {
       const d = this.saleDate(s);
@@ -7597,13 +8143,15 @@ ${this.canDiscount() ? `
           const q = parseFloat(i.quantity) || 1;
           const u = parseFloat(i.unitPrice ?? i.unit_price) || 0;
           const name = i.description || i.name;
-          add(name, i.type === 'tire' || i.type === 'service' ? i.type : guessType(name), q, q * u);
+          const type = ['tire', 'service', 'accessory'].includes(i.type) ? i.type : guessType(name);
+          add(name, type, q, q * u, q * this.itemUnitCost(i, type));
         });
       } else if (s.service_name) {
         const unit = parseFloat(s.unit_price);
         if (unit) {
           const q = parseFloat(s.quantity) || 1;
-          add(s.service_name, guessType(s.service_name), q, q * unit);
+          const type = guessType(s.service_name);
+          add(s.service_name, type, q, q * unit, q * this.currentCost(type, null, s.service_name));
         } else {
           // فاتورة قديمة متعددة الأصناف بدون تفاصيل: نستخرج الأسماء والكميات من النص
           String(s.service_name).split(/[،,]\s*/).forEach(part => {
@@ -7615,6 +8163,32 @@ ${this.canDiscount() ? `
       }
     });
     return [...map.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+  }
+
+  // تكلفة الوحدة لصنف في فاتورة: المحفوظة وقت البيع، وإلا التكلفة الحالية
+  itemUnitCost(i, type) {
+    if (i.unitCost != null && i.unitCost !== '') return parseFloat(i.unitCost) || 0;
+    if (type === 'service') return 0;
+    return this.currentCost(type || i.type, i.refId, i.description || i.name);
+  }
+
+  // تكلفة الأصناف المباعة في فاتورة
+  saleCost(s) {
+    let items = s.items;
+    if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = null; } }
+    if (Array.isArray(items) && items.length) {
+      return items.reduce((a, i) => a + (parseFloat(i.quantity) || 1) * this.itemUnitCost(i, i.type), 0);
+    }
+    if (s.service_name && parseFloat(s.unit_price)) {
+      return (parseFloat(s.quantity) || 1) * this.currentCost('unknown', null, s.service_name);
+    }
+    return 0;
+  }
+
+  // تاريخ المصروف
+  expenseDate(e) {
+    const d = new Date(e.expenseDate || e.expense_date || e.createdAt || e.created_at);
+    return isNaN(d) ? null : d;
   }
 
   renderReportsView() {
@@ -7641,9 +8215,9 @@ ${this.canDiscount() ? `
     const series = this.salesSeries(mode);
     const products = this.topProducts(range);
     const shown = showAll ? products : products.slice(0, 10);
-    const totalRevenue = products.reduce((s, p) => s + p.revenue, 0);
+    const totalProfit = products.reduce((s, p) => s + Math.max(p.profit, 0), 0);
     const modeTitle = { day: 'المبيعات اليومية — آخر 30 يوماً', month: 'المبيعات الشهرية — آخر 12 شهراً', year: 'المبيعات السنوية' }[mode];
-    const typeBadge = { tire: '<span class="badge badge-info">🛞 إطار</span>', service: '<span class="badge badge-success">🔧 خدمة</span>', unknown: '<span class="badge">—</span>' };
+    const typeBadge = { tire: '<span class="badge badge-info">🛞 إطار</span>', service: '<span class="badge badge-success">🔧 خدمة</span>', accessory: '<span class="badge badge-warning">🧩 إكسسوار</span>', unknown: '<span class="badge">—</span>' };
 
     return `
       <div class="rep-tiles">
@@ -7667,12 +8241,17 @@ ${this.canDiscount() ? `
         ${asTable ? `
           <div class="table-wrap">
             <table>
-              <thead><tr><th>الفترة</th><th>عدد الفواتير</th><th>إجمالي المبيعات</th></tr></thead>
+              <thead><tr><th>الفترة</th><th>عدد الفواتير</th><th>إجمالي المبيعات</th><th>تكلفة الأصناف</th><th>المصروفات</th><th>صافي الربح</th></tr></thead>
               <tbody>
-                ${[...series].reverse().map(b => `<tr><td>${esc(b.label)}</td><td class="num">${b.count}</td><td class="num">${fmtMoney(b.total)}</td></tr>`).join('')}
+                ${[...series].reverse().map(b => `<tr><td>${esc(b.label)}</td><td class="num">${b.count}</td><td class="num">${fmtMoney(b.total)}</td><td class="num" style="color: var(--text-600);">${fmtMoney(b.cost)}</td><td class="num" style="color: var(--text-600);">${fmtMoney(b.expenses)}</td><td class="num" style="font-weight: 700; color: ${b.net >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(b.net)}</td></tr>`).join('')}
               </tbody>
+              <tfoot>
+                ${(() => { const T = series.reduce((a, b) => ({ c: a.c + b.count, t: a.t + b.total, k: a.k + b.cost, e: a.e + b.expenses, n: a.n + b.net }), { c: 0, t: 0, k: 0, e: 0, n: 0 });
+                  return `<tr class="rep-total"><td>المجموع</td><td class="num">${T.c}</td><td class="num">${fmtMoney(T.t)}</td><td class="num">${fmtMoney(T.k)}</td><td class="num">${fmtMoney(T.e)}</td><td class="num" style="color: ${T.n >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(T.n)}</td></tr>`; })()}
+              </tfoot>
             </table>
-          </div>` : `
+          </div>
+          <p class="text-xs" style="margin-top: 10px;">صافي الربح = المبيعات (بعد الخصم) − تكلفة الأصناف المباعة (سعر التكلفة) − المصروفات اليومية والثابتة.</p>` : `
           <div class="rep-chart-wrap"><canvas id="salesChart"></canvas></div>
           ${typeof Chart === 'undefined' ? '<p class="text-center text-xs">تعذّر تحميل مكتبة الرسوم البيانية — استخدم "عرض كجدول"</p>' : ''}`}
       </div>
@@ -7689,11 +8268,11 @@ ${this.canDiscount() ? `
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>#</th><th>الصنف</th><th>النوع</th><th>الكمية المباعة</th><th>عدد الفواتير</th><th>الإيراد (قبل الخصم)</th><th>النسبة من الإيراد</th></tr>
+              <tr><th>#</th><th>الصنف</th><th>النوع</th><th>الكمية المباعة</th><th>عدد الفواتير</th><th>الإيراد (قبل الخصم)</th><th>الربح</th><th>النسبة من الربح</th></tr>
             </thead>
             <tbody>
               ${shown.map((p, i) => {
-                const share = totalRevenue ? (p.revenue / totalRevenue) * 100 : null;
+                const share = totalProfit && p.profit > 0 ? (p.profit / totalProfit) * 100 : (totalProfit ? 0 : null);
                 return `
                 <tr>
                   <td class="num">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td>
@@ -7702,12 +8281,14 @@ ${this.canDiscount() ? `
                   <td class="num">${+p.qty.toFixed(2)}</td>
                   <td class="num">${p.invoices}</td>
                   <td class="num">${fmtMoney(p.revenue)}${p.revenueKnown ? '' : '<span class="rep-star" title="جزء من الكمية من فواتير قديمة بدون تفصيل للأسعار">*</span>'}</td>
+                  <td class="num" style="font-weight: 700; color: ${p.profit >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(p.profit)}</td>
                   <td>${share == null ? '—' : `<div class="share"><div class="share-bar" style="width: ${Math.max(share, 1)}%"></div><span class="num">${share.toFixed(1)}%</span></div>`}</td>
                 </tr>`;
-              }).join('') || '<tr><td colspan="7" class="text-center">لا توجد مبيعات في هذه الفترة</td></tr>'}
+              }).join('') || '<tr><td colspan="8" class="text-center">لا توجد مبيعات في هذه الفترة</td></tr>'}
             </tbody>
           </table>
         </div>
+        <p class="text-xs" style="margin-top: 10px;">الربح = الإيراد − (سعر التكلفة × الكمية). الخدمات بدون تكلفة، فربحها = إيرادها. الأصناف التي ليس لها سعر تكلفة مسجّل يُحسب ربحها كامل الإيراد.</p>
         ${products.some(p => !p.revenueKnown) ? '<p class="text-xs" style="margin-top: 10px;">* يشمل كميات من فواتير قديمة لم تُحفظ فيها أسعار كل صنف، لذلك إيرادها غير محسوب هنا.</p>' : ''}
         ${products.length > 10 ? `<button class="btn btn-ghost btn-block" id="topShowAll" style="margin-top: 12px;">${showAll ? 'عرض أعلى 10 فقط' : `عرض كل الأصناف (${products.length})`}</button>` : ''}
       </div>
@@ -7884,6 +8465,27 @@ ${this.canDiscount() ? `
           <div class="form-group">
             <label>المبلغ الإجمالي *</label>
             <input type="number" id="invoiceTotal" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>هل الفاتورة مدفوعة؟</label>
+            <div class="pay-methods" id="invPaidChoice">
+              <label class="pay-method active"><input type="radio" name="invPaid" value="no" checked><span>❌ لا</span></label>
+              <label class="pay-method"><input type="radio" name="invPaid" value="yes"><span>✅ نعم</span></label>
+            </div>
+          </div>
+          <div id="invPaidBox" style="display: none;">
+            <div class="form-group">
+              <label>المبلغ المدفوع *</label>
+              <div class="disc-row">
+                <input type="number" id="invPaidAmount" min="0" step="0.01" placeholder="0.00">
+                <button type="button" class="btn btn-ghost btn-sm" id="invPaidFull">كامل المبلغ</button>
+              </div>
+              <div class="text-xs" id="invPaidHint" style="margin-top: 6px;"></div>
+            </div>
+            <div class="form-group">
+              <label>طريقة الدفع</label>
+              ${paymentMethodPicker('invPayMethod')}
+            </div>
           </div>
           <div class="form-group">
             <label>صورة الفاتورة <span style="color: #999;">(اختياري)</span></label>
