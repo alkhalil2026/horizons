@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.18.0 (price raise, accessories, split pay, supplier paid, profit reports) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.18.1 (dashboard period filter works) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1510,6 +1510,10 @@ label.text-xs:has(> input[type="checkbox"]) { display: inline-flex; align-items:
 .inv-fixed-list { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
 .inv-fixed-list .no { color: var(--text-muted); }
 tr.rep-total td { font-weight: 700; border-top: 2px solid var(--line, #E3DDD0); }
+
+.dash-period-label { margin-inline-start: auto; font-size: 14px; color: var(--text-600, #5B564C); }
+.dash-active { box-shadow: 0 0 0 2px rgba(214,144,15,.35); }
+.dash-section-title { font-size: 15px; font-weight: 700; margin: 18px 0 10px; }
 </style>
 </head>
 <body>
@@ -1896,6 +1900,11 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "🗂️ الكل": "🗂️ All",
+  "المعروض:": "Showing:",
+  "كل الفترات": "All periods",
+  "آخر 7 أيام": "Last 7 days",
+  "📌 أرقام الفترة:": "📌 Figures for:",
   "الإكسسوارات": "Accessories",
   "🧩 الإكسسوارات": "🧩 Accessories",
   "➕ إضافة إكسسوار": "➕ Add Accessory",
@@ -4776,35 +4785,54 @@ class TireShopApp {
     const weekSales = this.getSalesByPeriod('week');
     const monthSales = this.getSalesByPeriod('month');
     
-    const todayTotal = todaySales.reduce((s, x) => s + (x.total || 0), 0);
-    const yesterdayTotal = yesterdaySales.reduce((s, x) => s + (x.total || 0), 0);
-    const weekTotal = weekSales.reduce((s, x) => s + (x.total || 0), 0);
-    const monthTotal = monthSales.reduce((s, x) => s + (x.total || 0), 0);
+    const num = v => parseFloat(v) || 0;
+    const todayTotal = todaySales.reduce((s, x) => s + num(x.total), 0);
+    const yesterdayTotal = yesterdaySales.reduce((s, x) => s + num(x.total), 0);
+    const weekTotal = weekSales.reduce((s, x) => s + num(x.total), 0);
+    const monthTotal = monthSales.reduce((s, x) => s + num(x.total), 0);
+
+    // ===== الفترة المختارة: كل الأرقام أدناه تُحسب لها =====
+    const period = this.dashPeriod || 'all';
+    const range = this.dashRange();
+    const inRange = v => {
+      if (!range) return true;
+      const d = new Date(v);
+      return !isNaN(d) && d >= range[0] && d <= range[1];
+    };
+    const pSales = this.sales.filter(x => inRange(x.createdAt));
+    const pExpenses = this.expenses.filter(e => inRange(e.expenseDate || e.createdAt));
+    const pSupPayments = this.supplierPayments.filter(p => inRange(p.paymentDate || p.createdAt));
 
     // حسابات المبيعات الإجمالية
-    const totalSales = this.sales.reduce((s, x) => s + (x.total || 0), 0);
-    const invoiceCount = this.sales.length;
+    const totalSales = pSales.reduce((s, x) => s + num(x.total), 0);
+    const invoiceCount = pSales.length;
     const avgInvoice = invoiceCount > 0 ? totalSales / invoiceCount : 0;
 
     // حسابات الدفعات حسب الطريقة
     // (الفاتورة المقسّمة تُوزّع على طرقها)
-    const payTotal = k => this.sales.reduce((a, x) => a + (salePayments(x)[k] || 0), 0);
-    const payCount = k => this.sales.filter(x => (salePayments(x)[k] || 0) > 0).length;
+    const payTotal = k => pSales.reduce((a, x) => a + (salePayments(x)[k] || 0), 0);
+    const payCount = k => pSales.filter(x => (salePayments(x)[k] || 0) > 0).length;
     const cashSales = payTotal('cash');
     const creditCardSales = payTotal('card');
     const transferSales = payTotal('transfer');
 
     // حسابات الدفعات الجزئية المدفوعة للموردين
-    const totalSupplierPartialPayments = this.supplierPayments.reduce((s, x) => s + (x.paymentAmount || 0), 0);
+    const totalSupplierPartialPayments = pSupPayments.reduce((s, x) => s + num(x.paymentAmount), 0);
     
     // حسابات المصروفات اليومية والثابتة
-    const totalDailyExpenses = this.expenses
+    const totalDailyExpenses = pExpenses
       .filter(e => e.expenseType === 'يومية')
-      .reduce((s, x) => s + (x.amount || 0), 0);
+      .reduce((s, x) => s + num(x.amount), 0);
     
-    const totalFixedExpenses = this.expenses
+    const totalFixedExpenses = pExpenses
       .filter(e => e.expenseType === 'ثابتة')
-      .reduce((s, x) => s + (x.amount || 0), 0);
+      .reduce((s, x) => s + num(x.amount), 0);
+
+    const periodNames = { all: 'كل الفترات', today: 'اليوم', yesterday: 'أمس', week: 'آخر 7 أيام', month: 'هذا الشهر', custom: 'فترة محددة' };
+    const periodLabel = period === 'custom' && range
+      ? `${fmtDate(range[0].toISOString())} — ${fmtDate(range[1].toISOString())}`
+      : periodNames[period];
+    const pBtn = (k, label, cls) => `<button class="btn btn-sm ${period === k ? 'btn-amber dash-active' : 'btn-ghost'}" data-dashboard-period="${k}">${label}</button>`;
 
     // صافي الربح = المبيعات - المصروفات اليومية - المصاريف الثابتة - الدفعة الجزئية للموردين
     const netProfit = totalSales - totalDailyExpenses - totalFixedExpenses - totalSupplierPartialPayments;
@@ -4840,21 +4868,23 @@ class TireShopApp {
       <!-- أزرار التصفية السريعة -->
       <div style="margin-bottom: 20px;">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;">
-          <button class="btn btn-sm btn-blue" data-dashboard-period="today">📅 اليوم</button>
-          <button class="btn btn-sm btn-purple" data-dashboard-period="yesterday">📆 أمس</button>
-          <button class="btn btn-sm btn-green" data-dashboard-period="week">📊 الأسبوع</button>
-          <button class="btn btn-sm btn-orange" data-dashboard-period="month">📈 الشهر</button>
-          <button class="btn btn-sm btn-amber" data-dashboard-period="custom">🎯 فترة محددة</button>
+          ${pBtn('all', '🗂️ الكل')}
+          ${pBtn('today', '📅 اليوم')}
+          ${pBtn('yesterday', '📆 أمس')}
+          ${pBtn('week', '📊 الأسبوع')}
+          ${pBtn('month', '📈 الشهر')}
+          ${pBtn('custom', '🎯 فترة محددة')}
+          <span class="dash-period-label">المعروض: <b>${esc(periodLabel)}</b></span>
         </div>
 
-        <div id="dashboardCustomDatePicker" style="display: none; flex-direction: row; gap: 15px; padding: 15px; background: #f5f5f5; border-radius: 8px; margin-bottom: 15px; align-items: flex-end;">
+        <div id="dashboardCustomDatePicker" style="display: ${period === 'custom' ? 'flex' : 'none'}; flex-direction: row; gap: 15px; padding: 15px; background: #f5f5f5; border-radius: 8px; margin-bottom: 15px; align-items: flex-end;">
           <div>
             <label style="display: block; margin-bottom: 5px; font-weight: 600;">من:</label>
-            <input type="date" id="dashboardCustomFromDate" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <input type="date" id="dashboardCustomFromDate" value="${esc(this.dashFrom || '')}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
           </div>
           <div>
             <label style="display: block; margin-bottom: 5px; font-weight: 600;">إلى:</label>
-            <input type="date" id="dashboardCustomToDate" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <input type="date" id="dashboardCustomToDate" value="${esc(this.dashTo || '')}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
           </div>
           <button class="btn btn-sm btn-success" id="applyDashboardCustomPeriod">✓ تطبيق</button>
         </div>
@@ -4885,7 +4915,8 @@ class TireShopApp {
       </div>
 
       <!-- الإحصائيات الرئيسية -->
-      <div class="grid-4 mt-16">
+      <h3 class="dash-section-title">📌 أرقام الفترة: ${esc(periodLabel)}</h3>
+      <div class="grid-4">
         ${stats.map(s => `
           <div class="stat ${s.type}">
             <div style="font-size: 24px; margin-bottom: 8px;">${s.icon}</div>
@@ -4935,7 +4966,7 @@ class TireShopApp {
 
       <!-- آخر الفواتير -->
       <div class="card mt-16">
-        <div class="card-head"><h3>آخر الفواتير (${this.sales.length})</h3></div>
+        <div class="card-head"><h3>آخر الفواتير — ${esc(periodLabel)} (${pSales.length})</h3></div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -4948,7 +4979,7 @@ class TireShopApp {
               </tr>
             </thead>
             <tbody>
-              ${this.sales.slice(0, 5).map(s => `
+              ${pSales.slice(0, 5).map(s => `
                 <tr>
                   <td>${esc(s.invoiceNumber)}</td>
                   <td>${esc(s.customerName)}</td>
@@ -5928,6 +5959,25 @@ ${this.canDiscount() ? `
         </div>
       </div>
     `;
+  }
+
+  // مدى الفترة المختارة في لوحة التحكم [من، إلى] أو null للكل
+  dashRange() {
+    const p = this.dashPeriod || 'all';
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    const end = dt => { const x = new Date(dt); x.setHours(23, 59, 59, 999); return x; };
+    if (p === 'today') return [new Date(y, m, d), end(new Date(y, m, d))];
+    if (p === 'yesterday') return [new Date(y, m, d - 1), end(new Date(y, m, d - 1))];
+    if (p === 'week') return [new Date(y, m, d - 6), end(new Date(y, m, d))];
+    if (p === 'month') return [new Date(y, m, 1), end(new Date(y, m, d))];
+    if (p === 'custom' && this.dashFrom && this.dashTo) {
+      const parse = s => { const [a, b, c] = s.split('-').map(Number); return new Date(a, b - 1, c); };
+      let f = parse(this.dashFrom), t = parse(this.dashTo);
+      if (f > t) [f, t] = [t, f];
+      return [f, end(t)];
+    }
+    return null;
   }
 
   getSalesByPeriod(period, customFromDate = null, customToDate = null) {
@@ -7383,15 +7433,15 @@ ${this.canDiscount() ? `
     document.querySelectorAll('[data-dashboard-period]').forEach(btn => {
       btn.addEventListener('click', () => {
         const period = btn.dataset.dashboardPeriod;
-        
         if (period === 'custom') {
+          // نُظهر اختيار التاريخين، والأرقام تتغير بعد "تطبيق"
           const picker = document.getElementById('dashboardCustomDatePicker');
-          if (picker) {
-            picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
-          }
-        } else {
-          this.switchView('dashboard');
+          if (picker) picker.style.display = 'flex';
+          document.getElementById('dashboardCustomFromDate')?.focus();
+          return;
         }
+        this.dashPeriod = period;
+        this.switchView('dashboard');
       });
     });
 
@@ -7403,7 +7453,9 @@ ${this.canDiscount() ? `
         showToast('اختر التاريخين', 'warning');
         return;
       }
-      
+      this.dashFrom = fromInput;
+      this.dashTo = toInput;
+      this.dashPeriod = 'custom';
       this.switchView('dashboard');
     });
   }
