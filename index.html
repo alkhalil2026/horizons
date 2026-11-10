@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.22.0 (tire search + reports from/to range) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.22.1 (auto-register invoice customers) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1956,6 +1956,11 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "كل عملاء الفواتير مسجّلون بالفعل": "All invoice customers are already registered",
+  "تمت إضافة": "Added",
+  "عميل": "customer",
+  "تعذّر إضافة العملاء": "Couldn't add customers",
+  "📥 إضافة عملاء الفواتير السابقة": "📥 Add customers from past invoices",
   "🔍 ابحث بالمقاس أو البراند أو الموديل أو المورد... مثال: 205/55R16 أو 2055516": "🔍 Search by size, brand, model or supplier... e.g. 205/55R16 or 2055516",
   "المتوفر فقط": "In stock only",
   "لا يوجد إطار يطابق البحث": "No tire matches the search",
@@ -4763,8 +4768,12 @@ class TireShopApp {
       invoiceNumber = manual;
     }
 
+    // تسجيل العميل تلقائياً في قائمة العملاء (أو ربطه بالموجود)
+    const customerId = await this.ensureCustomer(w.customerName, w.customerPhone);
+
     const row = {
       invoice_number: invoiceNumber,
+      customer_id: customerId || null,
       customer_name: w.customerName,
       customer_phone: w.customerPhone,
       payment_method: paymentMethod,
@@ -4862,6 +4871,87 @@ class TireShopApp {
     } finally {
       this.isSavingSale = false;
     }
+  }
+
+  // ===== تسجيل عميل الفاتورة تلقائياً في قائمة العملاء =====
+  // المطابقة برقم الهاتف (آخر 8 أرقام)، وإذا لم يوجد رقم فبالاسم
+  phoneKey(p) {
+    const d = String(p || '').replace(/\D/g, '');
+    return d.length >= 6 ? d.slice(-8) : '';
+  }
+
+  findCustomer(name, phone) {
+    const key = this.phoneKey(phone);
+    if (key) {
+      const byPhone = this.customers.find(c => this.phoneKey(c.phone) === key);
+      if (byPhone) return byPhone;
+    }
+    const nm = String(name || '').trim().toLowerCase();
+    if (!nm) return null;
+    // بالاسم فقط إذا لم يكن للعميل المسجّل رقم مختلف
+    return this.customers.find(c => String(c.name || '').trim().toLowerCase() === nm && (!key || !this.phoneKey(c.phone))) || null;
+  }
+
+  isRealCustomerName(name) {
+    const nm = String(name || '').trim();
+    return nm && !/^[-–—.]+$/.test(nm) && !['عميل', 'عميل نقدي', 'نقدي', 'زبون'].includes(nm);
+  }
+
+  async ensureCustomer(name, phone) {
+    try {
+      name = String(name || '').trim();
+      phone = String(phone || '').trim();
+      if (!this.isRealCustomerName(name) && !this.phoneKey(phone)) return null;
+      if (!name) name = phone;
+      const existing = this.findCustomer(name, phone);
+      if (existing) {
+        // نكمل الرقم الناقص للعميل المسجّل
+        if (phone && !this.phoneKey(existing.phone)) {
+          if (this.sb) await this.sb.from('customers').update({ phone }).eq('id', existing.id);
+          existing.phone = phone;
+        }
+        return existing.id;
+      }
+      const data = { name, phone: phone || null };
+      if (!this.sb) {
+        const rec = { id: uid(), ...data, createdAt: new Date().toISOString() };
+        this.customers.unshift(rec);
+        return rec.id;
+      }
+      const { data: created, error } = await this.writeWithRetry(data, d => this.sb.from('customers').insert(d).select().single());
+      if (error) { console.warn('تعذّر تسجيل العميل تلقائياً:', error); return null; }
+      if (created) this.customers.unshift(rowFromDb(created, 'customers'));
+      return created?.id || null;
+    } catch (e) {
+      console.warn('تعذّر تسجيل العميل تلقائياً:', e);
+      return null;
+    }
+  }
+
+  // إضافة عملاء الفواتير السابقة غير المسجّلين
+  async importCustomersFromSales() {
+    const seen = new Set();
+    const toAdd = [];
+    [...this.sales].reverse().forEach(s => {
+      const name = String(s.customerName || '').trim(), phone = String(s.customerPhone || '').trim();
+      if (!this.isRealCustomerName(name) && !this.phoneKey(phone)) return;
+      const key = this.phoneKey(phone) || 'n:' + name.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      const ex = this.findCustomer(name, phone);
+      if (!ex) toAdd.push({ name: name || phone, phone: phone || null });
+    });
+    if (!toAdd.length) { showToast('كل عملاء الفواتير مسجّلون بالفعل', 'success'); return; }
+    if (!confirm(`سيتم إضافة ${toAdd.length} عميل من الفواتير السابقة إلى قائمة العملاء. متابعة؟`)) return;
+    if (!this.sb) {
+      toAdd.forEach(d => this.customers.unshift({ id: uid(), ...d, createdAt: new Date().toISOString() }));
+    } else {
+      const { error } = await this.sb.from('customers').insert(toAdd);
+      if (error) { showToast('تعذّر إضافة العملاء: ' + (error.message || ''), 'error'); return; }
+      await this.loadAllData();
+    }
+    showToast(`تمت إضافة ${toAdd.length} عميل`, 'success');
+    this.switchView('customers');
   }
 
   // حفظ الفاتورة ثم فتح نافذة إرسالها كصورة
@@ -7360,6 +7450,10 @@ ${this.canDiscount() ? `
   }
 
   bindCustomersEvents() {
+    document.getElementById('importSaleCustomersBtn')?.addEventListener('click', (e) => {
+      e.target.disabled = true;
+      this.importCustomersFromSales().finally(() => { e.target.disabled = false; });
+    });
     // معالج الإضافة - يُضاف مرة واحدة فقط
     const addBtn = document.getElementById('addCustomerBtn');
     if (addBtn && !addBtn.hasListener) {
@@ -8222,6 +8316,17 @@ ${this.canDiscount() ? `
         <div class="card">
           <div class="card-head">
             <h3>العملاء (${filteredCustomers.length})</h3>
+            ${(() => {
+              const seen = new Set(); let missing = 0;
+              this.sales.forEach(s => {
+                const name = String(s.customerName || '').trim(), phone = String(s.customerPhone || '').trim();
+                if (!this.isRealCustomerName(name) && !this.phoneKey(phone)) return;
+                const key = this.phoneKey(phone) || 'n:' + name.toLowerCase();
+                if (seen.has(key)) return; seen.add(key);
+                if (!this.findCustomer(name, phone)) missing++;
+              });
+              return missing ? `<button class="btn btn-amber btn-sm" id="importSaleCustomersBtn">📥 إضافة عملاء الفواتير السابقة (${missing})</button>` : '';
+            })()}
           </div>
           <div class="table-wrap">
             <table>
