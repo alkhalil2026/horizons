@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.21.0 (pay labels, inventory value, cash bank deposits) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.21.1 (profit by type: specific day + date range) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1554,6 +1554,12 @@ tr.muted-row td { color: var(--text-muted); }
 .dash-mini-v { font-size: 24px; margin: 6px 0 4px; }
 .dash-mini small { color: var(--text-muted); }
 .dash-mini:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+
+.cat-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px 12px; background: #FAF8F3; border-radius: 10px; }
+.cat-pick label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; font-size: 14px; }
+.cat-pick input[type="date"] { width: auto; padding: 6px 8px; }
+.cat-quick { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.cat-range-label { margin: 0 0 12px; font-size: 14px; color: var(--text-600, #5B564C); }
 </style>
 </head>
 <body>
@@ -1941,6 +1947,18 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "📅 يوم محدد": "📅 Specific day",
+  "🎯 من — إلى": "🎯 From — To",
+  "يوم محدد": "Specific day",
+  "اليوم:": "Day:",
+  "→ اليوم السابق": "← Previous day",
+  "اليوم التالي ←": "Next day →",
+  "✓ عرض": "✓ Show",
+  "في هذا اليوم": "On this day",
+  "في هذه الفترة": "In this period",
+  "من الربح": "of profit",
+  "لا توجد فواتير في هذا اليوم": "No invoices on this day",
+  "لا توجد فواتير في هذه الفترة": "No invoices in this period",
   "تشيك": "Cheque",
   "🧾 تشيك": "🧾 Cheque",
   "🏦 إيداع الكاش في البنك": "🏦 Cash Bank Deposits",
@@ -8666,15 +8684,70 @@ ${this.canDiscount() ? `
     return buckets;
   }
 
+  // مبيعات بين تاريخين (YYYY-MM-DD، شاملة)
+  salesBetween(fromYMD, toYMD) {
+    if (fromYMD > toYMD) [fromYMD, toYMD] = [toYMD, fromYMD];
+    return this.sales.filter(s => {
+      const d = this.saleDate(s);
+      if (!d) return false;
+      const k = localYMD(d);
+      return k >= fromYMD && k <= toYMD;
+    });
+  }
+
   renderProfitByTypeCard() {
     const mode = this.catMode || 'day';
-    const series = this.profitByTypeSeries(mode);
-    const showActiveOnly = mode === 'day' && !this.catShowAllDays;
-    const rows = [...series].reverse().filter(b => !showActiveOnly || b.count > 0);
-    const T = series.reduce((a, b) => { ['tire', 'service', 'accessory', 'other', 'total'].forEach(k => a[k] += b[k]); a.count += b.count; return a; },
-      { tire: 0, service: 0, accessory: 0, other: 0, total: 0, count: 0 });
+    const today = localYMD();
+    const loc = currentLang === 'en' ? 'en-GB' : 'ar-OM';
+    const K = ['tire', 'service', 'accessory', 'other'];
+    const blank = () => ({ tire: 0, service: 0, accessory: 0, other: 0, total: 0, count: 0 });
+    const addSale = (acc, s) => { const p = this.saleProfitByType(s); K.forEach(k => { acc[k] += p[k]; acc.total += p[k]; }); acc.count++; return acc; };
+
+    // ===== تجهيز الصفوف حسب الوضع =====
+    let rows = [], rowHead = '', cur, curLabel, T, rangeLabel, firstCols = r => `<td>${esc(r.label)}</td><td class="num">${r.count}</td>`, firstHeads;
+    if (mode === 'date' || mode === 'range') {
+      let from = mode === 'date' ? (this.catDate || today) : (this.catFrom || today);
+      let to = mode === 'date' ? from : (this.catTo || today);
+      if (from > to) [from, to] = [to, from];
+      const list = this.salesBetween(from, to);
+      T = list.reduce(addSale, blank());
+      cur = T;
+      const fmt = ymd => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+      rangeLabel = mode === 'date' ? fmt(from) : `${fmt(from)} — ${fmt(to)}`;
+      curLabel = mode === 'date' ? 'في هذا اليوم' : 'في هذه الفترة';
+      if (mode === 'date') {
+        // يوم محدد: كل فاتورة في صف
+        rowHead = 'الفاتورة';
+        firstHeads = '<th>الفاتورة</th><th>العميل</th>';
+        rows = list.map(s => { const r = addSale(blank(), s); r.label = s.invoiceNumber || '-'; r.customer = s.customerName || '-'; return r; });
+        firstCols = r => `<td>${esc(r.label)}</td><td>${esc(r.customer)}</td>`;
+      } else {
+        // فترة: يوم في كل صف (الأيام التي فيها مبيعات)
+        firstHeads = '<th>اليوم</th><th>عدد الفواتير</th>';
+        const byDay = new Map();
+        list.forEach(s => {
+          const k = localYMD(this.saleDate(s));
+          if (!byDay.has(k)) byDay.set(k, blank());
+          addSale(byDay.get(k), s);
+        });
+        rows = [...byDay.entries()].sort((x, y) => y[0].localeCompare(x[0])).map(([k, r]) => {
+          const [yy, mm, dd] = k.split('-').map(Number);
+          r.label = new Date(yy, mm - 1, dd).toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+          return r;
+        });
+      }
+    } else {
+      const series = this.profitByTypeSeries(mode);
+      const showActiveOnly = mode === 'day' && !this.catShowAllDays;
+      rows = [...series].reverse().filter(r => !showActiveOnly || r.count > 0);
+      T = series.reduce((acc, r) => { K.forEach(k => acc[k] += r[k]); acc.total += r.total; acc.count += r.count; return acc; }, blank());
+      cur = series[series.length - 1];
+      curLabel = mode === 'day' ? 'اليوم' : 'هذا الشهر';
+      rangeLabel = mode === 'day' ? 'آخر 30 يوماً' : 'آخر 12 شهراً';
+      firstHeads = `<th>${mode === 'day' ? 'اليوم' : 'الشهر'}</th><th>عدد الفواتير</th>`;
+    }
+    const isAgg = mode === 'day' || mode === 'month';
     const hasOther = Math.abs(T.other) > 0.0005;
-    const cur = series[series.length - 1];
     const money = v => `<span style="color: ${v < -0.0005 ? 'var(--brake-red)' : 'inherit'};">${fmtMoney(v)}</span>`;
     const tile = (icon, label, k, cls) => {
       const share = T.total > 0 ? Math.max(0, T[k]) / T.total * 100 : 0;
@@ -8682,19 +8755,42 @@ ${this.canDiscount() ? `
         <div class="cat-tile ${cls}">
           <div class="cat-tile-label">${icon} ${label}</div>
           <div class="cat-tile-value num">${fmtMoney(cur[k])}</div>
-          <div class="cat-tile-sub">${mode === 'day' ? 'اليوم' : 'هذا الشهر'}</div>
-          <div class="cat-tile-sub">${mode === 'day' ? 'آخر 30 يوماً' : 'آخر 12 شهراً'}: <b class="num">${fmtMoney(T[k])}</b> (${share.toFixed(0)}%)</div>
+          <div class="cat-tile-sub">${curLabel}${isAgg ? '' : ` — ${share.toFixed(0)}% من الربح`}</div>
+          ${isAgg ? `<div class="cat-tile-sub">${rangeLabel}: <b class="num">${fmtMoney(T[k])}</b> (${share.toFixed(0)}%)</div>` : ''}
         </div>`;
     };
+    const titles = { day: 'يومي', month: 'شهري', date: 'يوم محدد', range: 'فترة محددة' };
+    const emptyMsg = mode === 'date' ? 'لا توجد فواتير في هذا اليوم' : mode === 'range' ? 'لا توجد فواتير في هذه الفترة' : 'لا توجد مبيعات في آخر 30 يوماً';
+
     return `
-      <div class="card">
+      <div class="card" id="catCard">
         <div class="card-head rep-head">
-          <h3>💹 الأرباح حسب النوع — ${mode === 'day' ? 'يومي' : 'شهري'}</h3>
+          <h3>💹 الأرباح حسب النوع — ${titles[mode]}</h3>
           <div class="seg">
             <button class="${mode === 'day' ? 'active' : ''}" data-cat-mode="day">يومي</button>
             <button class="${mode === 'month' ? 'active' : ''}" data-cat-mode="month">شهري</button>
+            <button class="${mode === 'date' ? 'active' : ''}" data-cat-mode="date">📅 يوم محدد</button>
+            <button class="${mode === 'range' ? 'active' : ''}" data-cat-mode="range">🎯 من — إلى</button>
           </div>
         </div>
+        ${mode === 'date' ? `
+          <div class="cat-pick">
+            <label>اليوم: <input type="date" id="catDate" value="${esc(this.catDate || today)}" max="${today}"></label>
+            <button class="btn btn-ghost btn-sm" data-cat-shift="-1">→ اليوم السابق</button>
+            <button class="btn btn-ghost btn-sm" data-cat-shift="1" ${(this.catDate || today) >= today ? 'disabled' : ''}>اليوم التالي ←</button>
+          </div>` : ''}
+        ${mode === 'range' ? `
+          <div class="cat-pick">
+            <label>من: <input type="date" id="catFrom" value="${esc(this.catFrom || today)}" max="${today}"></label>
+            <label>إلى: <input type="date" id="catTo" value="${esc(this.catTo || today)}" max="${today}"></label>
+            <button class="btn btn-amber btn-sm" id="catApply">✓ عرض</button>
+            <span class="cat-quick">
+              <button class="btn btn-ghost btn-xs" data-cat-quick="7">آخر 7 أيام</button>
+              <button class="btn btn-ghost btn-xs" data-cat-quick="month">هذا الشهر</button>
+              <button class="btn btn-ghost btn-xs" data-cat-quick="lastMonth">الشهر الماضي</button>
+            </span>
+          </div>` : ''}
+        ${!isAgg ? `<p class="cat-range-label">📆 ${esc(rangeLabel)} — <b>${T.count}</b> فاتورة</p>` : ''}
         <div class="cat-tiles">
           ${tile('🛞', 'ربح الإطارات', 'tire', 'tire')}
           ${tile('🔧', 'ربح الخدمات', 'service', 'service')}
@@ -8702,35 +8798,35 @@ ${this.canDiscount() ? `
           <div class="cat-tile all">
             <div class="cat-tile-label">💰 إجمالي الربح</div>
             <div class="cat-tile-value num">${fmtMoney(cur.total)}</div>
-            <div class="cat-tile-sub">${mode === 'day' ? 'اليوم' : 'هذا الشهر'} — ${cur.count} فاتورة</div>
-            <div class="cat-tile-sub">${mode === 'day' ? 'آخر 30 يوماً' : 'آخر 12 شهراً'}: <b class="num">${fmtMoney(T.total)}</b></div>
+            <div class="cat-tile-sub">${curLabel} — ${cur.count} فاتورة</div>
+            ${isAgg ? `<div class="cat-tile-sub">${rangeLabel}: <b class="num">${fmtMoney(T.total)}</b></div>` : ''}
           </div>
         </div>
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>${mode === 'day' ? 'اليوم' : 'الشهر'}</th><th>عدد الفواتير</th>
+              ${firstHeads}
               <th>🛞 ربح الإطارات</th><th>🔧 ربح الخدمات</th><th>🧩 ربح الإكسسوارات</th>
               ${hasOther ? '<th>📝 أخرى</th>' : ''}
               <th>إجمالي الربح</th>
             </tr></thead>
             <tbody>
-              ${rows.map(b => `<tr ${b.count ? '' : 'class="muted-row"'}>
-                <td>${esc(b.label)}</td><td class="num">${b.count}</td>
-                <td class="num">${money(b.tire)}</td><td class="num">${money(b.service)}</td><td class="num">${money(b.accessory)}</td>
-                ${hasOther ? `<td class="num">${money(b.other)}</td>` : ''}
-                <td class="num" style="font-weight: 700; color: ${b.total >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(b.total)}</td>
-              </tr>`).join('') || `<tr><td colspan="${hasOther ? 7 : 6}" class="text-center">لا توجد مبيعات في آخر 30 يوماً</td></tr>`}
+              ${rows.map(r => `<tr ${r.count ? '' : 'class="muted-row"'}>
+                ${firstCols(r)}
+                <td class="num">${money(r.tire)}</td><td class="num">${money(r.service)}</td><td class="num">${money(r.accessory)}</td>
+                ${hasOther ? `<td class="num">${money(r.other)}</td>` : ''}
+                <td class="num" style="font-weight: 700; color: ${r.total >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(r.total)}</td>
+              </tr>`).join('') || `<tr><td colspan="${hasOther ? 7 : 6}" class="text-center">${emptyMsg}</td></tr>`}
             </tbody>
-            <tfoot><tr class="rep-total">
-              <td>المجموع</td><td class="num">${T.count}</td>
+            ${rows.length ? `<tfoot><tr class="rep-total">
+              <td>المجموع</td><td class="num">${mode === 'date' ? '' : T.count}</td>
               <td class="num">${fmtMoney(T.tire)}</td><td class="num">${fmtMoney(T.service)}</td><td class="num">${fmtMoney(T.accessory)}</td>
               ${hasOther ? `<td class="num">${fmtMoney(T.other)}</td>` : ''}
               <td class="num" style="color: ${T.total >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(T.total)}</td>
-            </tr></tfoot>
+            </tr></tfoot>` : ''}
           </table>
         </div>
-        ${mode === 'day' ? `<button class="btn btn-ghost btn-sm" id="catShowAllDays" style="margin-top: 10px;">${showActiveOnly ? 'عرض كل الأيام (حتى الأيام بدون مبيعات)' : 'إخفاء الأيام بدون مبيعات'}</button>` : ''}
+        ${mode === 'day' ? `<button class="btn btn-ghost btn-sm" id="catShowAllDays" style="margin-top: 10px;">${!this.catShowAllDays ? 'عرض كل الأيام (حتى الأيام بدون مبيعات)' : 'إخفاء الأيام بدون مبيعات'}</button>` : ''}
         <p class="text-xs" style="margin-top: 10px;">الربح = سعر البيع − سعر التكلفة، وخصم الفاتورة يُوزَّع على أصنافها بنسبة قيمة كل صنف. الخدمات بدون تكلفة. هذا ربح المبيعات قبل المصروفات.</p>
       </div>`;
   }
@@ -8925,13 +9021,44 @@ ${this.canDiscount() ? `
       this.topShowAll = !this.topShowAll;
       this.switchView('reports');
     });
+    // يعيد رسم التقارير ويبقي الشاشة عند قسم الأرباح حسب النوع
+    const redrawCat = () => {
+      this.switchView('reports');
+      document.getElementById('catCard')?.scrollIntoView({ block: 'start' });
+    };
     root.querySelectorAll('[data-cat-mode]').forEach(b => b.addEventListener('click', () => {
       this.catMode = b.dataset.catMode;
-      this.switchView('reports');
+      redrawCat();
+    }));
+    document.getElementById('catDate')?.addEventListener('change', (e) => {
+      const v = e.target.value;
+      if (!v) return;
+      this.catDate = v > localYMD() ? localYMD() : v;
+      redrawCat();
+    });
+    root.querySelectorAll('[data-cat-shift]').forEach(b => b.addEventListener('click', () => {
+      const [y, m, d] = (this.catDate || localYMD()).split('-').map(Number);
+      const next = localYMD(new Date(y, m - 1, d + parseInt(b.dataset.catShift, 10)));
+      if (next > localYMD()) return;
+      this.catDate = next;
+      redrawCat();
+    }));
+    document.getElementById('catApply')?.addEventListener('click', () => {
+      const f = document.getElementById('catFrom').value, t2 = document.getElementById('catTo').value;
+      if (!f || !t2) { showToast('اختر التاريخين', 'warning'); return; }
+      this.catFrom = f; this.catTo = t2;
+      redrawCat();
+    });
+    root.querySelectorAll('[data-cat-quick]').forEach(b => b.addEventListener('click', () => {
+      const now = new Date(), q = b.dataset.catQuick;
+      if (q === '7') { this.catFrom = localYMD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)); this.catTo = localYMD(); }
+      if (q === 'month') { this.catFrom = localYMD(new Date(now.getFullYear(), now.getMonth(), 1)); this.catTo = localYMD(); }
+      if (q === 'lastMonth') { this.catFrom = localYMD(new Date(now.getFullYear(), now.getMonth() - 1, 1)); this.catTo = localYMD(new Date(now.getFullYear(), now.getMonth(), 0)); }
+      redrawCat();
     }));
     document.getElementById('catShowAllDays')?.addEventListener('click', () => {
       this.catShowAllDays = !this.catShowAllDays;
-      this.switchView('reports');
+      redrawCat();
     });
     this.drawSalesChart();
   }
