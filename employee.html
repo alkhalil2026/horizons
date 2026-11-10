@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.19.0 (net profit per invoice) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.20.0 (profit by type: tires/services/accessories) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1520,6 +1520,18 @@ tr.rep-total td { font-weight: 700; border-top: 2px solid var(--line, #E3DDD0); 
 .profit-chip.pos { background: var(--tread-green-bg, #E6F4EA); color: var(--tread-green, #1E7B3A); }
 .profit-chip.neg { background: #FBE5E2; color: var(--brake-red, #C4483A); }
 .profit-chip:hover { filter: brightness(.95); }
+
+.cat-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+@media (max-width: 900px) { .cat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cat-tile { border: 1px solid var(--line, #E3DDD0); border-radius: 12px; padding: 12px 14px; border-top: 4px solid #999; }
+.cat-tile.tire { border-top-color: var(--info-blue, #2F6E9E); }
+.cat-tile.service { border-top-color: var(--tread-green, #1E7B3A); }
+.cat-tile.acc { border-top-color: var(--amber-600, #C27C0E); }
+.cat-tile.all { border-top-color: #6B4FA0; background: #FAF8F3; }
+.cat-tile-label { font-weight: 700; font-size: 14px; }
+.cat-tile-value { font-size: 24px; font-weight: 800; margin: 6px 0 2px; }
+.cat-tile-sub { font-size: 12px; color: var(--text-muted); }
+tr.muted-row td { color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -1906,6 +1918,22 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "💹 الأرباح حسب النوع —": "💹 Profit by type —",
+  "ربح الإطارات": "Tire profit",
+  "ربح الخدمات": "Service profit",
+  "ربح الإكسسوارات": "Accessory profit",
+  "💰 إجمالي الربح": "💰 Total profit",
+  "إجمالي الربح": "Total profit",
+  "آخر 30 يوماً": "Last 30 days",
+  "آخر 12 شهراً": "Last 12 months",
+  "📝 أخرى": "📝 Other",
+  "🛞 ربح الإطارات": "🛞 Tire profit",
+  "🔧 ربح الخدمات": "🔧 Service profit",
+  "🧩 ربح الإكسسوارات": "🧩 Accessory profit",
+  "عرض كل الأيام (حتى الأيام بدون مبيعات)": "Show all days (including days without sales)",
+  "إخفاء الأيام بدون مبيعات": "Hide days without sales",
+  "لا توجد مبيعات في آخر 30 يوماً": "No sales in the last 30 days",
+  "الربح = سعر البيع − سعر التكلفة، وخصم الفاتورة يُوزَّع على أصنافها بنسبة قيمة كل صنف. الخدمات بدون تكلفة. هذا ربح المبيعات قبل المصروفات.": "Profit = selling price − cost price; the invoice discount is spread across its items by value. Services have no cost. This is sales profit before expenses.",
   "التكلفة": "Cost",
   "تفاصيل الربح": "Profit details",
   "المجموع قبل الخصم:": "Subtotal before discount:",
@@ -8346,6 +8374,126 @@ ${this.canDiscount() ? `
     document.getElementById('profitModalOk').onclick = close;
   }
 
+  // ربح فاتورة موزّعاً على الأنواع (الخصم يُوزَّع على الأصناف بنسبة قيمتها)
+  saleProfitByType(s) {
+    const p = this.saleProfit(s);
+    const out = { tire: 0, service: 0, accessory: 0, other: 0 };
+    const services = new Set(this.services.map(x => x.name));
+    const accs = new Set(this.accessories.map(x => x.name));
+    p.lines.forEach(l => {
+      let type = l.type;
+      if (type === 'unknown') {
+        type = services.has(l.name) ? 'service' : accs.has(l.name) ? 'accessory'
+          : (/\d{3}\/\d{2}R?\d{2}/i.test(l.name) || this.tires.some(t => this.tireLabel(t) === l.name)) ? 'tire' : 'other';
+      }
+      if (!(type in out)) type = 'other';
+      const share = p.subtotal ? l.revenue / p.subtotal : 0;
+      out[type] += l.profit - p.discount * share;
+    });
+    return out;
+  }
+
+  // الأرباح حسب النوع لكل يوم / شهر
+  profitByTypeSeries(mode) {
+    const now = new Date();
+    const loc = currentLang === 'en' ? 'en-GB' : 'ar-OM';
+    const buckets = [];
+    const blank = () => ({ tire: 0, service: 0, accessory: 0, other: 0, count: 0 });
+    if (mode === 'day') {
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        buckets.push({ key: d.toDateString(), label: d.toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'short' }), ...blank() });
+      }
+    } else {
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        buckets.push({ key: d.getFullYear() + '-' + d.getMonth(), label: d.toLocaleDateString(loc, { month: 'long', year: 'numeric' }), ...blank() });
+      }
+    }
+    const index = new Map(buckets.map(b => [b.key, b]));
+    this.sales.forEach(s => {
+      const d = this.saleDate(s);
+      if (!d) return;
+      const key = mode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString() : d.getFullYear() + '-' + d.getMonth();
+      const b = index.get(key);
+      if (!b) return;
+      const p = this.saleProfitByType(s);
+      Object.keys(p).forEach(k => { b[k] += p[k]; });
+      b.count++;
+    });
+    buckets.forEach(b => { b.total = b.tire + b.service + b.accessory + b.other; });
+    return buckets;
+  }
+
+  renderProfitByTypeCard() {
+    const mode = this.catMode || 'day';
+    const series = this.profitByTypeSeries(mode);
+    const showActiveOnly = mode === 'day' && !this.catShowAllDays;
+    const rows = [...series].reverse().filter(b => !showActiveOnly || b.count > 0);
+    const T = series.reduce((a, b) => { ['tire', 'service', 'accessory', 'other', 'total'].forEach(k => a[k] += b[k]); a.count += b.count; return a; },
+      { tire: 0, service: 0, accessory: 0, other: 0, total: 0, count: 0 });
+    const hasOther = Math.abs(T.other) > 0.0005;
+    const cur = series[series.length - 1];
+    const money = v => `<span style="color: ${v < -0.0005 ? 'var(--brake-red)' : 'inherit'};">${fmtMoney(v)}</span>`;
+    const tile = (icon, label, k, cls) => {
+      const share = T.total > 0 ? Math.max(0, T[k]) / T.total * 100 : 0;
+      return `
+        <div class="cat-tile ${cls}">
+          <div class="cat-tile-label">${icon} ${label}</div>
+          <div class="cat-tile-value num">${fmtMoney(cur[k])}</div>
+          <div class="cat-tile-sub">${mode === 'day' ? 'اليوم' : 'هذا الشهر'}</div>
+          <div class="cat-tile-sub">${mode === 'day' ? 'آخر 30 يوماً' : 'آخر 12 شهراً'}: <b class="num">${fmtMoney(T[k])}</b> (${share.toFixed(0)}%)</div>
+        </div>`;
+    };
+    return `
+      <div class="card">
+        <div class="card-head rep-head">
+          <h3>💹 الأرباح حسب النوع — ${mode === 'day' ? 'يومي' : 'شهري'}</h3>
+          <div class="seg">
+            <button class="${mode === 'day' ? 'active' : ''}" data-cat-mode="day">يومي</button>
+            <button class="${mode === 'month' ? 'active' : ''}" data-cat-mode="month">شهري</button>
+          </div>
+        </div>
+        <div class="cat-tiles">
+          ${tile('🛞', 'ربح الإطارات', 'tire', 'tire')}
+          ${tile('🔧', 'ربح الخدمات', 'service', 'service')}
+          ${tile('🧩', 'ربح الإكسسوارات', 'accessory', 'acc')}
+          <div class="cat-tile all">
+            <div class="cat-tile-label">💰 إجمالي الربح</div>
+            <div class="cat-tile-value num">${fmtMoney(cur.total)}</div>
+            <div class="cat-tile-sub">${mode === 'day' ? 'اليوم' : 'هذا الشهر'} — ${cur.count} فاتورة</div>
+            <div class="cat-tile-sub">${mode === 'day' ? 'آخر 30 يوماً' : 'آخر 12 شهراً'}: <b class="num">${fmtMoney(T.total)}</b></div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>${mode === 'day' ? 'اليوم' : 'الشهر'}</th><th>عدد الفواتير</th>
+              <th>🛞 ربح الإطارات</th><th>🔧 ربح الخدمات</th><th>🧩 ربح الإكسسوارات</th>
+              ${hasOther ? '<th>📝 أخرى</th>' : ''}
+              <th>إجمالي الربح</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(b => `<tr ${b.count ? '' : 'class="muted-row"'}>
+                <td>${esc(b.label)}</td><td class="num">${b.count}</td>
+                <td class="num">${money(b.tire)}</td><td class="num">${money(b.service)}</td><td class="num">${money(b.accessory)}</td>
+                ${hasOther ? `<td class="num">${money(b.other)}</td>` : ''}
+                <td class="num" style="font-weight: 700; color: ${b.total >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(b.total)}</td>
+              </tr>`).join('') || `<tr><td colspan="${hasOther ? 7 : 6}" class="text-center">لا توجد مبيعات في آخر 30 يوماً</td></tr>`}
+            </tbody>
+            <tfoot><tr class="rep-total">
+              <td>المجموع</td><td class="num">${T.count}</td>
+              <td class="num">${fmtMoney(T.tire)}</td><td class="num">${fmtMoney(T.service)}</td><td class="num">${fmtMoney(T.accessory)}</td>
+              ${hasOther ? `<td class="num">${fmtMoney(T.other)}</td>` : ''}
+              <td class="num" style="color: ${T.total >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(T.total)}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+        ${mode === 'day' ? `<button class="btn btn-ghost btn-sm" id="catShowAllDays" style="margin-top: 10px;">${showActiveOnly ? 'عرض كل الأيام (حتى الأيام بدون مبيعات)' : 'إخفاء الأيام بدون مبيعات'}</button>` : ''}
+        <p class="text-xs" style="margin-top: 10px;">الربح = سعر البيع − سعر التكلفة، وخصم الفاتورة يُوزَّع على أصنافها بنسبة قيمة كل صنف. الخدمات بدون تكلفة. هذا ربح المبيعات قبل المصروفات.</p>
+      </div>`;
+  }
+
   // تاريخ المصروف
   expenseDate(e) {
     const d = new Date(e.expenseDate || e.expense_date || e.createdAt || e.created_at);
@@ -8416,6 +8564,8 @@ ${this.canDiscount() ? `
           <div class="rep-chart-wrap"><canvas id="salesChart"></canvas></div>
           ${typeof Chart === 'undefined' ? '<p class="text-center text-xs">تعذّر تحميل مكتبة الرسوم البيانية — استخدم "عرض كجدول"</p>' : ''}`}
       </div>
+
+      ${this.renderProfitByTypeCard()}
 
       <div class="card">
         <div class="card-head rep-head">
@@ -8490,6 +8640,14 @@ ${this.canDiscount() ? `
     });
     document.getElementById('topShowAll')?.addEventListener('click', () => {
       this.topShowAll = !this.topShowAll;
+      this.switchView('reports');
+    });
+    root.querySelectorAll('[data-cat-mode]').forEach(b => b.addEventListener('click', () => {
+      this.catMode = b.dataset.catMode;
+      this.switchView('reports');
+    }));
+    document.getElementById('catShowAllDays')?.addEventListener('click', () => {
+      this.catShowAllDays = !this.catShowAllDays;
       this.switchView('reports');
     });
     this.drawSalesChart();
