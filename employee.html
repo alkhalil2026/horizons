@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.21.1 (profit by type: specific day + date range) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.22.0 (tire search + reports from/to range) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1560,6 +1560,15 @@ tr.muted-row td { color: var(--text-muted); }
 .cat-pick input[type="date"] { width: auto; padding: 6px 8px; }
 .cat-quick { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .cat-range-label { margin: 0 0 12px; font-size: 14px; color: var(--text-600, #5B564C); }
+
+.tire-search-wrap { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.tire-search { flex: 1; min-width: 220px; padding: 10px 14px !important; border-radius: 10px !important; font-size: 15px !important; }
+.tire-instock { display: inline-flex !important; align-items: center; gap: 6px; margin: 0 !important; white-space: nowrap; }
+.rep-range-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+@media (max-width: 800px) { .rep-range-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rep-range-sum > div { border: 1px solid var(--line, #E3DDD0); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+.rep-range-sum span { font-size: 12.5px; color: var(--text-600, #5B564C); }
+.rep-range-sum b { font-size: 20px; }
 </style>
 </head>
 <body>
@@ -1947,6 +1956,10 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "🔍 ابحث بالمقاس أو البراند أو الموديل أو المورد... مثال: 205/55R16 أو 2055516": "🔍 Search by size, brand, model or supplier... e.g. 205/55R16 or 2055516",
+  "المتوفر فقط": "In stock only",
+  "لا يوجد إطار يطابق البحث": "No tire matches the search",
+  "الفترة أطول من شهرين، لذلك التجميع بالشهر": "The period is longer than two months, so it's grouped by month",
   "📅 يوم محدد": "📅 Specific day",
   "🎯 من — إلى": "🎯 From — To",
   "يوم محدد": "Specific day",
@@ -7262,7 +7275,13 @@ ${this.canDiscount() ? `
     if (view === 'shopSettings') this.bindShopSettingsEvents();
     if (view === 'services') this.bindServicesEvents();
     if (view === 'customers') this.bindCustomersEvents();
-    if (view === 'tires') this.bindTiresEvents();
+    if (view === 'tires') {
+      this.bindTiresEvents();
+      const box = document.getElementById('tireSearch');
+      box?.addEventListener('input', () => { this.tireQuery = box.value; this.applyTireSearch(); });
+      document.getElementById('tireInStock')?.addEventListener('change', (e) => { this.tireInStockOnly = e.target.checked; this.applyTireSearch(); });
+      this.applyTireSearch();
+    }
     if (view === 'accessories') this.bindAccessoriesEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
     if (view === 'fixedExpenses') this.bindFixedExpensesEvents();
@@ -8296,7 +8315,11 @@ ${this.canDiscount() ? `
 
         <div class="card">
           <div class="card-head">
-            <h3>الإطارات (${filteredTires.length})</h3>
+            <h3>الإطارات (<span id="tireCount">${filteredTires.length}</span>)</h3>
+          </div>
+          <div class="tire-search-wrap">
+            <input type="search" id="tireSearch" class="tire-search" placeholder="🔍 ابحث بالمقاس أو البراند أو الموديل أو المورد... مثال: 205/55R16 أو 2055516" value="${esc(this.tireQuery || '')}" autocomplete="off">
+            <label class="text-xs tire-instock"><input type="checkbox" id="tireInStock" ${this.tireInStockOnly ? 'checked' : ''}> المتوفر فقط</label>
           </div>
           <div class="table-wrap">
             <table>
@@ -8312,9 +8335,9 @@ ${this.canDiscount() ? `
               </thead>
               <tbody>
                 ${filteredTires.map(t => `
-                  <tr>
+                  <tr data-tire-row data-stock="${parseInt(t.stock) || 0}" data-search="${esc(this.tireSearchText(t))}">
                     <td>${esc(t.size || '-')}</td>
-                    <td>${esc(t.brand || '-')}</td>
+                    <td>${esc(t.brand || '-')}${t.model ? `<div class="text-xs" style="color: var(--text-muted);">${esc(t.model)}</div>` : ''}</td>
                     <td class="num"><span style="color: ${(parseInt(t.stock) || 0) > 0 ? 'inherit' : 'var(--brake-red)'}; font-weight: 700;">${parseInt(t.stock) || 0}</span></td>
                     ${canEdit ? `<td class="num" style="color: var(--text-600);">${fmtMoney(parseFloat(t.cost) || 0)}</td>` : ''}
                     <td class="num">${fmtMoney(parseFloat(t.sellingPrice) || 0)}</td>
@@ -8327,12 +8350,39 @@ ${this.canDiscount() ? `
                     </td>` : ''}
                   </tr>
                 `).join('') || `<tr><td colspan="${canEdit ? 7 : 4}" class="text-center">لا توجد إطارات</td></tr>`}
+                <tr id="tireNoMatch" style="display: none;"><td colspan="${canEdit ? 7 : 4}" class="text-center">لا يوجد إطار يطابق البحث</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
     `;
+  }
+
+  // نص البحث للإطار: المقاس بصيغته ومجرّداً من الرموز (205/55R16 = 2055516)
+  tireSearchText(t) {
+    const sup = this.suppliers.find(s => s.id === t.supplierId)?.name || '';
+    const size = String(t.size || '');
+    return [size, size.replace(/[^0-9a-z]/gi, ''), size.replace(/[^0-9]/g, ''), t.brand, t.model, sup].filter(Boolean).join(' ').toLowerCase();
+  }
+
+  applyTireSearch() {
+    const q = String(this.tireQuery || '').trim().toLowerCase();
+    const words = q.split(/\s+/).filter(Boolean).map(w => [w, w.replace(/[^0-9a-z\u0600-\u06ff]/gi, '')]);
+    const inStock = !!this.tireInStockOnly;
+    let shown = 0;
+    document.querySelectorAll('[data-tire-row]').forEach(tr => {
+      const hay = tr.dataset.search || '';
+      const ok = words.every(([w, bare]) => hay.includes(w) || (bare && hay.includes(bare)))
+        && (!inStock || parseInt(tr.dataset.stock) > 0);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    const total = document.querySelectorAll('[data-tire-row]').length;
+    const cnt = document.getElementById('tireCount');
+    if (cnt) cnt.textContent = (q || inStock) ? `${shown} من ${total}` : total;
+    const none = document.getElementById('tireNoMatch');
+    if (none) none.style.display = total && !shown ? '' : 'none';
   }
 
   renderAppointmentsView() {
@@ -8418,11 +8468,43 @@ ${this.canDiscount() ? `
   }
 
   // تجميع المبيعات حسب الفترة: day (آخر 30 يوم) / month (آخر 12 شهر) / year (كل السنوات)
+  inRepRange(d) {
+    const k = localYMD(d);
+    const R = this.repRangeInfo();
+    return k >= R.f && k <= R.t;
+  }
+
+  // مدى فترة التقارير المحددة (من — إلى) وطريقة التجميع
+  repRangeInfo() {
+    const today = localYMD();
+    let f = this.repFrom || localYMD(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    let t = this.repTo || today;
+    if (f > t) [f, t] = [t, f];
+    const p = x => { const [a, b, c] = x.split('-').map(Number); return new Date(a, b - 1, c); };
+    const from = p(f), to = p(t);
+    const days = Math.round((to - from) / 864e5) + 1;
+    return { f, t, from, to, days, gran: days <= 62 ? 'day' : 'month' };
+  }
+
   salesSeries(mode) {
     const now = new Date();
     const loc = currentLang === 'en' ? 'en-GB' : 'ar-OM';
     const buckets = [];
-    if (mode === 'day') {
+    let gran = mode;
+    if (mode === 'range') {
+      const R = this.repRangeInfo();
+      gran = R.gran;
+      if (gran === 'day') {
+        for (let i = 0; i < R.days; i++) {
+          const d = new Date(R.from.getFullYear(), R.from.getMonth(), R.from.getDate() + i);
+          buckets.push({ key: d.toDateString(), label: d.toLocaleDateString(loc, { day: 'numeric', month: 'short' }), total: 0, count: 0, cost: 0, expenses: 0 });
+        }
+      } else {
+        for (let d = new Date(R.from.getFullYear(), R.from.getMonth(), 1); d <= R.to; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+          buckets.push({ key: d.getFullYear() + '-' + d.getMonth(), label: d.toLocaleDateString(loc, { month: 'short', year: 'numeric' }), total: 0, count: 0, cost: 0, expenses: 0 });
+        }
+      }
+    } else if (mode === 'day') {
       for (let i = 29; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
         buckets.push({ key: d.toDateString(), label: d.toLocaleDateString(loc, { day: 'numeric', month: 'short' }), total: 0, count: 0, cost: 0, expenses: 0 });
@@ -8443,9 +8525,10 @@ ${this.canDiscount() ? `
     this.sales.forEach(s => {
       const d = this.saleDate(s);
       if (!d) return;
-      const key = mode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString()
-        : mode === 'month' ? d.getFullYear() + '-' + d.getMonth()
+      const key = gran === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString()
+        : gran === 'month' ? d.getFullYear() + '-' + d.getMonth()
         : String(d.getFullYear());
+      if (mode === 'range' && !this.inRepRange(d)) return;
       const b = index.get(key);
       if (b) { b.total += this.saleTotal(s); b.count++; b.cost += this.saleCost(s); }
     });
@@ -8453,9 +8536,10 @@ ${this.canDiscount() ? `
     (this.expenses || []).forEach(e => {
       const d = this.expenseDate(e);
       if (!d) return;
-      const key = mode === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString()
-        : mode === 'month' ? d.getFullYear() + '-' + d.getMonth()
+      const key = gran === 'day' ? new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString()
+        : gran === 'month' ? d.getFullYear() + '-' + d.getMonth()
         : String(d.getFullYear());
+      if (mode === 'range' && !this.inRepRange(d)) return;
       const b = index.get(key);
       if (b) b.expenses += parseFloat(e.amount) || 0;
     });
@@ -8898,7 +8982,10 @@ ${this.canDiscount() ? `
     const products = this.topProducts(range);
     const shown = showAll ? products : products.slice(0, 10);
     const totalProfit = products.reduce((s, p) => s + Math.max(p.profit, 0), 0);
-    const modeTitle = { day: 'المبيعات اليومية — آخر 30 يوماً', month: 'المبيعات الشهرية — آخر 12 شهراً', year: 'المبيعات السنوية' }[mode];
+    const R = this.repRangeInfo();
+    const fmtD = x => fmtDate(new Date(x.getFullYear(), x.getMonth(), x.getDate(), 12).toISOString());
+    const modeTitle = { day: 'المبيعات اليومية — آخر 30 يوماً', month: 'المبيعات الشهرية — آخر 12 شهراً', year: 'المبيعات السنوية',
+      range: `المبيعات من ${fmtD(R.from)} إلى ${fmtD(R.to)}` }[mode];
     const typeBadge = { tire: '<span class="badge badge-info">🛞 إطار</span>', service: '<span class="badge badge-success">🔧 خدمة</span>', accessory: '<span class="badge badge-warning">🧩 إكسسوار</span>', unknown: '<span class="badge">—</span>' };
 
     return `
@@ -8916,10 +9003,31 @@ ${this.canDiscount() ? `
               <button class="${mode === 'day' ? 'active' : ''}" data-rep-mode="day">يومي</button>
               <button class="${mode === 'month' ? 'active' : ''}" data-rep-mode="month">شهري</button>
               <button class="${mode === 'year' ? 'active' : ''}" data-rep-mode="year">سنوي</button>
+              <button class="${mode === 'range' ? 'active' : ''}" data-rep-mode="range">🎯 من — إلى</button>
             </div>
             <button class="btn btn-ghost btn-sm" id="repToggleTable">${asTable ? '📊 عرض كرسم' : '📋 عرض كجدول'}</button>
           </div>
         </div>
+        ${mode === 'range' ? `
+          <div class="cat-pick">
+            <label>من: <input type="date" id="repFrom" value="${R.f}" max="${localYMD()}"></label>
+            <label>إلى: <input type="date" id="repTo" value="${R.t}" max="${localYMD()}"></label>
+            <button class="btn btn-amber btn-sm" id="repApply">✓ عرض</button>
+            <span class="cat-quick">
+              <button class="btn btn-ghost btn-xs" data-rep-quick="7">آخر 7 أيام</button>
+              <button class="btn btn-ghost btn-xs" data-rep-quick="month">هذا الشهر</button>
+              <button class="btn btn-ghost btn-xs" data-rep-quick="lastMonth">الشهر الماضي</button>
+              <button class="btn btn-ghost btn-xs" data-rep-quick="year">هذه السنة</button>
+            </span>
+          </div>
+          ${(() => { const T = series.reduce((a, b) => ({ c: a.c + b.count, t: a.t + b.total, n: a.n + b.net }), { c: 0, t: 0, n: 0 });
+            return `<div class="rep-range-sum">
+              <div><span>إجمالي المبيعات</span><b class="num">${fmtMoney(T.t)}</b></div>
+              <div><span>عدد الفواتير</span><b class="num">${T.c}</b></div>
+              <div><span>متوسط الفاتورة</span><b class="num">${fmtMoney(T.c ? T.t / T.c : 0)}</b></div>
+              <div><span>صافي الربح</span><b class="num" style="color: ${T.n >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(T.n)}</b></div>
+            </div>
+            <p class="text-xs" style="margin: 0 0 10px;">${R.gran === 'day' ? `${R.days} يوم — كل عمود/صف يمثل يوماً` : 'الفترة أطول من شهرين، لذلك التجميع بالشهر'}</p>`; })()}` : ''}
         ${asTable ? `
           <div class="table-wrap">
             <table>
@@ -9005,6 +9113,20 @@ ${this.canDiscount() ? `
     const root = document.getElementById('content');
     root.querySelectorAll('[data-rep-mode]').forEach(b => b.addEventListener('click', () => {
       this.reportMode = b.dataset.repMode;
+      this.switchView('reports');
+    }));
+    document.getElementById('repApply')?.addEventListener('click', () => {
+      const f = document.getElementById('repFrom').value, t2 = document.getElementById('repTo').value;
+      if (!f || !t2) { showToast('اختر التاريخين', 'warning'); return; }
+      this.repFrom = f; this.repTo = t2;
+      this.switchView('reports');
+    });
+    root.querySelectorAll('[data-rep-quick]').forEach(b => b.addEventListener('click', () => {
+      const now = new Date(), q = b.dataset.repQuick;
+      if (q === '7') { this.repFrom = localYMD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)); this.repTo = localYMD(); }
+      if (q === 'month') { this.repFrom = localYMD(new Date(now.getFullYear(), now.getMonth(), 1)); this.repTo = localYMD(); }
+      if (q === 'lastMonth') { this.repFrom = localYMD(new Date(now.getFullYear(), now.getMonth() - 1, 1)); this.repTo = localYMD(new Date(now.getFullYear(), now.getMonth(), 0)); }
+      if (q === 'year') { this.repFrom = localYMD(new Date(now.getFullYear(), 0, 1)); this.repTo = localYMD(); }
       this.switchView('reports');
     }));
     root.querySelectorAll('[data-top-range]').forEach(b => b.addEventListener('click', () => {
