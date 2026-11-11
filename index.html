@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.22.2 (fix: expenses saving/refresh) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.23.0 (expense payment method: cash/visa) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1569,6 +1569,8 @@ tr.muted-row td { color: var(--text-muted); }
 .rep-range-sum > div { border: 1px solid var(--line, #E3DDD0); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
 .rep-range-sum span { font-size: 12.5px; color: var(--text-600, #5B564C); }
 .rep-range-sum b { font-size: 20px; }
+
+td .badge { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -1732,6 +1734,36 @@ function readPaymentMethod(name) {
 }
 
 // طريقة الدفع لدفعة مورد (من العمود، أو من الملاحظات إن لم يوجد العمود)
+// ===== طريقة دفع المصروفات (كاش / فيزا) =====
+// تُحفظ في عمود payment_method، ونسخة احتياطية كوسم في البيان حتى لا تضيع إن لم يوجد العمود
+const EXP_PAY_METHODS = { cash: 'كاش', card: 'فيزا' };
+const EXP_PAY_TAG_RE = /\s*\[دفع: (كاش|فيزا)\]\s*/;
+function expensePayPicker(name, selected = 'cash') {
+  const icons = { cash: '💵', card: '💳' };
+  return `
+    <div class="pay-methods">
+      ${Object.entries(EXP_PAY_METHODS).map(([k, label]) => `
+        <label class="pay-method ${k === selected ? 'active' : ''}">
+          <input type="radio" name="${name}" value="${k}" ${k === selected ? 'checked' : ''}>
+          <span>${icons[k]} ${label}</span>
+        </label>`).join('')}
+    </div>`;
+}
+function expensePayMethod(e) {
+  if (e.paymentMethod && EXP_PAY_METHODS[e.paymentMethod]) return e.paymentMethod;
+  const m = EXP_PAY_TAG_RE.exec(e.description || '') || EXP_PAY_TAG_RE.exec(e.notes || '');
+  if (m) return m[1] === 'فيزا' ? 'card' : 'cash';
+  return 'cash';   // المصروفات القديمة تُعتبر كاش
+}
+function expenseDesc(text) { return String(text || '').replace(EXP_PAY_TAG_RE, ' ').trim(); }
+function expensePayBadge(e) {
+  const k = expensePayMethod(e);
+  return `<span class="badge ${k === 'card' ? 'badge-info' : 'badge-success'}">${k === 'card' ? '💳 فيزا' : '💵 كاش'}</span>`;
+}
+function withPayTag(text, method) {
+  return `${expenseDesc(text)} [دفع: ${EXP_PAY_METHODS[method] || 'كاش'}]`.trim();
+}
+
 function supplierPaymentMethod(pay) {
   if (pay.paymentMethod && SUPPLIER_PAY_METHODS[pay.paymentMethod]) return pay.paymentMethod;
   const m = PAY_TAG_RE.exec(pay.notes || '');
@@ -1746,7 +1778,7 @@ function localDateStr(d) {
 }
 
 // أمر إنشاء جداول الموارد البشرية في Supabase
-const EXPENSES_FIX_SQL = "-- ورشتي: إصلاح حفظ المصروفات (آمن للتشغيل أكثر من مرة)\ncreate table if not exists expenses (\n  id uuid primary key default gen_random_uuid(),\n  expense_type text,\n  description text,\n  amount numeric not null default 0,\n  expense_date timestamptz default now(),\n  created_at timestamptz default now()\n);\nalter table expenses add column if not exists expense_type text;\nalter table expenses add column if not exists description text;\nalter table expenses add column if not exists notes text;\nalter table expenses add column if not exists image text;\nalter table expenses add column if not exists expense_date timestamptz default now();\n\n-- إزالة أي قيد يمنع القيم العربية (يومية / ثابتة) في نوع المصروف\ndo $$\ndeclare c record;\nbegin\n  for c in select conname from pg_constraint\n           where conrelid = 'public.expenses'::regclass and contype = 'c'\n  loop\n    execute format('alter table public.expenses drop constraint %I', c.conname);\n  end loop;\nend $$;\n\nalter table expenses enable row level security;\ndrop policy if exists \"app access\" on expenses;\ncreate policy \"app access\" on expenses for all using (true) with check (true);\n";
+const EXPENSES_FIX_SQL = "-- ورشتي: إصلاح حفظ المصروفات (آمن للتشغيل أكثر من مرة)\ncreate table if not exists expenses (\n  id uuid primary key default gen_random_uuid(),\n  expense_type text,\n  description text,\n  amount numeric not null default 0,\n  expense_date timestamptz default now(),\n  created_at timestamptz default now()\n);\nalter table expenses add column if not exists expense_type text;\nalter table expenses add column if not exists description text;\nalter table expenses add column if not exists notes text;\nalter table expenses add column if not exists image text;\nalter table expenses add column if not exists payment_method text default 'cash';\nalter table expenses add column if not exists expense_date timestamptz default now();\n\n-- إزالة أي قيد يمنع القيم العربية (يومية / ثابتة) في نوع المصروف\ndo $$\ndeclare c record;\nbegin\n  for c in select conname from pg_constraint\n           where conrelid = 'public.expenses'::regclass and contype = 'c'\n  loop\n    execute format('alter table public.expenses drop constraint %I', c.conname);\n  end loop;\nend $$;\n\nalter table expenses enable row level security;\ndrop policy if exists \"app access\" on expenses;\ncreate policy \"app access\" on expenses for all using (true) with check (true);\n";
 const V221_SQL = "-- ورشتي 2.21: سجل إيداع الكاش في الحساب البنكي\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists bank_deposits (\n  id uuid primary key default gen_random_uuid(),\n  amount numeric not null,\n  deposit_date timestamptz default now(),\n  bank text,\n  reference text,\n  notes text,\n  created_by text,\n  created_at timestamptz default now()\n);\n\nalter table bank_deposits enable row level security;\ndrop policy if exists \"app access\" on bank_deposits;\ncreate policy \"app access\" on bank_deposits for all using (true) with check (true);\n";
 const V218_SQL = "-- ورشتي 2.18: جدول الإعدادات (لتظهر نفس الإعدادات والتوقيع على كل الأجهزة) + جدول الإكسسوارات\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists settings (\n  key text primary key,\n  value text,\n  updated_at timestamptz default now()\n);\n\ncreate table if not exists accessories (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  price numeric not null default 0,\n  cost numeric default 0,\n  stock integer default 0,\n  created_at timestamptz default now()\n);\n\nalter table settings enable row level security;\nalter table accessories enable row level security;\ndrop policy if exists \"app access\" on settings;\ndrop policy if exists \"app access\" on accessories;\ncreate policy \"app access\" on settings for all using (true) with check (true);\ncreate policy \"app access\" on accessories for all using (true) with check (true);\n";
 const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  check_in2 timestamptz,\n  check_out2 timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ndrop policy if exists \"app access\" on hr_employees;\ndrop policy if exists \"app access\" on hr_attendance;\ndrop policy if exists \"app access\" on hr_leaves;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);\n\n-- أعمدة الفترة المسائية (للجداول التي أُنشئت قبل إضافتها)\nalter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
@@ -1957,6 +1989,11 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "طريقة الدفع *": "Payment method *",
+  "💵 كاش": "💵 Cash",
+  "💳 فيزا": "💳 Visa",
+  "💸 المصروفات المدفوعة كاش": "💸 Expenses paid in cash",
+  "عدد المصروفات:": "Number of expenses:",
   "⏳ جاري الحفظ...": "⏳ Saving...",
   "تم تسجيل المصروف:": "Expense recorded:",
   "تم تسجيل المصروف، لكنه مخفي بسبب فلتر التاريخ — امسح الفلتر لرؤيته": "Expense recorded, but hidden by the date filter — clear the filter to see it",
@@ -3009,7 +3046,8 @@ const FIELD_MAP = {
   },
   expenses: {
     expense_type: 'expenseType',
-    expense_date: 'expenseDate'
+    expense_date: 'expenseDate',
+    payment_method: 'paymentMethod'
   },
   bank_deposits: {
     deposit_date: 'depositDate',
@@ -7967,7 +8005,8 @@ ${this.canDiscount() ? `
   cashBox() {
     const n = v => parseFloat(v) || 0;
     const cashSales = this.sales.reduce((a, s) => a + (salePayments(s).cash || 0), 0);
-    const dailyExp = this.expenses.filter(e => e.expenseType === 'يومية').reduce((a, e) => a + n(e.amount), 0);
+    // المصروفات المدفوعة كاش فقط (اليومية والثابتة) — المدفوعة بالفيزا لا تخرج من الصندوق
+    const dailyExp = this.expenses.filter(e => expensePayMethod(e) === 'cash').reduce((a, e) => a + n(e.amount), 0);
     const supplierCash = this.supplierPayments.filter(p => supplierPaymentMethod(p) === 'cash').reduce((a, p) => a + n(p.paymentAmount), 0);
     const deposited = this.bankDeposits.reduce((a, d) => a + n(d.amount), 0);
     return { cashSales, dailyExp, supplierCash, deposited, onHand: cashSales - dailyExp - supplierCash - deposited };
@@ -7994,7 +8033,7 @@ ${this.canDiscount() ? `
       <div class="cash-flow">
         <div class="cf-item"><span>💵 الكاش من المبيعات</span><b class="num">${fmtMoney(box.cashSales)}</b></div>
         <div class="cf-op">−</div>
-        <div class="cf-item"><span>💸 المصروفات اليومية</span><b class="num">${fmtMoney(box.dailyExp)}</b></div>
+        <div class="cf-item"><span>💸 المصروفات المدفوعة كاش</span><b class="num">${fmtMoney(box.dailyExp)}</b></div>
         <div class="cf-op">−</div>
         <div class="cf-item"><span>🚚 دفعات موردين كاش</span><b class="num">${fmtMoney(box.supplierCash)}</b></div>
         <div class="cf-op">−</div>
@@ -9686,6 +9725,10 @@ ${this.canDiscount() ? `
           ${fmtMoney(totalFixed)} ر.ع
         </div>
         <div style="font-size: 12px; text-align: center; margin-top: 8px; opacity: 0.9;">
+          💵 كاش: <span class="num">${fmtMoney(fixedExpenses.filter(e => expensePayMethod(e) === 'cash').reduce((a, e) => a + (parseFloat(e.amount) || 0), 0))}</span>
+          — 💳 فيزا: <span class="num">${fmtMoney(fixedExpenses.filter(e => expensePayMethod(e) === 'card').reduce((a, e) => a + (parseFloat(e.amount) || 0), 0))}</span>
+        </div>
+        <div style="font-size: 12px; text-align: center; margin-top: 8px; opacity: 0.9;">
           عدد المصروفات: ${fixedExpenses.length}
         </div>
       </div>
@@ -9712,6 +9755,10 @@ ${this.canDiscount() ? `
             <label>التاريخ</label>
             <input type="date" id="fixedExpenseDateInput" value="${localYMD()}" max="${localYMD()}">
           </div>
+          <div class="form-group">
+            <label>طريقة الدفع *</label>
+            ${expensePayPicker('fixedExpPay')}
+          </div>
           <button class="btn btn-green btn-block" id="addFixedExpenseBtn">💾 إضافة</button>
         </div>
 
@@ -9726,6 +9773,7 @@ ${this.canDiscount() ? `
                   <th>النوع</th>
                   <th>البيان</th>
                   <th>المبلغ</th>
+                  <th>الدفع</th>
                   <th>التاريخ</th>
                   <th>الإجراء</th>
                 </tr>
@@ -9733,15 +9781,16 @@ ${this.canDiscount() ? `
               <tbody>
                 ${fixedExpenses.map(e => `
                   <tr>
-                    <td><span class="badge badge-success">${e.description || 'أخرى'}</span></td>
-                    <td>${esc(e.notes || '-')}</td>
+                    <td><span class="badge badge-warning">${esc(t(expenseDesc(e.description)) || expenseDesc(e.description) || 'أخرى')}</span></td>
+                    <td>${esc(expenseDesc(e.notes) || '-')}</td>
                     <td class="num">${fmtMoney(e.amount)}</td>
+                    <td>${expensePayBadge(e)}</td>
                     <td>${fmtDate(e.expenseDate)}</td>
                     <td>
                       <button class="btn btn-xs btn-danger" data-delete-fixed-expense="${e.id}">🗑️</button>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="5" class="text-center">لا توجد مصروفات ثابتة</td></tr>'}
+                `).join('') || '<tr><td colspan="6" class="text-center">لا توجد مصروفات ثابتة</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -9767,6 +9816,8 @@ ${this.canDiscount() ? `
         </div>
         <div style="font-size: 12px; text-align: center; margin-top: 8px; opacity: 0.9;">
           عدد المصروفات: ${dailyExpenses.length}
+          — 💵 كاش: <span class="num">${fmtMoney(dailyExpenses.filter(e => expensePayMethod(e) === 'cash').reduce((a, e) => a + (parseFloat(e.amount) || 0), 0))}</span>
+          — 💳 فيزا: <span class="num">${fmtMoney(dailyExpenses.filter(e => expensePayMethod(e) === 'card').reduce((a, e) => a + (parseFloat(e.amount) || 0), 0))}</span>
         </div>
       </div>
 
@@ -9784,6 +9835,10 @@ ${this.canDiscount() ? `
           <div class="form-group">
             <label>التاريخ</label>
             <input type="date" id="dailyExpenseDateInput" value="${localYMD()}" max="${localYMD()}">
+          </div>
+          <div class="form-group">
+            <label>طريقة الدفع *</label>
+            ${expensePayPicker('dailyExpPay')}
           </div>
           <div class="form-group">
             <label>الصورة <span style="color: #999;">(اختياري)</span></label>
@@ -9805,6 +9860,7 @@ ${this.canDiscount() ? `
                 <tr>
                   <th>البيان</th>
                   <th>المبلغ</th>
+                  <th>الدفع</th>
                   <th>التاريخ</th>
                   <th>الإجراء</th>
                 </tr>
@@ -9812,14 +9868,15 @@ ${this.canDiscount() ? `
               <tbody>
                 ${dailyExpenses.map(e => `
                   <tr>
-                    <td>${esc(e.description || '-')}</td>
+                    <td>${esc(expenseDesc(e.description) || '-')}</td>
                     <td class="num">${fmtMoney(e.amount)}</td>
+                    <td>${expensePayBadge(e)}</td>
                     <td>${fmtDate(e.expenseDate)}</td>
                     <td>
                       <button class="btn btn-xs btn-danger" data-delete-daily-expense="${e.id}">🗑️</button>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="4" class="text-center">لا توجد مصروفات يومية</td></tr>'}
+                `).join('') || '<tr><td colspan="5" class="text-center">لا توجد مصروفات يومية</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -9891,6 +9948,7 @@ ${this.canDiscount() ? `
                 <th>النوع</th>
                 <th>البيان</th>
                 <th>المبلغ</th>
+                <th>الدفع</th>
                 <th>التاريخ</th>
                 <th>الإجراءات</th>
               </tr>
@@ -9903,8 +9961,9 @@ ${this.canDiscount() ? `
                       ${e.expenseType}
                     </span>
                   </td>
-                  <td>${esc(e.description || '-')}</td>
+                  <td>${esc(e.expenseType === 'ثابتة' ? (t(expenseDesc(e.description)) || expenseDesc(e.description)) : expenseDesc(e.description) || '-')}</td>
                   <td class="num">${fmtMoney(e.amount)}</td>
+                  <td>${expensePayBadge(e)}</td>
                   <td>${fmtDate(e.expenseDate)}</td>
                   <td>
                     <button class="btn btn-xs btn-danger" data-delete-expense="${e.id}">🗑️ حذف</button>
@@ -9974,6 +10033,7 @@ ${this.canDiscount() ? `
   }
 
   bindFixedExpensesEvents() {
+    this.bindPayMethodPickers();
     const addBtn = document.getElementById('addFixedExpenseBtn');
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
@@ -9988,9 +10048,11 @@ ${this.canDiscount() ? `
           return;
         }
 
+        const pay = readPaymentMethod('fixedExpPay') || 'cash';
         this.saveExpense({
           expense_type: 'ثابتة',
-          description: type,
+          description: withPayTag(type, pay),
+          payment_method: pay,
           notes: description || null,
           amount,
           expense_date: this.expenseDateISO(expenseDate)
@@ -10000,6 +10062,7 @@ ${this.canDiscount() ? `
   }
 
   bindDailyExpensesEvents() {
+    this.bindPayMethodPickers();
     // معالجة رفع الصورة
     const imageInput = document.getElementById('dailyExpenseImageInput');
     if (imageInput && !imageInput.hasListener) {
@@ -10031,9 +10094,11 @@ ${this.canDiscount() ? `
           return;
         }
 
+        const pay = readPaymentMethod('dailyExpPay') || 'cash';
         const recordData = {
           expense_type: 'يومية',
-          description,
+          description: withPayTag(description, pay),
+          payment_method: pay,
           amount,
           expense_date: this.expenseDateISO(expenseDate)
         };
@@ -10087,6 +10152,10 @@ ${this.canDiscount() ? `
         <label>التاريخ</label>
         <input type="date" id="expenseDateInput" value="${localYMD()}">
       </div>
+      <div class="form-group">
+        <label>طريقة الدفع *</label>
+        ${expensePayPicker('modalExpPay')}
+      </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeExpenseModalBtn">إلغاء</button>
         <button class="btn btn-amber" id="saveExpenseBtn">💾 حفظ</button>
@@ -10104,6 +10173,7 @@ ${this.canDiscount() ? `
     `;
     overlay.classList.add('active');
 
+    this.bindPayMethodPickers();
     document.getElementById('closeExpenseModalBtn')?.addEventListener('click', () => {
       overlay.classList.remove('active');
     });
@@ -10119,9 +10189,11 @@ ${this.canDiscount() ? `
         return;
       }
 
+      const pay = readPaymentMethod('modalExpPay') || 'cash';
       this.addRecord('expenses', {
         expense_type: expenseType,
-        description,
+        description: withPayTag(description, pay),
+        payment_method: pay,
         amount,
         expense_date: this.expenseDateISO(expenseDate)
       }).then((ok) => {
