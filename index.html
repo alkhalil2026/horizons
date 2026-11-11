@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.22.1 (auto-register invoice customers) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.22.2 (fix: expenses saving/refresh) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1746,6 +1746,7 @@ function localDateStr(d) {
 }
 
 // أمر إنشاء جداول الموارد البشرية في Supabase
+const EXPENSES_FIX_SQL = "-- ورشتي: إصلاح حفظ المصروفات (آمن للتشغيل أكثر من مرة)\ncreate table if not exists expenses (\n  id uuid primary key default gen_random_uuid(),\n  expense_type text,\n  description text,\n  amount numeric not null default 0,\n  expense_date timestamptz default now(),\n  created_at timestamptz default now()\n);\nalter table expenses add column if not exists expense_type text;\nalter table expenses add column if not exists description text;\nalter table expenses add column if not exists notes text;\nalter table expenses add column if not exists image text;\nalter table expenses add column if not exists expense_date timestamptz default now();\n\n-- إزالة أي قيد يمنع القيم العربية (يومية / ثابتة) في نوع المصروف\ndo $$\ndeclare c record;\nbegin\n  for c in select conname from pg_constraint\n           where conrelid = 'public.expenses'::regclass and contype = 'c'\n  loop\n    execute format('alter table public.expenses drop constraint %I', c.conname);\n  end loop;\nend $$;\n\nalter table expenses enable row level security;\ndrop policy if exists \"app access\" on expenses;\ncreate policy \"app access\" on expenses for all using (true) with check (true);\n";
 const V221_SQL = "-- ورشتي 2.21: سجل إيداع الكاش في الحساب البنكي\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists bank_deposits (\n  id uuid primary key default gen_random_uuid(),\n  amount numeric not null,\n  deposit_date timestamptz default now(),\n  bank text,\n  reference text,\n  notes text,\n  created_by text,\n  created_at timestamptz default now()\n);\n\nalter table bank_deposits enable row level security;\ndrop policy if exists \"app access\" on bank_deposits;\ncreate policy \"app access\" on bank_deposits for all using (true) with check (true);\n";
 const V218_SQL = "-- ورشتي 2.18: جدول الإعدادات (لتظهر نفس الإعدادات والتوقيع على كل الأجهزة) + جدول الإكسسوارات\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists settings (\n  key text primary key,\n  value text,\n  updated_at timestamptz default now()\n);\n\ncreate table if not exists accessories (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  price numeric not null default 0,\n  cost numeric default 0,\n  stock integer default 0,\n  created_at timestamptz default now()\n);\n\nalter table settings enable row level security;\nalter table accessories enable row level security;\ndrop policy if exists \"app access\" on settings;\ndrop policy if exists \"app access\" on accessories;\ncreate policy \"app access\" on settings for all using (true) with check (true);\ncreate policy \"app access\" on accessories for all using (true) with check (true);\n";
 const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  check_in2 timestamptz,\n  check_out2 timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ndrop policy if exists \"app access\" on hr_employees;\ndrop policy if exists \"app access\" on hr_attendance;\ndrop policy if exists \"app access\" on hr_leaves;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);\n\n-- أعمدة الفترة المسائية (للجداول التي أُنشئت قبل إضافتها)\nalter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
@@ -1956,6 +1957,11 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "⏳ جاري الحفظ...": "⏳ Saving...",
+  "تم تسجيل المصروف:": "Expense recorded:",
+  "تم تسجيل المصروف، لكنه مخفي بسبب فلتر التاريخ — امسح الفلتر لرؤيته": "Expense recorded, but hidden by the date filter — clear the filter to see it",
+  "⚠️ قاعدة البيانات رفضت حفظ المصروف": "⚠️ The database rejected the expense",
+  "رسالة الخطأ:": "Error message:",
   "كل عملاء الفواتير مسجّلون بالفعل": "All invoice customers are already registered",
   "تمت إضافة": "Added",
   "عميل": "customer",
@@ -4109,15 +4115,25 @@ class TireShopApp {
     return 'db';
   }
 
+  // إذا كان هناك تحميل جارٍ ننتظره ثم نعيد التحميل مرة واحدة
+  // (سابقاً كان الطلب يُتجاهل، فلا يظهر السجل الجديد بعد حفظه حتى تحديث الصفحة)
   async loadAllData() {
     if (!this.sb) {
       console.warn('⚠️ Supabase not available');
       await this.loadSettings();
       return;
     }
+    if (this.isLoading) {
+      this.reloadQueued = true;
+      while (this.isLoading) await this.loadPromise;
+      if (!this.reloadQueued) return;   // تحميل آخر انتظر قبلنا وأعاد التحميل
+    }
+    this.reloadQueued = false;
+    this.loadPromise = this.loadAllDataOnce();
+    await this.loadPromise;
+  }
 
-    // منع استدعاءات متعددة متزامنة
-    if (this.isLoading) return;
+  async loadAllDataOnce() {
     this.isLoading = true;
 
     try {
@@ -4164,6 +4180,7 @@ class TireShopApp {
         
         // المبيعات مرتبة بتاريخ الفاتورة (الأحدث أولاً) — مهم للفواتير السابقة المضافة لاحقاً
         if (table === 'sales') mapped.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+        if (table === 'expenses') mapped.sort((a, b) => String(b.expenseDate || b.createdAt || '').localeCompare(String(a.expenseDate || a.createdAt || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         this[propName] = mapped;
         console.log(`✅ Loaded ${mapped.length} from ${table}`);
       });
@@ -4245,6 +4262,7 @@ class TireShopApp {
       return true;
     }
 
+    this.lastAddError = '';
     try {
       const dbData = rowToDb(data, table);
       console.log(`📤 Sending to ${table}:`, dbData);
@@ -4270,6 +4288,7 @@ class TireShopApp {
         console.error('Error code:', error.code);
         console.error('Error details:', error.details);
         console.log('📤 Data tried to send:', dbData);
+        this.lastAddError = `${error.code || ''} ${error.message || ''}`.trim();
         const friendly = error.code === '23505'
           ? 'هذه القيمة مسجلة مسبقاً (مكررة) — ' + (error.details || '')
           : (error.message || 'خطأ');
@@ -6301,7 +6320,8 @@ ${this.canDiscount() ? `
       const itemDate = item[dateField];
       if (!itemDate) return true;
 
-      const date = new Date(itemDate).toISOString().split('T')[0];
+      const date = localYMD(itemDate);
+      if (!date) return true;
 
       if (specificDate && date !== specificDate) return false;
       if (fromDate && date < fromDate) return false;
@@ -9643,7 +9663,7 @@ ${this.canDiscount() ? `
   renderFixedExpensesView() {
     const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
     const fixedExpenses = filteredExpenses.filter(e => e.expenseType === 'ثابتة');
-    const totalFixed = fixedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const totalFixed = fixedExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
     
     const fixedTypeOptions = [
       { value: 'rent', label: t('rent') },
@@ -9690,7 +9710,7 @@ ${this.canDiscount() ? `
           </div>
           <div class="form-group">
             <label>التاريخ</label>
-            <input type="date" id="fixedExpenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+            <input type="date" id="fixedExpenseDateInput" value="${localYMD()}" max="${localYMD()}">
           </div>
           <button class="btn btn-green btn-block" id="addFixedExpenseBtn">💾 إضافة</button>
         </div>
@@ -9733,7 +9753,7 @@ ${this.canDiscount() ? `
   renderDailyExpensesView() {
     const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
     const dailyExpenses = filteredExpenses.filter(e => e.expenseType === 'يومية');
-    const totalDaily = dailyExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const totalDaily = dailyExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
     return `
       ${this.renderDateFilterBar()}
@@ -9763,7 +9783,7 @@ ${this.canDiscount() ? `
           </div>
           <div class="form-group">
             <label>التاريخ</label>
-            <input type="date" id="dailyExpenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+            <input type="date" id="dailyExpenseDateInput" value="${localYMD()}" max="${localYMD()}">
           </div>
           <div class="form-group">
             <label>الصورة <span style="color: #999;">(اختياري)</span></label>
@@ -9898,6 +9918,61 @@ ${this.canDiscount() ? `
     `;
   }
 
+  // تاريخ المصروف من حقل التاريخ (منتصف اليوم المحلي، واليوم إذا كان فارغاً)
+  expenseDateISO(ymd) {
+    if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return new Date().toISOString();
+    if (ymd === localYMD()) return new Date().toISOString();
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d, 12).toISOString();
+  }
+
+  // حفظ مصروف مع رسائل واضحة عند الفشل
+  async saveExpense(record, view, btn) {
+    if (btn) { btn.disabled = true; btn.dataset.label = btn.dataset.label || btn.innerHTML; btn.innerHTML = '⏳ جاري الحفظ...'; }
+    try {
+      const before = new Set((this.expenses || []).map(e => e.id));
+      const ok = await this.addRecord('expenses', record);
+      if (ok === false) {
+        if (this.sb && /row-level security|permission denied|violates check constraint|expense_type/i.test(this.lastAddError || '')) {
+          this.showExpenseFixHelp(this.lastAddError);
+        }
+        return false;
+      }
+      const added = (this.expenses || []).find(e => !before.has(e.id));
+      this.switchView(view);
+      if (added) {
+        const visible = this.filterByDate([added], 'expenseDate').length;
+        showToast(visible ? `تم تسجيل المصروف: ${fmtMoney(added.amount)}` : 'تم تسجيل المصروف، لكنه مخفي بسبب فلتر التاريخ — امسح الفلتر لرؤيته', visible ? 'success' : 'warning');
+      }
+      return true;
+    } finally {
+      if (btn && document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = btn.dataset.label; }
+    }
+  }
+
+  showExpenseFixHelp(msg) {
+    const sql = EXPENSES_FIX_SQL;
+    const box = document.getElementById('modalBox');
+    const overlay = document.getElementById('modalOverlay');
+    box.innerHTML = `
+      <div class="modal-head"><h3>⚠️ قاعدة البيانات رفضت حفظ المصروف</h3>
+        <button class="modal-close" id="expFixClose">✕</button></div>
+      <p style="margin-bottom: 8px;">رسالة الخطأ: <code dir="ltr">${esc(msg || '')}</code></p>
+      <p style="margin-bottom: 10px;">الحل: افتح <b>SQL Editor</b> في Supabase، والصق الأمر التالي واضغط <b>Run</b>، ثم أعد المحاولة.</p>
+      <pre class="sql-box" dir="ltr">${esc(sql)}</pre>
+      <div class="modal-footer">
+        <button class="btn btn-amber" id="expFixCopy">📋 نسخ الأمر</button>
+        <button class="btn btn-ghost" id="expFixOk">إغلاق</button>
+      </div>`;
+    overlay.classList.add('active');
+    const close = () => overlay.classList.remove('active');
+    document.getElementById('expFixClose').onclick = close;
+    document.getElementById('expFixOk').onclick = close;
+    document.getElementById('expFixCopy').onclick = async () => {
+      try { await navigator.clipboard.writeText(sql); showToast('تم نسخ الأمر', 'success'); } catch (e) { prompt('انسخ الأمر:', sql); }
+    };
+  }
+
   bindFixedExpensesEvents() {
     const addBtn = document.getElementById('addFixedExpenseBtn');
     if (addBtn && !addBtn.hasListener) {
@@ -9913,15 +9988,13 @@ ${this.canDiscount() ? `
           return;
         }
 
-        this.addRecord('expenses', {
+        this.saveExpense({
           expense_type: 'ثابتة',
           description: type,
-          notes: description,
+          notes: description || null,
           amount,
-          expense_date: new Date(expenseDate).toISOString()
-        }).then(() => {
-          this.switchView('fixedExpenses');
-        });
+          expense_date: this.expenseDateISO(expenseDate)
+        }, 'fixedExpenses', addBtn);
       });
     }
   }
@@ -9962,20 +10035,15 @@ ${this.canDiscount() ? `
           expense_type: 'يومية',
           description,
           amount,
-          expense_date: new Date(expenseDate).toISOString()
+          expense_date: this.expenseDateISO(expenseDate)
         };
 
         if (this.dailyExpenseImage) {
           recordData.image = this.dailyExpenseImage;
         }
 
-        this.addRecord('expenses', recordData).then(() => {
-          document.getElementById('dailyExpenseDescInput').value = '';
-          document.getElementById('dailyExpenseAmountInput').value = '';
-          document.getElementById('dailyExpenseImageInput').value = '';
-          document.getElementById('dailyExpenseImagePreview').style.display = 'none';
-          this.dailyExpenseImage = null;
-          this.switchView('dailyExpenses');
+        this.saveExpense(recordData, 'dailyExpenses', addBtn).then(ok => {
+          if (ok) this.dailyExpenseImage = null;
         });
       });
     }
@@ -10017,7 +10085,7 @@ ${this.canDiscount() ? `
       </div>
       <div class="form-group">
         <label>التاريخ</label>
-        <input type="date" id="expenseDateInput" value="${new Date().toISOString().split('T')[0]}">
+        <input type="date" id="expenseDateInput" value="${localYMD()}">
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="closeExpenseModalBtn">إلغاء</button>
@@ -10055,8 +10123,9 @@ ${this.canDiscount() ? `
         expense_type: expenseType,
         description,
         amount,
-        expense_date: new Date(expenseDate).toISOString()
-      }).then(() => {
+        expense_date: this.expenseDateISO(expenseDate)
+      }).then((ok) => {
+        if (ok === false) return;
         overlay.classList.remove('active');
         this.switchView('expenses');
       });
