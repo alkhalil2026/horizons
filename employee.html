@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.24.0 (bank transfers, any-price edit, invoice search, expense breakdown) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.24.1 (supplier invoice date + supplier payment date) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -2007,6 +2007,10 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "📅 تاريخ الفاتورة *": "📅 Invoice date *",
+  "📅 تاريخ الدفع *": "📅 Payment date *",
+  "📅 تاريخ الدفع": "📅 Payment date",
+  "لا يمكن أن يكون تاريخ الدفع في المستقبل": "The payment date can't be in the future",
   "🏦 حساب الشركة البنكي": "🏦 Company bank account",
   "💵 إيداعات الكاش": "💵 Cash deposits",
   "🔁 تحويلات من الفواتير": "🔁 Transfers from invoices",
@@ -3035,6 +3039,12 @@ function fmtMoney(n) {
 }
 
 // تاريخ محلي بصيغة YYYY-MM-DD (لحقول التاريخ)
+function ymdToISO(ymd) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd) || ymd === localYMD()) return new Date().toISOString();
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d, 12).toISOString();
+}
+
 function localYMD(d) {
   const x = d ? new Date(d) : new Date();
   if (isNaN(x)) return '';
@@ -4284,6 +4294,8 @@ class TireShopApp {
         
         // المبيعات مرتبة بتاريخ الفاتورة (الأحدث أولاً) — مهم للفواتير السابقة المضافة لاحقاً
         if (table === 'sales') mapped.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+        if (table === 'supplier_invoices') mapped.sort((a, b) => String(b.invoiceDate || b.createdAt || '').localeCompare(String(a.invoiceDate || a.createdAt || '')));
+        if (table === 'supplier_payments') mapped.sort((a, b) => String(b.paymentDate || b.createdAt || '').localeCompare(String(a.paymentDate || a.createdAt || '')));
         if (table === 'expenses') mapped.sort((a, b) => String(b.expenseDate || b.createdAt || '').localeCompare(String(a.expenseDate || a.createdAt || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         this[propName] = mapped;
         console.log(`✅ Loaded ${mapped.length} from ${table}`);
@@ -6976,6 +6988,10 @@ ${this.canDiscount() ? `
         ${paymentMethodPicker('quickPayMethod')}
       </div>
       <div class="form-group">
+        <label>📅 تاريخ الدفع *</label>
+        <input type="date" id="quickPaymentDate" value="${localYMD()}" max="${localYMD()}">
+      </div>
+      <div class="form-group">
         <label>ملاحظات</label>
         <textarea id="quickPaymentNotes" placeholder="ملاحظات" style="min-height: 60px;"></textarea>
       </div>
@@ -7013,8 +7029,10 @@ ${this.canDiscount() ? `
         return;
       }
 
+      const qDate = document.getElementById('quickPaymentDate')?.value || localYMD();
+      if (qDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الدفع في المستقبل', 'warning'); return; }
       e.currentTarget.disabled = true;
-      const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('quickPayMethod'), document.getElementById('quickPaymentNotes').value);
+      const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('quickPayMethod'), document.getElementById('quickPaymentNotes').value, qDate);
       if (!ok) { e.currentTarget.disabled = false; return; }
       overlay.classList.remove('active');
       this.switchView('supplierPayments');
@@ -7022,14 +7040,14 @@ ${this.canDiscount() ? `
   }
 
   // حفظ دفعة مورد + تحديث رصيد فاتورة المورد (فقط إذا نجح حفظ الدفعة)
-  async saveSupplierPayment(invoice, amount, method, notes) {
+  async saveSupplierPayment(invoice, amount, method, notes, payDate) {
     const methodTag = `[طريقة الدفع: ${SUPPLIER_PAY_METHODS[method]}]`;
     const cleanNotes = (notes || '').trim();
     const colMissing = this.missingPayMethodCol === true;
     const row = {
       supplier_invoice_id: invoice.id,
       payment_amount: amount,
-      payment_date: new Date().toISOString(),
+      payment_date: ymdToISO(payDate),
       notes: colMissing ? (methodTag + ' ' + cleanNotes).trim() : cleanNotes,
     };
     if (!colMissing) row.payment_method = method;
@@ -7829,6 +7847,10 @@ ${this.canDiscount() ? `
           return;
         }
         const payMethod = readPaymentMethod('invPayMethod');
+        const supInvDate = document.getElementById('invoiceDateSup')?.value || localYMD();
+        if (supInvDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الفاتورة في المستقبل', 'warning'); return; }
+        const paidDate = document.getElementById('invPaidDate')?.value || supInvDate;
+        if (paidDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الدفع في المستقبل', 'warning'); return; }
 
         const recordData = {
           supplier_id: supplierId,
@@ -7836,7 +7858,7 @@ ${this.canDiscount() ? `
           total_amount: totalAmount,
           paid_amount: 0,
           remaining_amount: totalAmount,
-          invoice_date: new Date().toISOString()
+          invoice_date: ymdToISO(supInvDate)
         };
 
         if (this.invoiceImage) {
@@ -7853,7 +7875,7 @@ ${this.canDiscount() ? `
               .sort((a, b) => String(b.createdAt || b.invoiceDate || '').localeCompare(String(a.createdAt || a.invoiceDate || '')))[0];
             if (created) {
               if (!created.totalAmount && created.total_amount) created.totalAmount = created.total_amount;
-              await this.saveSupplierPayment(created, paidAmount, payMethod, 'دفعة عند تسجيل الفاتورة');
+              await this.saveSupplierPayment(created, paidAmount, payMethod, 'دفعة عند تسجيل الفاتورة', paidDate);
             } else {
               showToast('حُفظت الفاتورة — سجّل الدفعة من زر "دفع"', 'warning');
             }
@@ -7895,6 +7917,11 @@ ${this.canDiscount() ? `
       hint();
     });
     document.getElementById('invPaidAmount')?.addEventListener('input', hint);
+    document.getElementById('invoiceDateSup')?.addEventListener('change', (e) => {
+      const pd = document.getElementById('invPaidDate');
+      if (pd && !pd.dataset.touched) pd.value = e.target.value;
+    });
+    document.getElementById('invPaidDate')?.addEventListener('change', (e) => { e.target.dataset.touched = '1'; });
     document.getElementById('invoiceTotal')?.addEventListener('input', hint);
     this.bindPayMethodPickers();
   }
@@ -7919,8 +7946,10 @@ ${this.canDiscount() ? `
           return;
         }
 
+        const payDate = document.getElementById('paymentDateInput')?.value || localYMD();
+        if (payDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الدفع في المستقبل', 'warning'); return; }
         addBtn.disabled = true;
-        const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('payMethod'), notes);
+        const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('payMethod'), notes, payDate);
         addBtn.disabled = false;
         if (!ok) return; // نُبقي البيانات في النموذج
         this.switchView('supplierPayments');
@@ -9711,9 +9740,15 @@ ${this.canDiscount() ? `
               ${this.suppliers.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group">
-            <label>رقم الفاتورة *</label>
-            <input type="text" id="invoiceNumber" placeholder="مثال: INV-001">
+          <div class="form-row">
+            <div class="form-group">
+              <label>رقم الفاتورة *</label>
+              <input type="text" id="invoiceNumber" placeholder="مثال: INV-001">
+            </div>
+            <div class="form-group">
+              <label>📅 تاريخ الفاتورة *</label>
+              <input type="date" id="invoiceDateSup" value="${localYMD()}" max="${localYMD()}">
+            </div>
           </div>
           <div class="form-group">
             <label>المبلغ الإجمالي *</label>
@@ -9738,6 +9773,10 @@ ${this.canDiscount() ? `
             <div class="form-group">
               <label>طريقة الدفع</label>
               ${paymentMethodPicker('invPayMethod')}
+            </div>
+            <div class="form-group">
+              <label>📅 تاريخ الدفع</label>
+              <input type="date" id="invPaidDate" value="${localYMD()}" max="${localYMD()}">
             </div>
           </div>
           <div class="form-group">
@@ -9824,9 +9863,15 @@ ${this.canDiscount() ? `
                 }).join('')}
             </select>
           </div>
-          <div class="form-group">
-            <label>مبلغ الدفعة *</label>
-            <input type="number" id="paymentAmount" min="0" step="0.01" placeholder="0.00">
+          <div class="form-row">
+            <div class="form-group">
+              <label>مبلغ الدفعة *</label>
+              <input type="number" id="paymentAmount" min="0" step="0.01" placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label>📅 تاريخ الدفع *</label>
+              <input type="date" id="paymentDateInput" value="${localYMD()}" max="${localYMD()}">
+            </div>
           </div>
           <div class="form-group">
             <label>طريقة الدفع *</label>
