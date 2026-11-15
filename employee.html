@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.23.0 (expense payment method: cash/visa) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.24.0 (bank transfers, any-price edit, invoice search, expense breakdown) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1571,6 +1571,14 @@ tr.muted-row td { color: var(--text-muted); }
 .rep-range-sum b { font-size: 20px; }
 
 td .badge { white-space: nowrap; }
+
+.bank-kind button { font-size: 14px; padding: 8px 14px; }
+.price-down { color: var(--brake-red); font-weight: 700; }
+.price-reset { border: 1px solid var(--line, #E3DDD0); background: transparent; border-radius: 6px; cursor: pointer; padding: 0 6px; font-size: 13px; line-height: 20px; }
+.exp-tile { cursor: pointer; }
+.exp-tile .exp-ic { font-size: 22px; margin-bottom: 6px; }
+.exp-tile h4 { margin-bottom: 4px; }
+.exp-tile:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
 </style>
 </head>
 <body>
@@ -1764,6 +1772,16 @@ function withPayTag(text, method) {
   return `${expenseDesc(text)} [دفع: ${EXP_PAY_METHODS[method] || 'كاش'}]`.trim();
 }
 
+// ===== حركات الحساب البنكي: إيداع كاش أو تحويل وارد =====
+// النوع يُحفظ في عمود source، ونسخة احتياطية كوسم في الملاحظات إن لم يوجد العمود
+const BANK_SRC_TAG_RE = /\s*\[نوع: (إيداع كاش|تحويل وارد)\]\s*/;
+function bankSource(d) {
+  if (d.source === 'transfer' || d.source === 'cash') return d.source;
+  const m = BANK_SRC_TAG_RE.exec(d.notes || '');
+  return m && m[1] === 'تحويل وارد' ? 'transfer' : 'cash';
+}
+function bankNotes(d) { return String(d.notes || '').replace(BANK_SRC_TAG_RE, ' ').trim(); }
+
 function supplierPaymentMethod(pay) {
   if (pay.paymentMethod && SUPPLIER_PAY_METHODS[pay.paymentMethod]) return pay.paymentMethod;
   const m = PAY_TAG_RE.exec(pay.notes || '');
@@ -1779,7 +1797,7 @@ function localDateStr(d) {
 
 // أمر إنشاء جداول الموارد البشرية في Supabase
 const EXPENSES_FIX_SQL = "-- ورشتي: إصلاح حفظ المصروفات (آمن للتشغيل أكثر من مرة)\ncreate table if not exists expenses (\n  id uuid primary key default gen_random_uuid(),\n  expense_type text,\n  description text,\n  amount numeric not null default 0,\n  expense_date timestamptz default now(),\n  created_at timestamptz default now()\n);\nalter table expenses add column if not exists expense_type text;\nalter table expenses add column if not exists description text;\nalter table expenses add column if not exists notes text;\nalter table expenses add column if not exists image text;\nalter table expenses add column if not exists payment_method text default 'cash';\nalter table expenses add column if not exists expense_date timestamptz default now();\n\n-- إزالة أي قيد يمنع القيم العربية (يومية / ثابتة) في نوع المصروف\ndo $$\ndeclare c record;\nbegin\n  for c in select conname from pg_constraint\n           where conrelid = 'public.expenses'::regclass and contype = 'c'\n  loop\n    execute format('alter table public.expenses drop constraint %I', c.conname);\n  end loop;\nend $$;\n\nalter table expenses enable row level security;\ndrop policy if exists \"app access\" on expenses;\ncreate policy \"app access\" on expenses for all using (true) with check (true);\n";
-const V221_SQL = "-- ورشتي 2.21: سجل إيداع الكاش في الحساب البنكي\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists bank_deposits (\n  id uuid primary key default gen_random_uuid(),\n  amount numeric not null,\n  deposit_date timestamptz default now(),\n  bank text,\n  reference text,\n  notes text,\n  created_by text,\n  created_at timestamptz default now()\n);\n\nalter table bank_deposits enable row level security;\ndrop policy if exists \"app access\" on bank_deposits;\ncreate policy \"app access\" on bank_deposits for all using (true) with check (true);\n";
+const V221_SQL = "-- ورشتي 2.21: سجل إيداع الكاش في الحساب البنكي\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists bank_deposits (\n  id uuid primary key default gen_random_uuid(),\n  amount numeric not null,\n  deposit_date timestamptz default now(),\n  bank text,\n  reference text,\n  notes text,\n  created_by text,\n  created_at timestamptz default now()\n);\nalter table bank_deposits add column if not exists source text default 'cash';\n\nalter table bank_deposits enable row level security;\ndrop policy if exists \"app access\" on bank_deposits;\ncreate policy \"app access\" on bank_deposits for all using (true) with check (true);\n";
 const V218_SQL = "-- ورشتي 2.18: جدول الإعدادات (لتظهر نفس الإعدادات والتوقيع على كل الأجهزة) + جدول الإكسسوارات\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists settings (\n  key text primary key,\n  value text,\n  updated_at timestamptz default now()\n);\n\ncreate table if not exists accessories (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  price numeric not null default 0,\n  cost numeric default 0,\n  stock integer default 0,\n  created_at timestamptz default now()\n);\n\nalter table settings enable row level security;\nalter table accessories enable row level security;\ndrop policy if exists \"app access\" on settings;\ndrop policy if exists \"app access\" on accessories;\ncreate policy \"app access\" on settings for all using (true) with check (true);\ncreate policy \"app access\" on accessories for all using (true) with check (true);\n";
 const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  check_in2 timestamptz,\n  check_out2 timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ndrop policy if exists \"app access\" on hr_employees;\ndrop policy if exists \"app access\" on hr_attendance;\ndrop policy if exists \"app access\" on hr_leaves;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);\n\n-- أعمدة الفترة المسائية (للجداول التي أُنشئت قبل إضافتها)\nalter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
 const HR_SHIFT_SQL = "alter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
@@ -1989,6 +2007,53 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "🏦 حساب الشركة البنكي": "🏦 Company bank account",
+  "💵 إيداعات الكاش": "💵 Cash deposits",
+  "🔁 تحويلات من الفواتير": "🔁 Transfers from invoices",
+  "📥 تحويلات واردة أخرى": "📥 Other incoming transfers",
+  "💳 مبيعات الفيزا": "💳 Visa sales",
+  "📤 مدفوعات من الحساب": "📤 Payments from the account",
+  "🏦 الرصيد المتوقع في الحساب": "🏦 Expected account balance",
+  "🧰 الصندوق (الكاش)": "🧰 Cash drawer",
+  "➕ تسجيل حركة في حساب الشركة": "➕ Record a company account entry",
+  "💵 إيداع كاش": "💵 Cash deposit",
+  "🔁 تحويل وارد": "🔁 Incoming transfer",
+  "المبلغ المحوَّل *": "Amount transferred *",
+  "تاريخ التحويل *": "Transfer date *",
+  "من (المحوِّل)": "From (sender)",
+  "مثال: اسم العميل أو الشركة": "e.g. customer or company name",
+  "اختياري — مثال: سداد فاتورة آجلة": "Optional — e.g. payment of a credit invoice",
+  "🔁 تسجيل التحويل": "🔁 Record transfer",
+  "📜 سجل الحركات": "📜 Entry history",
+  "إيداعات كاش هذا الشهر:": "Cash deposits this month:",
+  "تحويلات واردة هذا الشهر:": "Incoming transfers this month:",
+  "💵 إيداعات كاش": "💵 Cash deposits",
+  "🔁 تحويلات": "🔁 Transfers",
+  "🔁 تحويل": "🔁 Transfer",
+  "البنك / من": "Bank / From",
+  "لا توجد حركات": "No entries",
+  "🔁 آخر التحويلات من الفواتير (تُضاف تلقائياً)": "🔁 Latest transfers from invoices (added automatically)",
+  "المبلغ المحوَّل": "Amount transferred",
+  "أدخل المبلغ المحوَّل": "Enter the transferred amount",
+  "حذف هذه الحركة؟": "Delete this entry?",
+  "الحساب البنكي": "Bank Account",
+  "🏦 الحساب البنكي (إيداع كاش وتحويلات)": "🏦 Bank Account (cash deposits & transfers)",
+  "🏦 الوارد لحساب الشركة": "🏦 Incoming to company account",
+  "الرصيد المتوقع:": "Expected balance:",
+  "⚙️ تفعيل الحساب البنكي": "⚙️ Enable the bank account",
+  "المصاريف اليومية": "Daily expenses",
+  "المصاريف الثابتة": "Fixed expenses",
+  "مصاريف أخرى": "Other expenses",
+  "مصروف": "expense",
+  "دفعة": "payment",
+  "مصروفات أخرى": "Other expenses",
+  "🔍 ابحث برقم الفاتورة أو اسم الزبون أو رقم هاتفه... مثال: 0012 أو أحمد أو 9123": "🔍 Search by invoice number, customer name or phone... e.g. 0012, Ahmed or 9123",
+  "لا توجد فاتورة تطابق البحث": "No invoice matches the search",
+  "اكتب السعر (مثال 35) أو الزيادة (مثال +5)": "Enter a price (e.g. 35) or an increase (e.g. +5)",
+  "زيادة": "Increase",
+  "تخفيض": "Reduction",
+  "على": "on",
+  "💡 لتغيير سعر أي صنف أو خدمة: اكتب في خانة السعر سعراً جديداً (مثال 35) أو زيادة (مثال +5) ثم اضغط Enter": "💡 To change the price of any item or service: type a new price (e.g. 35) or an increase (e.g. +5) in the price box, then press Enter",
   "طريقة الدفع *": "Payment method *",
   "💵 كاش": "💵 Cash",
   "💳 فيزا": "💳 Visa",
@@ -2916,6 +2981,7 @@ const ICONS = {
   tires: '🛞',
   accessories: '🧩',
   bankDeposits: '🏦',
+  otherExpenses: '📦',
   services: '🔧',
   customers: '👥',
   appointments: '📅',
@@ -4420,6 +4486,10 @@ class TireShopApp {
       const x = this.accessories.find(a => a.id === refId);
       return x ? parseFloat(x.price) || 0 : null;
     }
+    if (type === 'service') {
+      const x = this.services.find(a => a.id === refId);
+      return x ? parseFloat(x.price) || 0 : null;
+    }
     return null;
   }
 
@@ -4437,16 +4507,36 @@ class TireShopApp {
   }
 
   // تغيير سعر صنف في السلة (زيادة فقط: لا يقل عن سعر البيع)
+  // تغيير سعر صنف في السلة:
+  //  - رقم (مثال 35) = سعر جديد محدد
+  //  - +رقم (مثال +5) = زيادة على السعر الحالي
+  // المدير يستطيع أي سعر، والموظف لا ينزل عن سعر البيع الأصلي
   setCartPrice(key, value) {
     const line = this.saleWizard.cart.find(l => l.key === key);
     if (!line) return;
-    const v = Math.round((parseFloat(value) || 0) * 1000) / 1000;
-    const min = line.basePrice ?? 0;
+    const raw = String(value || '').trim().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('٫', '.').replace(/\s+/g, '');
+    let v;
+    if (/^\+\d*\.?\d+$/.test(raw)) v = (parseFloat(line.unitPrice) || 0) + parseFloat(raw.slice(1));
+    else if (/^\d*\.?\d+$/.test(raw)) v = parseFloat(raw);
+    else { showToast('اكتب السعر (مثال 35) أو الزيادة (مثال +5)', 'warning'); this.switchView(this.saleView()); return; }
+    v = Math.round(v * 1000) / 1000;
+    const min = this.isManager() ? 0 : (line.basePrice ?? 0);
     if (v < min) {
       showToast(`لا يمكن أن يكون السعر أقل من سعر البيع (${fmtMoney(min)})`, 'warning');
     } else {
       line.unitPrice = v;
+      if (line.basePrice != null && v !== line.basePrice) {
+        const diff = v - line.basePrice;
+        showToast(`${diff > 0 ? 'زيادة' : 'تخفيض'} ${fmtMoney(Math.abs(diff))} على ${line.description}`, 'success');
+      }
     }
+    this.switchView(this.saleView());
+  }
+
+  resetCartPrice(key) {
+    const line = this.saleWizard.cart.find(l => l.key === key);
+    if (!line || line.basePrice == null) return;
+    line.unitPrice = line.basePrice;
     this.switchView(this.saleView());
   }
 
@@ -4605,7 +4695,10 @@ class TireShopApp {
       const service = this.services.find(x => x.id === refId);
       if (!service) return;
       if (line) line.quantity++;
-      else cart.push({ key, type, refId, description: service.name, unitPrice: parseFloat(service.price) || 0, quantity: 1 });
+      else {
+        const price = parseFloat(service.price) || 0;
+        cart.push({ key, type, refId, description: service.name, unitPrice: price, basePrice: price, unitCost: 0, quantity: 1 });
+      }
     }
     this.switchView(this.saleView());
   }
@@ -5095,7 +5188,8 @@ class TireShopApp {
     const pExpenses = this.expenses.filter(e => inRange(e.expenseDate || e.createdAt));
     const pSupPayments = this.supplierPayments.filter(p => inRange(p.paymentDate || p.createdAt));
     const pDeposits = (this.bankDeposits || []).filter(d => inRange(d.depositDate || d.createdAt));
-    const depositedP = pDeposits.reduce((a, d) => a + num(d.amount), 0);
+    const bankP = this.bankAccount(inRange);
+    const bankAll = this.bankAccount();
     const cashBox = this.cashBox();
     const invVal = this.inventoryValue();
 
@@ -5124,6 +5218,17 @@ class TireShopApp {
       .filter(e => e.expenseType === 'ثابتة')
       .reduce((s, x) => s + num(x.amount), 0);
 
+    // مصروفات بنوع آخر (غير اليومية والثابتة)
+    const otherExpList = pExpenses.filter(e => e.expenseType !== 'يومية' && e.expenseType !== 'ثابتة');
+    const totalOtherExpenses = otherExpList.reduce((s, x) => s + num(x.amount), 0);
+    const expSplit = list => {
+      const cash = list.filter(e => expensePayMethod(e) === 'cash').reduce((a, e) => a + num(e.amount), 0);
+      const card = list.filter(e => expensePayMethod(e) === 'card').reduce((a, e) => a + num(e.amount), 0);
+      return `💵 ${fmtMoney(cash)} · 💳 ${fmtMoney(card)}`;
+    };
+    const dailyList = pExpenses.filter(e => e.expenseType === 'يومية');
+    const fixedList = pExpenses.filter(e => e.expenseType === 'ثابتة');
+
     const periodNames = { all: 'كل الفترات', today: 'اليوم', yesterday: 'أمس', week: 'آخر 7 أيام', month: 'هذا الشهر', custom: 'فترة محددة' };
     const periodLabel = period === 'custom' && range
       ? `${fmtDate(range[0].toISOString())} — ${fmtDate(range[1].toISOString())}`
@@ -5131,7 +5236,7 @@ class TireShopApp {
     const pBtn = (k, label, cls) => `<button class="btn btn-sm ${period === k ? 'btn-amber dash-active' : 'btn-ghost'}" data-dashboard-period="${k}">${label}</button>`;
 
     // صافي الربح = المبيعات - المصروفات اليومية - المصاريف الثابتة - الدفعة الجزئية للموردين
-    const netProfit = totalSales - totalDailyExpenses - totalFixedExpenses - totalSupplierPartialPayments;
+    const netProfit = totalSales - totalDailyExpenses - totalFixedExpenses - totalOtherExpenses - totalSupplierPartialPayments;
 
     const stats = [
       {
@@ -5154,7 +5259,7 @@ class TireShopApp {
       },
       {
         label: 'إجمالي المصروفات',
-        value: fmtMoney(totalDailyExpenses + totalFixedExpenses + totalSupplierPartialPayments),
+        value: fmtMoney(totalDailyExpenses + totalFixedExpenses + totalOtherExpenses + totalSupplierPartialPayments),
         type: 'red',
         icon: '💸'
       }
@@ -5222,6 +5327,34 @@ class TireShopApp {
         `).join('')}
       </div>
 
+      <!-- تفصيل المصروفات -->
+      <div class="grid-4 mt-16 exp-break">
+        <div class="stat exp-tile" data-goto="dailyExpenses">
+          <div class="exp-ic">🗓️</div>
+          <h4>المصاريف اليومية</h4>
+          <p class="v num">${fmtMoney(totalDailyExpenses)}</p>
+          <p class="text-xs">${dailyList.length} مصروف — ${expSplit(dailyList)}</p>
+        </div>
+        <div class="stat exp-tile" data-goto="fixedExpenses">
+          <div class="exp-ic">🏠</div>
+          <h4>المصاريف الثابتة</h4>
+          <p class="v num">${fmtMoney(totalFixedExpenses)}</p>
+          <p class="text-xs">${fixedList.length} مصروف — ${expSplit(fixedList)}</p>
+        </div>
+        <div class="stat exp-tile" data-goto="supplierPayments">
+          <div class="exp-ic">🚚</div>
+          <h4>دفعات الموردين</h4>
+          <p class="v num">${fmtMoney(totalSupplierPartialPayments)}</p>
+          <p class="text-xs">${pSupPayments.length} دفعة</p>
+        </div>
+        <div class="stat exp-tile" data-goto="otherExpenses">
+          <div class="exp-ic">📦</div>
+          <h4>مصاريف أخرى</h4>
+          <p class="v num">${fmtMoney(totalOtherExpenses)}</p>
+          <p class="text-xs">${otherExpList.length} مصروف${otherExpList.length ? ' — ' + expSplit(otherExpList) : ''}</p>
+        </div>
+      </div>
+
       <!-- صافي الربح -->
       <div class="card mt-16" style="background: linear-gradient(135deg, #E4F3EA 0%, #fff 100%); border-left: 4px solid var(--tread-green);">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -5236,9 +5369,10 @@ class TireShopApp {
       <!-- الكاش والبنك + قيمة المخزون -->
       <div class="grid-3 mt-16">
         <div class="card dash-mini" data-goto="bankDeposits">
-          <div class="card-head"><h3>🏦 المودع في البنك</h3></div>
-          <p class="num dash-mini-v">${fmtMoney(depositedP)}</p>
-          <small>${pDeposits.length} إيداع — ${esc(periodLabel)}</small>
+          <div class="card-head"><h3>🏦 الوارد لحساب الشركة</h3></div>
+          <p class="num dash-mini-v">${fmtMoney(bankP.incoming)}</p>
+          <small>${esc(periodLabel)} — كاش ${fmtMoney(bankP.cashDeposits)} · تحويل ${fmtMoney(bankP.saleTransfers + bankP.manualTransfers)} · فيزا ${fmtMoney(bankP.saleCards)}</small>
+          <small style="display: block; margin-top: 4px;">الرصيد المتوقع: <b class="num">${fmtMoney(bankAll.balance)}</b></small>
         </div>
         <div class="card dash-mini" data-goto="bankDeposits">
           <div class="card-head"><h3>🧰 الكاش المتوقع في الصندوق</h3></div>
@@ -5389,7 +5523,10 @@ class TireShopApp {
       ${this.renderDateFilterBar()}
       <div class="card">
         <div class="card-head">
-          <h3>الفواتير (${filteredSales.length})</h3>
+          <h3>الفواتير (<span id="saleCount">${filteredSales.length}</span>)</h3>
+        </div>
+        <div class="tire-search-wrap">
+          <input type="search" id="saleSearch" class="tire-search" placeholder="🔍 ابحث برقم الفاتورة أو اسم الزبون أو رقم هاتفه... مثال: 0012 أو أحمد أو 9123" value="${esc(this.saleQuery || '')}" autocomplete="off">
         </div>
         <div class="table-wrap">
           <table>
@@ -5407,10 +5544,12 @@ class TireShopApp {
             <tbody>
               ${filteredSales.map(s => {
                 const pr = this.saleProfit(s);
+                const digits = String(s.customerPhone || '').replace(/\D/g, '');
+                const search = [s.invoiceNumber, String(s.invoiceNumber || '').replace(/^INV-0*/i, ''), s.customerName, s.customerPhone, digits].filter(Boolean).join(' ').toLowerCase();
                 return `
-                <tr>
+                <tr data-sale-row data-search="${esc(search)}" data-t="${pr.total}" data-c="${pr.cost}" data-p="${pr.profit}">
                   <td>${esc(s.invoiceNumber || '-')}</td>
-                  <td>${esc(s.customerName)}</td>
+                  <td>${esc(s.customerName)}${s.customerPhone ? `<div class="text-xs" dir="ltr" style="color: var(--text-muted); text-align: right;">${esc(s.customerPhone)}</div>` : ''}</td>
                   <td class="num">${fmtMoney(s.total || 0)}</td>
                   <td class="num" style="color: var(--text-600);">${fmtMoney(pr.cost)}</td>
                   <td class="num">
@@ -5425,10 +5564,11 @@ class TireShopApp {
                   </td>
                 </tr>`;
               }).join('') || '<tr><td colspan="7" class="text-center">لا توجد فواتير</td></tr>'}
+              <tr id="saleNoMatch" style="display: none;"><td colspan="7" class="text-center">لا توجد فاتورة تطابق البحث</td></tr>
             </tbody>
             ${filteredSales.length ? (() => {
               const T = filteredSales.reduce((a, s) => { const p = this.saleProfit(s); return { t: a.t + p.total, c: a.c + p.cost, p: a.p + p.profit }; }, { t: 0, c: 0, p: 0 });
-              return `<tfoot><tr class="rep-total"><td colspan="2">المجموع</td><td class="num">${fmtMoney(T.t)}</td><td class="num">${fmtMoney(T.c)}</td><td class="num" style="color: ${T.p >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(T.p)}</td><td colspan="2"></td></tr></tfoot>`;
+              return `<tfoot><tr class="rep-total"><td colspan="2">المجموع</td><td class="num" id="saleSumT">${fmtMoney(T.t)}</td><td class="num" id="saleSumC">${fmtMoney(T.c)}</td><td class="num" id="saleSumP" style="color: ${T.p >= 0 ? 'var(--tread-green)' : 'var(--brake-red)'};">${fmtMoney(T.p)}</td><td colspan="2"></td></tr></tfoot>`;
             })() : ''}
           </table>
         </div>
@@ -5797,11 +5937,13 @@ class TireShopApp {
           <span class="cart-type">${l.type === 'tire' ? '🛞' : l.type === 'accessory' ? '🧩' : l.type === 'custom' ? '📝' : '🔧'}</span>
           <div>
             <div class="cart-name">${esc(l.description)}</div>
-            ${editable && (l.type === 'tire' || l.type === 'accessory') ? `
+            ${editable ? `
               <div class="cart-price-edit">
-                <input type="number" class="cart-price-input" data-cart-price="${esc(l.key)}" value="${+(+l.unitPrice).toFixed(3)}" min="${l.basePrice ?? 0}" step="0.5" title="يمكنك زيادة السعر">
+                <input type="text" inputmode="decimal" class="cart-price-input" data-cart-price="${esc(l.key)}" value="${+(+l.unitPrice).toFixed(3)}" title="اكتب سعراً جديداً (مثال 35) أو زيادة (مثال +5) ثم Enter">
                 <span class="text-xs">× ${l.quantity}</span>
                 ${l.basePrice != null && l.unitPrice > l.basePrice ? `<span class="text-xs price-up">▲ ${fmtMoney(l.unitPrice - l.basePrice)}</span>` : ''}
+                ${l.basePrice != null && l.unitPrice < l.basePrice ? `<span class="text-xs price-down">▼ ${fmtMoney(l.basePrice - l.unitPrice)}</span>` : ''}
+                ${l.basePrice != null && l.unitPrice !== l.basePrice ? `<button type="button" class="price-reset" data-cart-price-reset="${esc(l.key)}" title="إرجاع السعر الأصلي (${fmtMoney(l.basePrice)})">↺</button>` : ''}
               </div>`
             : `<div class="text-xs" style="color: var(--text-muted);">${fmtMoney(l.unitPrice)} × ${l.quantity}</div>`}
           </div>
@@ -5898,7 +6040,7 @@ class TireShopApp {
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" id="cancelWizardBtn">إلغاء</button>
-          <span class="text-xs wz-price-hint">💡 يمكنك زيادة سعر الإطار أو الإكسسوار من خانة السعر في الفاتورة</span>
+          <span class="text-xs wz-price-hint">💡 لتغيير سعر أي صنف أو خدمة: اكتب في خانة السعر سعراً جديداً (مثال 35) أو زيادة (مثال +5) ثم اضغط Enter</span>
           <button class="btn btn-amber" id="nextStep1Btn" ${w.cart.length ? '' : 'disabled'}>التالي ←</button>
         </div>
       </div>
@@ -6057,7 +6199,8 @@ ${this.canDiscount() ? `
       ['reports', t('reports'), 'reports'],
       ['fixedExpenses', `💰 ${t('fixedExpenses')}`, 'fixedExpenses'],
       ['dailyExpenses', `💸 ${t('dailyExpenses')}`, 'dailyExpenses'],
-      ['bankDeposits', 'إيداع الكاش في البنك', 'bankDeposits'],
+      ['otherExpenses', 'مصاريف أخرى', 'otherExpenses'],
+      ['bankDeposits', 'الحساب البنكي', 'bankDeposits'],
     ];
 
     if (this.currentUser.role === 'manager') {
@@ -6148,7 +6291,8 @@ ${this.canDiscount() ? `
       reports: t('reports'),
       fixedExpenses: `💰 ${t('fixedExpenses')}`,
       dailyExpenses: `💸 ${t('dailyExpenses')}`,
-      bankDeposits: '🏦 إيداع الكاش في البنك',
+      otherExpenses: '📦 مصاريف أخرى',
+      bankDeposits: '🏦 الحساب البنكي (إيداع كاش وتحويلات)',
       suppliers: t('suppliers'),
       supplierInvoices: t('supplierInvoices'),
       supplierPayments: t('supplierPayments'),
@@ -6173,6 +6317,7 @@ ${this.canDiscount() ? `
       reports: () => this.renderReportsView(),
       fixedExpenses: () => this.renderFixedExpensesView(),
       dailyExpenses: () => this.renderDailyExpensesView(),
+      otherExpenses: () => this.renderDailyExpensesView('other'),
       bankDeposits: () => this.renderBankDepositsView(),
       suppliers: () => this.renderSuppliersView(),
       supplierInvoices: () => this.renderSupplierInvoicesView(),
@@ -7337,7 +7482,7 @@ ${this.canDiscount() ? `
         if (e.target.matches('[data-delete-daily-expense]')) {
           const id = e.target.dataset.deleteDailyExpense;
           if (confirm('حذف المصروف اليومي؟')) {
-            this.deleteRecord('expenses', id).then(() => this.switchView('dailyExpenses'));
+            this.deleteRecord('expenses', id).then(() => this.switchView(this.currentView === 'otherExpenses' ? 'otherExpenses' : 'dailyExpenses'));
           }
         }
         if (e.target.matches('[data-delete-expense]')) {
@@ -7423,6 +7568,11 @@ ${this.canDiscount() ? `
     if (view === 'shopSettings') this.bindShopSettingsEvents();
     if (view === 'services') this.bindServicesEvents();
     if (view === 'customers') this.bindCustomersEvents();
+    if (view === 'sales' && !(this.saleWizard && this.saleWizard.active)) {
+      const box = document.getElementById('saleSearch');
+      box?.addEventListener('input', () => { this.saleQuery = box.value; this.applySaleSearch(); });
+      if (this.saleQuery) this.applySaleSearch();
+    }
     if (view === 'tires') {
       this.bindTiresEvents();
       const box = document.getElementById('tireSearch');
@@ -7433,7 +7583,7 @@ ${this.canDiscount() ? `
     if (view === 'accessories') this.bindAccessoriesEvents();
     if (view === 'appointments') this.bindAppointmentsEvents();
     if (view === 'fixedExpenses') this.bindFixedExpensesEvents();
-    if (view === 'dailyExpenses') this.bindDailyExpensesEvents();
+    if (view === 'dailyExpenses' || view === 'otherExpenses') this.bindDailyExpensesEvents();
     if (view === 'bankDeposits') this.bindBankDepositsEvents();
     if (view === 'suppliers') this.bindSuppliersEvents();
     if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
@@ -7781,7 +7931,7 @@ ${this.canDiscount() ? `
 
   bindDashboardEvents() {
     // معالجات التصفية السريعة للوحة التحكم
-    document.querySelectorAll('.dash-mini[data-goto]').forEach(c => c.addEventListener('click', () => this.switchView(c.dataset.goto)));
+    document.querySelectorAll('.dash-mini[data-goto], .exp-tile[data-goto]').forEach(c => c.addEventListener('click', () => this.switchView(c.dataset.goto)));
     document.querySelectorAll('[data-dashboard-period]').forEach(btn => {
       btn.addEventListener('click', () => {
         const period = btn.dataset.dashboardPeriod;
@@ -7828,9 +7978,11 @@ ${this.canDiscount() ? `
       root.querySelectorAll('[data-cart-dec]').forEach(el => el.addEventListener('click', () => this.changeCartQty(el.dataset.cartDec, -1)));
       root.querySelectorAll('[data-cart-remove]').forEach(el => el.addEventListener('click', () => this.removeFromCart(el.dataset.cartRemove)));
       root.querySelectorAll('[data-cart-price]').forEach(el => {
+        el.addEventListener('focus', () => el.select());
         el.addEventListener('change', () => this.setCartPrice(el.dataset.cartPrice, el.value));
         el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
       });
+      root.querySelectorAll('[data-cart-price-reset]').forEach(el => el.addEventListener('click', () => this.resetCartPrice(el.dataset.cartPriceReset)));
 
       // تقسيم الدفع: تحديث المتبقي مباشرة
       const refreshSplit = () => {
@@ -8007,8 +8159,25 @@ ${this.canDiscount() ? `
     // المصروفات المدفوعة كاش فقط (اليومية والثابتة) — المدفوعة بالفيزا لا تخرج من الصندوق
     const dailyExp = this.expenses.filter(e => expensePayMethod(e) === 'cash').reduce((a, e) => a + n(e.amount), 0);
     const supplierCash = this.supplierPayments.filter(p => supplierPaymentMethod(p) === 'cash').reduce((a, p) => a + n(p.paymentAmount), 0);
-    const deposited = this.bankDeposits.reduce((a, d) => a + n(d.amount), 0);
+    // إيداعات الكاش فقط (التحويلات الواردة لا تخرج من الصندوق)
+    const deposited = this.bankDeposits.filter(d => bankSource(d) === 'cash').reduce((a, d) => a + n(d.amount), 0);
     return { cashSales, dailyExp, supplierCash, deposited, onHand: cashSales - dailyExp - supplierCash - deposited };
+  }
+
+  // حساب الشركة البنكي: الوارد − الصادر (اختياري: داخل فترة)
+  bankAccount(inRange = () => true) {
+    const n = v => parseFloat(v) || 0;
+    const sales = this.sales.filter(s => inRange(s.createdAt));
+    const deps = this.bankDeposits.filter(d => inRange(d.depositDate || d.createdAt));
+    const cashDeposits = deps.filter(d => bankSource(d) === 'cash').reduce((a, d) => a + n(d.amount), 0);
+    const manualTransfers = deps.filter(d => bankSource(d) === 'transfer').reduce((a, d) => a + n(d.amount), 0);
+    const saleTransfers = sales.reduce((a, s) => a + (salePayments(s).transfer || 0), 0);
+    const saleCards = sales.reduce((a, s) => a + (salePayments(s).card || 0), 0);
+    const cardExpenses = this.expenses.filter(e => inRange(e.expenseDate || e.createdAt) && expensePayMethod(e) === 'card').reduce((a, e) => a + n(e.amount), 0);
+    const supplierBank = this.supplierPayments.filter(p => inRange(p.paymentDate || p.createdAt) && ['transfer', 'card'].includes(supplierPaymentMethod(p))).reduce((a, p) => a + n(p.paymentAmount), 0);
+    const incoming = cashDeposits + manualTransfers + saleTransfers + saleCards;
+    const outgoing = cardExpenses + supplierBank;
+    return { cashDeposits, manualTransfers, saleTransfers, saleCards, cardExpenses, supplierBank, incoming, outgoing, balance: incoming - outgoing };
   }
 
   renderBankDepositsView() {
@@ -8016,7 +8185,7 @@ ${this.canDiscount() ? `
       if (!this.isManager()) return '<div class="card"><p class="text-center" style="padding: 30px;">هذا القسم غير مفعّل بعد. اطلب من المدير تفعيله.</p></div>';
       return `
         <div class="card">
-          <div class="card-head"><h3>⚙️ تفعيل سجل إيداعات البنك</h3></div>
+          <div class="card-head"><h3>⚙️ تفعيل الحساب البنكي</h3></div>
           <p style="margin-bottom: 12px;">هذا القسم يحتاج جدولاً جديداً في Supabase. افتح <b>SQL Editor</b> والصق الأمر التالي ثم اضغط <b>Run</b>، وبعدها أعد تحميل الصفحة.</p>
           <pre class="sql-box" dir="ltr">${esc(V221_SQL)}</pre>
           <button class="btn btn-ghost btn-sm" data-copy-sql="v221">📋 نسخ الأمر</button>
@@ -8024,11 +8193,34 @@ ${this.canDiscount() ? `
     }
     const isMgr = this.isManager();
     const box = this.cashBox();
-    const list = this.bankDeposits;
+    const acc = this.bankAccount();
+    const kind = this.bankKind === 'transfer' ? 'transfer' : 'cash';
+    const filter = this.bankFilter || 'all';
+    const list = this.bankDeposits.filter(d => filter === 'all' || bankSource(d) === filter);
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const monthTotal = list.filter(d => new Date(d.depositDate || d.createdAt) >= monthStart).reduce((a, d) => a + (parseFloat(d.amount) || 0), 0);
+    const sumOf = arr => arr.reduce((a, d) => a + (parseFloat(d.amount) || 0), 0);
+    const monthCash = sumOf(this.bankDeposits.filter(d => bankSource(d) === 'cash' && new Date(d.depositDate || d.createdAt) >= monthStart));
+    const monthTr = sumOf(this.bankDeposits.filter(d => bankSource(d) === 'transfer' && new Date(d.depositDate || d.createdAt) >= monthStart));
+    const saleTrList = this.sales.filter(s => (salePayments(s).transfer || 0) > 0).slice(0, 8);
     return `
       ${isMgr ? `
+      <h3 class="dash-section-title">🏦 حساب الشركة البنكي</h3>
+      <div class="cash-flow">
+        <div class="cf-item"><span>💵 إيداعات الكاش</span><b class="num">${fmtMoney(acc.cashDeposits)}</b></div>
+        <div class="cf-op">+</div>
+        <div class="cf-item"><span>🔁 تحويلات من الفواتير</span><b class="num">${fmtMoney(acc.saleTransfers)}</b></div>
+        <div class="cf-op">+</div>
+        <div class="cf-item"><span>📥 تحويلات واردة أخرى</span><b class="num">${fmtMoney(acc.manualTransfers)}</b></div>
+        <div class="cf-op">+</div>
+        <div class="cf-item"><span>💳 مبيعات الفيزا</span><b class="num">${fmtMoney(acc.saleCards)}</b></div>
+        <div class="cf-op">−</div>
+        <div class="cf-item"><span>📤 مدفوعات من الحساب</span><b class="num">${fmtMoney(acc.outgoing)}</b></div>
+        <div class="cf-op">=</div>
+        <div class="cf-item result ${acc.balance < 0 ? 'neg' : ''}"><span>🏦 الرصيد المتوقع في الحساب</span><b class="num">${fmtMoney(acc.balance)}</b></div>
+      </div>
+      <p class="text-xs" style="margin: -6px 0 16px;">"مدفوعات من الحساب" = مصروفات دُفعت بالفيزا (${fmtMoney(acc.cardExpenses)}) + دفعات موردين بالتحويل أو الفيزا (${fmtMoney(acc.supplierBank)}). التحويلات من الفواتير تُضاف تلقائياً، فلا تسجّلها مرة ثانية هنا.</p>
+
+      <h3 class="dash-section-title">🧰 الصندوق (الكاش)</h3>
       <div class="cash-flow">
         <div class="cf-item"><span>💵 الكاش من المبيعات</span><b class="num">${fmtMoney(box.cashSales)}</b></div>
         <div class="cf-op">−</div>
@@ -8044,22 +8236,29 @@ ${this.canDiscount() ? `
 
       <div class="grid-2">
         <div class="card">
-          <div class="card-head"><h3>➕ تسجيل إيداع كاش في البنك</h3></div>
+          <div class="card-head"><h3>➕ تسجيل حركة في حساب الشركة</h3></div>
+          <div class="seg bank-kind">
+            <button class="${kind === 'cash' ? 'active' : ''}" data-bank-kind="cash">💵 إيداع كاش</button>
+            <button class="${kind === 'transfer' ? 'active' : ''}" data-bank-kind="transfer">🔁 تحويل وارد</button>
+          </div>
+          <p class="text-xs" style="margin: 8px 0 12px;">${kind === 'cash'
+            ? 'كاش من الصندوق أودعته في حساب الشركة — يُخصم من الكاش المتوقع في الصندوق.'
+            : 'مبلغ وصل لحساب الشركة بالتحويل وليس له فاتورة في النظام (مثل دفعة من عميل آجل، أو استرجاع من مورد). <b>تحويلات الفواتير تُضاف تلقائياً.</b>'}</p>
           <div class="form-row">
             <div class="form-group">
-              <label>المبلغ المودع *</label>
+              <label>${kind === 'cash' ? 'المبلغ المودع *' : 'المبلغ المحوَّل *'}</label>
               <input type="number" id="depAmount" min="0" step="0.001" placeholder="0.000">
-              ${isMgr && box.onHand > 0 ? `<button type="button" class="btn btn-ghost btn-xs" id="depAllCash" style="margin-top: 6px;">إيداع كل الكاش المتوقع (${fmtMoney(box.onHand)})</button>` : ''}
+              ${kind === 'cash' && isMgr && box.onHand > 0 ? `<button type="button" class="btn btn-ghost btn-xs" id="depAllCash" style="margin-top: 6px;">إيداع كل الكاش المتوقع (${fmtMoney(box.onHand)})</button>` : ''}
             </div>
             <div class="form-group">
-              <label>تاريخ الإيداع *</label>
+              <label>${kind === 'cash' ? 'تاريخ الإيداع *' : 'تاريخ التحويل *'}</label>
               <input type="date" id="depDate" value="${localYMD()}" max="${localYMD()}">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>البنك</label>
-              <input type="text" id="depBank" placeholder="مثال: بنك مسقط" value="${esc(this.lastDepositBank || '')}">
+              <label>${kind === 'cash' ? 'البنك' : 'من (المحوِّل)'}</label>
+              <input type="text" id="depBank" placeholder="${kind === 'cash' ? 'مثال: بنك مسقط' : 'مثال: اسم العميل أو الشركة'}" value="${esc(kind === 'cash' ? (this.lastDepositBank || '') : '')}">
             </div>
             <div class="form-group">
               <label>رقم الإيصال / المرجع</label>
@@ -8068,32 +8267,48 @@ ${this.canDiscount() ? `
           </div>
           <div class="form-group">
             <label>ملاحظات</label>
-            <input type="text" id="depNotes" placeholder="اختياري — مثال: إيراد يومي الأحد والاثنين">
+            <input type="text" id="depNotes" placeholder="${kind === 'cash' ? 'اختياري — مثال: إيراد يومي الأحد والاثنين' : 'اختياري — مثال: سداد فاتورة آجلة'}">
           </div>
-          <button class="btn btn-amber btn-block" id="addDepositBtn">🏦 تسجيل الإيداع</button>
+          <button class="btn btn-amber btn-block" id="addDepositBtn">${kind === 'cash' ? '🏦 تسجيل الإيداع' : '🔁 تسجيل التحويل'}</button>
         </div>
 
         <div class="card">
-          <div class="card-head"><h3>📜 سجل الإيداعات (${list.length})</h3></div>
+          <div class="card-head"><h3>📜 سجل الحركات (${list.length})</h3></div>
           <div class="summary-box" style="margin-bottom: 12px;">
-            <div class="summary-row"><span>إيداعات هذا الشهر:</span><span class="num">${fmtMoney(monthTotal)}</span></div>
-            <div class="summary-row"><span>إجمالي الإيداعات:</span><span class="num">${fmtMoney(box.deposited)}</span></div>
+            <div class="summary-row"><span>إيداعات كاش هذا الشهر:</span><span class="num">${fmtMoney(monthCash)}</span></div>
+            <div class="summary-row"><span>تحويلات واردة هذا الشهر:</span><span class="num">${fmtMoney(monthTr)}</span></div>
+          </div>
+          <div class="seg" style="margin-bottom: 10px;">
+            <button class="${filter === 'all' ? 'active' : ''}" data-bank-filter="all">الكل</button>
+            <button class="${filter === 'cash' ? 'active' : ''}" data-bank-filter="cash">💵 إيداعات كاش</button>
+            <button class="${filter === 'transfer' ? 'active' : ''}" data-bank-filter="transfer">🔁 تحويلات</button>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>التاريخ</th><th>المبلغ</th><th>البنك</th><th>المرجع</th><th>ملاحظات</th>${isMgr ? '<th></th>' : ''}</tr></thead>
+              <thead><tr><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>البنك / من</th><th>المرجع</th><th>ملاحظات</th>${isMgr ? '<th></th>' : ''}</tr></thead>
               <tbody>
                 ${list.map(d => `<tr>
                   <td>${fmtDate(d.depositDate || d.createdAt)}</td>
+                  <td>${bankSource(d) === 'transfer' ? '<span class="badge badge-info">🔁 تحويل</span>' : '<span class="badge badge-success">💵 إيداع كاش</span>'}</td>
                   <td class="num" style="font-weight: 700;">${fmtMoney(parseFloat(d.amount) || 0)}</td>
                   <td>${esc(d.bank || '-')}</td>
                   <td dir="ltr" style="text-align: right;">${esc(d.reference || '-')}</td>
-                  <td class="text-xs">${esc(d.notes || '')}${d.createdBy ? `<div style="color: var(--text-muted);">👤 ${esc(d.createdBy)}</div>` : ''}</td>
+                  <td class="text-xs">${esc(bankNotes(d))}${d.createdBy ? `<div style="color: var(--text-muted);">👤 ${esc(d.createdBy)}</div>` : ''}</td>
                   ${isMgr ? `<td><button class="btn btn-xs btn-danger" data-delete-deposit="${d.id}">🗑️</button></td>` : ''}
-                </tr>`).join('') || `<tr><td colspan="${isMgr ? 6 : 5}" class="text-center">لا توجد إيداعات</td></tr>`}
+                </tr>`).join('') || `<tr><td colspan="${isMgr ? 7 : 6}" class="text-center">لا توجد حركات</td></tr>`}
               </tbody>
             </table>
           </div>
+          ${isMgr && saleTrList.length ? `
+            <h4 style="margin: 16px 0 8px;">🔁 آخر التحويلات من الفواتير (تُضاف تلقائياً)</h4>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>الفاتورة</th><th>العميل</th><th>المبلغ المحوَّل</th><th>التاريخ</th></tr></thead>
+                <tbody>
+                  ${saleTrList.map(s => `<tr><td>${esc(s.invoiceNumber || '-')}</td><td>${esc(s.customerName || '-')}</td><td class="num">${fmtMoney(salePayments(s).transfer)}</td><td>${fmtDate(s.createdAt)}</td></tr>`).join('')}
+                </tbody>
+              </table>
+            </div>` : ''}
         </div>
       </div>`;
   }
@@ -8103,13 +8318,16 @@ ${this.canDiscount() ? `
       try { await navigator.clipboard.writeText(V221_SQL); showToast('تم نسخ الأمر', 'success'); }
       catch (e) { prompt('انسخ الأمر:', V221_SQL); }
     }));
+    document.querySelectorAll('[data-bank-kind]').forEach(b => b.addEventListener('click', () => { this.bankKind = b.dataset.bankKind; this.switchView('bankDeposits'); }));
+    document.querySelectorAll('[data-bank-filter]').forEach(b => b.addEventListener('click', () => { this.bankFilter = b.dataset.bankFilter; this.switchView('bankDeposits'); }));
     document.getElementById('depAllCash')?.addEventListener('click', () => {
       document.getElementById('depAmount').value = Math.round(this.cashBox().onHand * 1000) / 1000;
     });
     document.getElementById('addDepositBtn')?.addEventListener('click', async (e) => {
       const amount = Math.round((parseFloat(document.getElementById('depAmount').value) || 0) * 1000) / 1000;
       const date = document.getElementById('depDate').value || localYMD();
-      if (amount <= 0) { showToast('أدخل المبلغ المودع', 'error'); return; }
+      const kind = this.bankKind === 'transfer' ? 'transfer' : 'cash';
+      if (amount <= 0) { showToast(kind === 'cash' ? 'أدخل المبلغ المودع' : 'أدخل المبلغ المحوَّل', 'error'); return; }
       if (date > localYMD()) { showToast('لا يمكن أن يكون تاريخ الإيداع في المستقبل', 'warning'); return; }
       const [y, m, d] = date.split('-').map(Number);
       const bank = document.getElementById('depBank').value.trim();
@@ -8118,20 +8336,21 @@ ${this.canDiscount() ? `
         deposit_date: date === localYMD() ? new Date().toISOString() : new Date(y, m - 1, d, 12).toISOString(),
         bank: bank || null,
         reference: document.getElementById('depRef').value.trim() || null,
-        notes: document.getElementById('depNotes').value.trim() || null,
+        source: kind,
+        notes: (`${document.getElementById('depNotes').value.trim()} [نوع: ${kind === 'transfer' ? 'تحويل وارد' : 'إيداع كاش'}]`).trim(),
         created_by: this.currentUser?.name || null,
       };
       e.target.disabled = true;
       const ok = await this.addRecord('bank_deposits', data);
       e.target.disabled = false;
       if (ok !== false) {
-        this.lastDepositBank = bank;
-        showToast(`تم تسجيل إيداع ${fmtMoney(amount)} في البنك`, 'success');
+        if (kind === 'cash') this.lastDepositBank = bank;
+        showToast(kind === 'cash' ? `تم تسجيل إيداع ${fmtMoney(amount)} في البنك` : `تم تسجيل تحويل وارد ${fmtMoney(amount)} لحساب الشركة`, 'success');
         this.switchView('bankDeposits');
       }
     });
     document.querySelectorAll('[data-delete-deposit]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm('حذف هذا الإيداع؟')) return;
+      if (!confirm('حذف هذه الحركة؟')) return;
       await this.deleteRecord('bank_deposits', b.dataset.deleteDeposit);
       this.switchView('bankDeposits');
     }));
@@ -8521,6 +8740,26 @@ ${this.canDiscount() ? `
         </div>
       </div>
     `;
+  }
+
+  // البحث في الفواتير: رقم الفاتورة أو اسم الزبون أو رقم هاتفه
+  applySaleSearch() {
+    const q = String(this.saleQuery || '').trim().toLowerCase().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    const words = q.split(/\s+/).filter(Boolean);
+    let shown = 0, T = 0, C = 0, P = 0;
+    const rows = document.querySelectorAll('[data-sale-row]');
+    rows.forEach(tr => {
+      const hay = tr.dataset.search || '';
+      const ok = words.every(w => hay.includes(w) || (/\d/.test(w) && hay.includes(w.replace(/\D/g, '')) && w.replace(/\D/g, '')));
+      tr.style.display = ok ? '' : 'none';
+      if (ok) { shown++; T += +tr.dataset.t || 0; C += +tr.dataset.c || 0; P += +tr.dataset.p || 0; }
+    });
+    const cnt = document.getElementById('saleCount');
+    if (cnt) cnt.textContent = q ? `${shown} من ${rows.length}` : rows.length;
+    const none = document.getElementById('saleNoMatch');
+    if (none) none.style.display = rows.length && !shown ? '' : 'none';
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = fmtMoney(v); };
+    set('saleSumT', T); set('saleSumC', C); set('saleSumP', P);
   }
 
   // نص البحث للإطار: المقاس بصيغته ومجرّداً من الرموز (205/55R16 = 2055516)
@@ -9798,9 +10037,12 @@ ${this.canDiscount() ? `
     `;
   }
 
-  renderDailyExpensesView() {
+  // نفس الصفحة للمصروفات اليومية و"المصاريف الأخرى"
+  renderDailyExpensesView(kind = 'daily') {
+    const expType = kind === 'other' ? 'أخرى' : 'يومية';
+    const pageTitle = kind === 'other' ? 'مصاريف أخرى' : t('dailyExpenses');
     const filteredExpenses = this.filterByDate(this.expenses, 'expenseDate');
-    const dailyExpenses = filteredExpenses.filter(e => e.expenseType === 'يومية');
+    const dailyExpenses = filteredExpenses.filter(e => e.expenseType === expType);
     const totalDaily = dailyExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
     return `
@@ -9808,7 +10050,7 @@ ${this.canDiscount() ? `
       
       <div class="card" style="background: linear-gradient(135deg, #4A90E2 0%, #2E5BCC 100%); color: white; margin-bottom: 20px;">
         <div class="card-head" style="border-bottom-color: rgba(255,255,255,0.2);">
-          <h3 style="color: white;">💸 ${t('dailyExpenses')}</h3>
+          <h3 style="color: white;">${kind === 'other' ? '📦' : '💸'} ${pageTitle}</h3>
         </div>
         <div style="font-size: 32px; font-weight: 800; text-align: center;">
           ${fmtMoney(totalDaily)} ر.ع
@@ -9822,10 +10064,10 @@ ${this.canDiscount() ? `
 
       <div class="grid-2">
         <div class="card">
-          <div class="card-head"><h3>➕ إضافة مصروف يومي</h3></div>
+          <div class="card-head"><h3>➕ ${kind === 'other' ? 'إضافة مصروف آخر' : 'إضافة مصروف يومي'}</h3></div>
           <div class="form-group">
             <label>البيان *</label>
-            <input type="text" id="dailyExpenseDescInput" placeholder="مثال: وقود، أدوات، إلخ" required>
+            <input type="text" id="dailyExpenseDescInput" placeholder="${kind === 'other' ? 'مثال: صيانة معدات، رسوم بلدية، تسويق' : 'مثال: وقود، أدوات، إلخ'}" required>
           </div>
           <div class="form-group">
             <label>المبلغ *</label>
@@ -9851,7 +10093,7 @@ ${this.canDiscount() ? `
 
         <div class="card">
           <div class="card-head">
-            <h3>${t('dailyExpenses')} (${dailyExpenses.length})</h3>
+            <h3>${pageTitle} (${dailyExpenses.length})</h3>
           </div>
           <div class="table-wrap">
             <table>
@@ -9875,7 +10117,7 @@ ${this.canDiscount() ? `
                       <button class="btn btn-xs btn-danger" data-delete-daily-expense="${e.id}">🗑️</button>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="5" class="text-center">لا توجد مصروفات يومية</td></tr>'}
+                `).join('') || `<tr><td colspan="5" class="text-center">${kind === 'other' ? 'لا توجد مصاريف أخرى' : 'لا توجد مصروفات يومية'}</td></tr>`}
               </tbody>
             </table>
           </div>
@@ -10095,7 +10337,7 @@ ${this.canDiscount() ? `
 
         const pay = readPaymentMethod('dailyExpPay') || 'cash';
         const recordData = {
-          expense_type: 'يومية',
+          expense_type: this.currentView === 'otherExpenses' ? 'أخرى' : 'يومية',
           description: withPayTag(description, pay),
           payment_method: pay,
           amount,
@@ -10106,7 +10348,7 @@ ${this.canDiscount() ? `
           recordData.image = this.dailyExpenseImage;
         }
 
-        this.saveExpense(recordData, 'dailyExpenses', addBtn).then(ok => {
+        this.saveExpense(recordData, this.currentView === 'otherExpenses' ? 'otherExpenses' : 'dailyExpenses', addBtn).then(ok => {
           if (ok) this.dailyExpenseImage = null;
         });
       });
@@ -10137,6 +10379,7 @@ ${this.canDiscount() ? `
         <select id="expenseTypeSelect">
           <option value="يومية">مصروفة يومية</option>
           <option value="ثابتة">مصروفة ثابتة</option>
+          <option value="أخرى">مصروفات أخرى</option>
         </select>
       </div>
       <div class="form-group">
