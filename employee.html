@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.24.1 (supplier invoice date + supplier payment date) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.24.3 (supplier duplicates check + safe invoice/payment delete) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1579,6 +1579,26 @@ td .badge { white-space: nowrap; }
 .exp-tile .exp-ic { font-size: 22px; margin-bottom: 6px; }
 .exp-tile h4 { margin-bottom: 4px; }
 .exp-tile:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+
+.pay-sup-filter { width: auto !important; min-width: 160px; padding: 6px 10px !important; }
+.pay-grand { font-size: 14px; margin-bottom: 8px; }
+.pay-grand b { font-size: 18px; }
+.pd-title { margin: 18px 0 8px; font-size: 15px; }
+.pd-sup { cursor: pointer; }
+.pd-sup:hover td { background: #FAF8F3; }
+.pd-caret { color: var(--text-muted); font-size: 12px; }
+.pd-detail > td { background: #FAF8F3; padding: 10px !important; }
+.pd-inner { width: 100%; font-size: 13px; }
+.pd-inner td .text-xs, .pd-inner td.text-xs { color: var(--text-600, #5B564C); }
+table.pd-inner thead th, .pd-detail table.pd-inner th { background: #EFEBE2 !important; color: var(--text-600, #5B564C) !important; font-weight: 700; border-bottom: 1px solid var(--line, #E3DDD0); }
+
+.dup-banner { background: #FFF4E0; border: 1px solid #F2C46D; color: #7A4B00; border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; font-size: 13.5px; line-height: 1.8; }
+.dup-banner .btn { margin-inline-start: 6px; }
+.dup-ok { color: var(--tread-green, #1E7B3A); font-size: 13px; margin-bottom: 8px; }
+tr.dup-row td { background: #FFF8EA !important; }
+tr.orphan-row td { background: #FBEDEB !important; }
+.dup-flag { color: #B26A00; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.badge-danger { background: #FBE5E2; color: var(--brake-red, #C4483A); }
 </style>
 </head>
 <body>
@@ -2007,6 +2027,33 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "⚠️ مكررة؟": "⚠️ Duplicate?",
+  "⚠️ مكررة": "⚠️ Duplicate",
+  "فاتورة محذوفة": "Deleted invoice",
+  "حذفها": "Delete them",
+  "✅ لا توجد دفعات مكررة (نفس الفاتورة والمبلغ واليوم)": "✅ No duplicate payments (same invoice, amount and day)",
+  "حذف الدفعة؟ سيرجع مبلغها إلى المتبقي على الفاتورة.": "Delete the payment? Its amount will go back to the invoice's remaining balance.",
+  "حُذفت الفاتورة": "Invoice deleted",
+  "كل الموردين": "All suppliers",
+  "المجموع المدفوع:": "Total paid:",
+  "📊 تفصيل المدفوع للموردين": "📊 Supplier payments breakdown",
+  "إجمالي فواتير الموردين": "Total supplier invoices",
+  "إجمالي المدفوع": "Total paid",
+  "المتبقي (ديون علينا)": "Remaining (we owe)",
+  "في الفترة المختارة": "in the selected period",
+  "(سجل الدفعات)": "(payment log)",
+  "حسب المورد": "By supplier",
+  "نسبة السداد": "Paid %",
+  "آخر دفعة": "Last payment",
+  "اضغط لعرض الفواتير": "Click to show invoices",
+  "✓ مسدد": "✓ Settled",
+  "تاريخها": "Its date",
+  "الدفعات": "Payments",
+  "لا توجد فواتير موردين": "No supplier invoices",
+  "حسب الشهر": "By month",
+  "(الفترة المختارة)": "(selected period)",
+  "عدد الدفعات": "Payments count",
+  "بعض المبالغ المدفوعة قديمة وليس لها طريقة دفع مسجّلة، لذلك مجموع الأعمدة قد يكون أقل من المدفوع.": "Some older paid amounts have no recorded payment method, so the column totals may be less than the amount paid.",
   "📅 تاريخ الفاتورة *": "📅 Invoice date *",
   "📅 تاريخ الدفع *": "📅 Payment date *",
   "📅 تاريخ الدفع": "📅 Payment date",
@@ -7031,6 +7078,7 @@ ${this.canDiscount() ? `
 
       const qDate = document.getElementById('quickPaymentDate')?.value || localYMD();
       if (qDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الدفع في المستقبل', 'warning'); return; }
+      if (!this.confirmNotDuplicatePayment(invoice, amount, qDate)) return;
       e.currentTarget.disabled = true;
       const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('quickPayMethod'), document.getElementById('quickPaymentNotes').value, qDate);
       if (!ok) { e.currentTarget.disabled = false; return; }
@@ -7479,16 +7527,22 @@ ${this.canDiscount() ? `
             this.deleteRecord('suppliers', id).then(() => this.switchView('suppliers'));
           }
         }
-        if (e.target.matches('[data-delete-invoice]')) {
-          const id = e.target.dataset.deleteInvoice;
-          if (confirm('حذف الفاتورة؟')) {
-            this.deleteRecord('supplier_invoices', id).then(() => this.switchView('supplierInvoices'));
+        const delInv = e.target.closest('[data-delete-invoice]');
+        if (delInv) {
+          this.deleteSupplierInvoice(delInv.dataset.deleteInvoice).then(() => this.switchView('supplierInvoices'));
+        }
+        const delPay = e.target.closest('[data-delete-payment]');
+        if (delPay) {
+          const id = delPay.dataset.deletePayment;
+          if (confirm('حذف الدفعة؟ سيرجع مبلغها إلى المتبقي على الفاتورة.')) {
+            this.deleteSupplierPayment(id).then(() => this.switchView('supplierPayments'));
           }
         }
-        if (e.target.matches('[data-delete-payment]')) {
-          const id = e.target.dataset.deletePayment;
-          if (confirm('حذف الدفعة؟')) {
-            this.deleteRecord('supplier_payments', id).then(() => this.switchView('supplierPayments'));
+        const delOrphans = e.target.closest('[data-delete-orphans]');
+        if (delOrphans) {
+          const list = this.orphanPayments();
+          if (list.length && confirm(`حذف ${list.length} دفعة فاتورتها محذوفة؟`)) {
+            (async () => { for (const p of list) await this.deleteRecord('supplier_payments', p.id); this.switchView('supplierPayments'); })();
           }
         }
         if (e.target.matches('[data-delete-fixed-expense]')) {
@@ -7835,6 +7889,12 @@ ${this.canDiscount() ? `
           return;
         }
 
+        // فحص التكرار: نفس المورد ونفس رقم الفاتورة
+        const dupInv = this.supplierInvoices.find(i => i.supplierId === supplierId && this.normInvNo(i.invoiceNumber) === this.normInvNo(invoiceNumber));
+        if (dupInv && !confirm(`⚠️ الفاتورة رقم ${dupInv.invoiceNumber} لهذا المورد مسجّلة مسبقاً بتاريخ ${fmtDate(dupInv.invoiceDate)} بمبلغ ${fmtMoney(dupInv.totalAmount)}.\n\nهل تريد تسجيلها مرة ثانية فعلاً؟`)) {
+          return;
+        }
+
         // مدفوعة؟ نسجّل الدفعة في سجل الدفعات حتى تظهر في كشف المورد
         const isPaid = readPaymentMethod('invPaid') === 'yes';
         const paidAmount = isPaid ? Math.round((parseFloat(document.getElementById('invPaidAmount').value) || 0) * 1000) / 1000 : 0;
@@ -7927,6 +7987,17 @@ ${this.canDiscount() ? `
   }
 
   bindSupplierPaymentsEvents() {
+    document.getElementById('paySupplierFilter')?.addEventListener('change', (e) => {
+      this.paySupplierFilter = e.target.value;
+      this.switchView('supplierPayments');
+    });
+    document.querySelectorAll('[data-pd-toggle]').forEach(tr => tr.addEventListener('click', () => {
+      this.pdOpen = this.pdOpen || {};
+      this.pdOpen[tr.dataset.pdToggle] = !this.pdOpen[tr.dataset.pdToggle];
+      const y = window.scrollY;
+      this.switchView('supplierPayments');
+      window.scrollTo(0, y);
+    }));
     const addBtn = document.getElementById('addPaymentBtn');
     if (addBtn && !addBtn.hasListener) {
       addBtn.hasListener = true;
@@ -7948,6 +8019,7 @@ ${this.canDiscount() ? `
 
         const payDate = document.getElementById('paymentDateInput')?.value || localYMD();
         if (payDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الدفع في المستقبل', 'warning'); return; }
+        if (!this.confirmNotDuplicatePayment(invoice, amount, payDate)) return;
         addBtn.disabled = true;
         const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('payMethod'), notes, payDate);
         addBtn.disabled = false;
@@ -9727,9 +9799,11 @@ ${this.canDiscount() ? `
 
   renderSupplierInvoicesView() {
     const filteredInvoices = this.filterByDate(this.supplierInvoices, 'invoiceDate');
+    const dupCount = this.dupSupplierInvoiceIds().size;
     
     return `
       ${this.renderDateFilterBar()}
+      ${dupCount ? `<div class="dup-banner">⚠️ يوجد <b>${dupCount}</b> فاتورة برقم مكرر لنفس المورد — معلّمة بـ "⚠️ مكررة" في الجدول. إذا كانت مكررة بالخطأ احذف النسخة الزائدة (تُحذف معها دفعاتها).</div>` : ''}
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>${t('addInvoice')}</h3></div>
@@ -9807,13 +9881,16 @@ ${this.canDiscount() ? `
                 </tr>
               </thead>
               <tbody>
+                ${(() => { this._dupInv = this.dupSupplierInvoiceIds(); return ''; })()}
                 ${filteredInvoices.map(inv => {
                   const supplier = this.suppliers.find(s => s.id === inv.supplierId);
                   const paidAmount = inv.paidAmount || 0;
+                  const isDup = this._dupInv.has(inv.id);
+                  const nPays = this.supplierPayments.filter(p => p.supplierInvoiceId === inv.id).length;
                   return `
-                    <tr>
+                    <tr class="${isDup ? 'dup-row' : ''}">
                       <td>${esc(supplier?.name || '-')}</td>
-                      <td>${esc(inv.invoiceNumber)}</td>
+                      <td>${esc(inv.invoiceNumber)}${isDup ? ' <span class="dup-flag" title="نفس رقم الفاتورة لنفس المورد مسجّل أكثر من مرة">⚠️ مكررة</span>' : ''}${nPays ? `<div class="text-xs" style="color: var(--text-muted);">${nPays} دفعة</div>` : ''}</td>
                       <td class="num">${fmtMoney(inv.totalAmount)}</td>
                       <td class="num" style="color: var(--tread-green);">${fmtMoney(paidAmount)}</td>
                       <td class="num" style="color: ${inv.remainingAmount > 0 ? 'var(--brake-red)' : 'var(--tread-green)'}">
@@ -9838,7 +9915,10 @@ ${this.canDiscount() ? `
   }
 
   renderSupplierPaymentsView() {
-    const filteredPayments = this.filterByDate(this.supplierPayments, 'paymentDate');
+    const supFilter = this.paySupplierFilter || '';
+    const invSupplier = id => this.supplierInvoices.find(i => i.id === id)?.supplierId;
+    const filteredPayments = this.filterByDate(this.supplierPayments, 'paymentDate')
+      .filter(p => !supFilter || invSupplier(p.supplierInvoiceId) === supFilter);
     const byMethod = { cash: 0, card: 0, transfer: 0 };
     filteredPayments.forEach(p => {
       const m = supplierPaymentMethod(p);
@@ -9887,7 +9967,18 @@ ${this.canDiscount() ? `
         <div class="card">
           <div class="card-head">
             <h3>سجل الدفعات (${filteredPayments.length})</h3>
+            <select id="paySupplierFilter" class="pay-sup-filter">
+              <option value="">كل الموردين</option>
+              ${this.suppliers.map(s => `<option value="${s.id}" ${s.id === supFilter ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+            </select>
           </div>
+          ${(() => {
+            const dups = this.dupPaymentIds(), orph = this.orphanPayments();
+            return `
+              ${dups.size ? `<div class="dup-banner">⚠️ يوجد <b>${dups.size}</b> دفعة متشابهة (نفس الفاتورة ونفس المبلغ ونفس اليوم) — معلّمة بـ ⚠️ في الجدول. راجعها، فقد تكون مكررة.</div>` : `<div class="dup-ok">✅ لا توجد دفعات مكررة (نفس الفاتورة والمبلغ واليوم)</div>`}
+              ${orph.length ? `<div class="dup-banner">🗑️ يوجد <b>${orph.length}</b> دفعة فاتورتها محذوفة بمجموع <b class="num">${fmtMoney(orph.reduce((a, p) => a + (parseFloat(p.paymentAmount) || 0), 0))}</b> — معلّمة "فاتورة محذوفة". <button class="btn btn-xs btn-danger" data-delete-orphans>حذفها</button></div>` : ''}`;
+          })()}
+          <div class="pay-grand">المجموع المدفوع: <b class="num">${fmtMoney(filteredPayments.reduce((a, p) => a + (parseFloat(p.paymentAmount) || 0), 0))}</b></div>
           <div class="pay-totals">
             ${Object.entries(SUPPLIER_PAY_METHODS).map(([k, label]) => `
               <div class="pay-total"><span>${label}</span><b class="num">${fmtMoney(byMethod[k])}</b></div>
@@ -9897,6 +9988,7 @@ ${this.canDiscount() ? `
             <table>
               <thead>
                 <tr>
+                  <th>المورد</th>
                   <th>الفاتورة</th>
                   <th>المبلغ</th>
                   <th>طريقة الدفع</th>
@@ -9905,11 +9997,15 @@ ${this.canDiscount() ? `
                 </tr>
               </thead>
               <tbody>
+                ${(() => { this._dupPay = this.dupPaymentIds(); return ''; })()}
                 ${filteredPayments.map(pay => {
                   const invoice = this.supplierInvoices.find(i => i.id === pay.supplierInvoiceId);
+                  const supplier = this.suppliers.find(x => x.id === invoice?.supplierId);
+                  const isDup = this._dupPay.has(pay.id);
                   return `
-                    <tr>
-                      <td>${esc(invoice?.invoiceNumber || '-')}</td>
+                    <tr class="${isDup ? 'dup-row' : ''} ${invoice ? '' : 'orphan-row'}">
+                      <td>${esc(supplier?.name || '-')}</td>
+                      <td>${invoice ? esc(invoice.invoiceNumber || '-') : '<span class="badge badge-danger">فاتورة محذوفة</span>'}${isDup ? ' <span class="dup-flag" title="دفعة متشابهة: نفس الفاتورة والمبلغ واليوم">⚠️ مكررة؟</span>' : ''}</td>
                       <td class="num">${fmtMoney(pay.paymentAmount)}</td>
                       <td>${(() => { const m = supplierPaymentMethod(pay); return m ? `<span class="badge ${methodBadge[m]}">${SUPPLIER_PAY_METHODS[m]}</span>` : '<span style="color: var(--text-muted);">—</span>'; })()}</td>
                       <td>${fmtDate(pay.paymentDate)}</td>
@@ -9920,13 +10016,208 @@ ${this.canDiscount() ? `
                       </td>
                     </tr>
                   `;
-                }).join('') || '<tr><td colspan="5" class="text-center">لا توجد دفعات</td></tr>'}
+                }).join('') || '<tr><td colspan="6" class="text-center">لا توجد دفعات</td></tr>'}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+      ${this.renderSupplierPaidDetail(filteredPayments, supFilter)}
     `;
+  }
+
+  confirmNotDuplicatePayment(invoice, amount, ymd) {
+    const same = this.supplierPayments.find(p => p.supplierInvoiceId === invoice.id
+      && Math.abs((parseFloat(p.paymentAmount) || 0) - amount) < 0.0005
+      && localYMD(p.paymentDate || p.createdAt) === ymd);
+    if (!same) return true;
+    return confirm(`⚠️ يوجد دفعة بنفس المبلغ (${fmtMoney(amount)}) على نفس الفاتورة ${invoice.invoiceNumber} بنفس التاريخ.\n\nهل هذه دفعة جديدة فعلاً؟`);
+  }
+
+  // ===== كشف التكرار في الموردين =====
+  normInvNo(x) { return String(x || '').trim().toUpperCase().replace(/\s+/g, '').replace(/^0+(?=\d)/, ''); }
+
+  // فواتير موردين مكررة: نفس المورد + نفس رقم الفاتورة
+  dupSupplierInvoiceIds() {
+    const groups = new Map();
+    this.supplierInvoices.forEach(i => {
+      const k = i.supplierId + '|' + this.normInvNo(i.invoiceNumber);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(i.id);
+    });
+    const ids = new Set();
+    groups.forEach(g => { if (g.length > 1) g.forEach(id => ids.add(id)); });
+    return ids;
+  }
+
+  // دفعات مكررة محتملة: نفس الفاتورة + نفس المبلغ + نفس اليوم
+  dupPaymentIds() {
+    const groups = new Map();
+    this.supplierPayments.forEach(p => {
+      const k = p.supplierInvoiceId + '|' + (Math.round((parseFloat(p.paymentAmount) || 0) * 1000)) + '|' + localYMD(p.paymentDate || p.createdAt);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(p.id);
+    });
+    const ids = new Set();
+    groups.forEach(g => { if (g.length > 1) g.forEach(id => ids.add(id)); });
+    return ids;
+  }
+
+  // دفعات فاتورتها محذوفة
+  orphanPayments() {
+    const ids = new Set(this.supplierInvoices.map(i => i.id));
+    return this.supplierPayments.filter(p => !ids.has(p.supplierInvoiceId));
+  }
+
+  // حذف دفعة مع إرجاع مبلغها إلى المتبقي في الفاتورة
+  async deleteSupplierPayment(id) {
+    const pay = this.supplierPayments.find(p => p.id === id);
+    const inv = pay && this.supplierInvoices.find(i => i.id === pay.supplierInvoiceId);
+    const ok = await this.deleteRecord('supplier_payments', id);
+    if (ok === false) return false;
+    if (inv) {
+      const paid = Math.max(0, Math.round(((parseFloat(inv.paidAmount) || 0) - (parseFloat(pay.paymentAmount) || 0)) * 1000) / 1000);
+      const total = parseFloat(inv.totalAmount) || 0;
+      await this.updateRecord('supplier_invoices', inv.id, { paid_amount: paid, remaining_amount: Math.max(0, Math.round((total - paid) * 1000) / 1000) });
+    }
+    return true;
+  }
+
+  // حذف فاتورة مورد: نسأل ماذا نفعل بدفعاتها
+  async deleteSupplierInvoice(id) {
+    const inv = this.supplierInvoices.find(i => i.id === id);
+    if (!inv) return;
+    const pays = this.supplierPayments.filter(p => p.supplierInvoiceId === id);
+    const sum = pays.reduce((a, p) => a + (parseFloat(p.paymentAmount) || 0), 0);
+    if (!pays.length) {
+      if (!confirm(`حذف الفاتورة ${inv.invoiceNumber}؟`)) return;
+    } else if (!confirm(`الفاتورة ${inv.invoiceNumber} عليها ${pays.length} دفعة بمجموع ${fmtMoney(sum)}.\n\nسيتم حذف الفاتورة ودفعاتها معاً (حتى لا تبقى دفعات بدون فاتورة).\n\nمتابعة؟`)) {
+      return;
+    }
+    for (const p of pays) await this.deleteRecord('supplier_payments', p.id);
+    await this.deleteRecord('supplier_invoices', id);
+    showToast(pays.length ? `حُذفت الفاتورة و${pays.length} دفعة` : 'حُذفت الفاتورة', 'success');
+  }
+
+  // ===== تفصيل المدفوع للموردين =====
+  renderSupplierPaidDetail(periodPayments, supFilter) {
+    const n = v => parseFloat(v) || 0;
+    const methods = ['cash', 'card', 'transfer'];
+    const mLabel = { cash: '💵 كاش', card: '💳 فيزا', transfer: '🏦 تحويل' };
+    const paysOf = invId => this.supplierPayments.filter(p => p.supplierInvoiceId === invId);
+    const split = pays => {
+      const o = { cash: 0, card: 0, transfer: 0, none: 0 };
+      pays.forEach(p => { const m = supplierPaymentMethod(p); o[m && o[m] !== undefined ? m : 'none'] += n(p.paymentAmount); });
+      return o;
+    };
+    const suppliers = this.suppliers.filter(s => !supFilter || s.id === supFilter);
+    const rows = suppliers.map(sup => {
+      const invs = this.supplierInvoices.filter(i => i.supplierId === sup.id)
+        .sort((a, b) => String(b.invoiceDate || b.createdAt || '').localeCompare(String(a.invoiceDate || a.createdAt || '')));
+      const pays = invs.flatMap(i => paysOf(i.id));
+      const total = invs.reduce((a, i) => a + n(i.totalAmount), 0);
+      // المدفوع: الأكبر بين المسجّل على الفاتورة ومجموع سجل الدفعات (فواتير قديمة قد لا يكون لها سجل)
+      const paid = invs.reduce((a, i) => a + Math.max(n(i.paidAmount), paysOf(i.id).reduce((x, p) => x + n(p.paymentAmount), 0)), 0);
+      const sp = split(pays);
+      sp.none += Math.max(0, paid - (sp.cash + sp.card + sp.transfer + sp.none));
+      const last = pays.map(p => p.paymentDate || p.createdAt).filter(Boolean).sort().pop();
+      return { sup, invs, total, paid, remaining: Math.max(0, total - paid), sp, last, count: pays.length };
+    }).filter(r => r.invs.length);
+    const G = rows.reduce((a, r) => ({ total: a.total + r.total, paid: a.paid + r.paid, remaining: a.remaining + r.remaining }), { total: 0, paid: 0, remaining: 0 });
+    const periodPaid = periodPayments.reduce((a, p) => a + n(p.paymentAmount), 0);
+    const filtered = !!(document.getElementById('filterSpecificDate')?.value || document.getElementById('filterFromDate')?.value || this.dateFilter?.from || this.dateFilter?.specific);
+    const pct = r => r.total ? Math.min(100, r.paid / r.total * 100) : 0;
+
+    // حسب الشهر (دفعات الفترة)
+    const byMonth = new Map();
+    periodPayments.forEach(p => {
+      const d = new Date(p.paymentDate || p.createdAt);
+      if (isNaN(d)) return;
+      const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      if (!byMonth.has(k)) byMonth.set(k, { d, count: 0, cash: 0, card: 0, transfer: 0, none: 0, total: 0 });
+      const b = byMonth.get(k); const m = supplierPaymentMethod(p);
+      b[m && b[m] !== undefined ? m : 'none'] += n(p.paymentAmount); b.total += n(p.paymentAmount); b.count++;
+    });
+    const loc = currentLang === 'en' ? 'en-GB' : 'ar-OM';
+    const months = [...byMonth.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+    return `
+      <div class="card mt-16">
+        <div class="card-head"><h3>📊 تفصيل المدفوع للموردين</h3></div>
+        <div class="rep-range-sum">
+          <div><span>إجمالي فواتير الموردين</span><b class="num">${fmtMoney(G.total)}</b></div>
+          <div><span>إجمالي المدفوع</span><b class="num" style="color: var(--tread-green);">${fmtMoney(G.paid)}</b></div>
+          <div><span>المتبقي (ديون علينا)</span><b class="num" style="color: ${G.remaining > 0 ? 'var(--brake-red)' : 'inherit'};">${fmtMoney(G.remaining)}</b></div>
+          <div><span>المدفوع ${filtered ? 'في الفترة المختارة' : '(سجل الدفعات)'}</span><b class="num">${fmtMoney(periodPaid)}</b></div>
+        </div>
+
+        <h4 class="pd-title">حسب المورد</h4>
+        <div class="table-wrap">
+          <table class="pd-table">
+            <thead><tr>
+              <th>المورد</th><th>الفواتير</th><th>الإجمالي</th><th>المدفوع</th>
+              <th>💵 كاش</th><th>💳 فيزا</th><th>🏦 تحويل</th><th>المتبقي</th><th>نسبة السداد</th><th>آخر دفعة</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr class="pd-sup" data-pd-toggle="${r.sup.id}" title="اضغط لعرض الفواتير">
+                  <td><b>${esc(r.sup.name)}</b> <span class="pd-caret">${this.pdOpen?.[r.sup.id] ? '▾' : '◂'}</span></td>
+                  <td class="num">${r.invs.length}</td>
+                  <td class="num">${fmtMoney(r.total)}</td>
+                  <td class="num" style="font-weight: 700; color: var(--tread-green);">${fmtMoney(r.paid)}</td>
+                  ${methods.map(m => `<td class="num">${r.sp[m] ? fmtMoney(r.sp[m]) : '—'}</td>`).join('')}
+                  <td class="num" style="font-weight: 700; color: ${r.remaining > 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${r.remaining > 0 ? fmtMoney(r.remaining) : '✓ مسدد'}</td>
+                  <td><div class="share"><div class="share-bar" style="width: ${Math.max(pct(r), 1)}%"></div><span class="num">${pct(r).toFixed(0)}%</span></div></td>
+                  <td>${r.last ? fmtDate(r.last) : '—'}</td>
+                </tr>
+                ${this.pdOpen?.[r.sup.id] ? `
+                <tr class="pd-detail"><td colspan="10">
+                  <table class="pd-inner">
+                    <thead><tr><th>الفاتورة</th><th>تاريخها</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th><th>الدفعات</th></tr></thead>
+                    <tbody>
+                      ${r.invs.map(i => {
+                        const ps = paysOf(i.id).sort((a, b) => String(a.paymentDate || '').localeCompare(String(b.paymentDate || '')));
+                        const paid = Math.max(n(i.paidAmount), ps.reduce((x, p) => x + n(p.paymentAmount), 0));
+                        const rem = Math.max(0, n(i.totalAmount) - paid);
+                        return `<tr>
+                          <td>${esc(i.invoiceNumber || '-')}</td>
+                          <td>${fmtDate(i.invoiceDate || i.createdAt)}</td>
+                          <td class="num">${fmtMoney(n(i.totalAmount))}</td>
+                          <td class="num">${fmtMoney(paid)}</td>
+                          <td class="num" style="color: ${rem > 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${rem > 0 ? fmtMoney(rem) : '✓'}</td>
+                          <td class="text-xs">${ps.map(p => { const m = supplierPaymentMethod(p); return `<div>${fmtDate(p.paymentDate || p.createdAt)} — <b class="num">${fmtMoney(n(p.paymentAmount))}</b> ${m ? mLabel[m] : ''}</div>`; }).join('') || '<span style="color: var(--text-muted);">لا توجد دفعات</span>'}</td>
+                        </tr>`;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </td></tr>` : ''}
+              `).join('') || '<tr><td colspan="10" class="text-center">لا توجد فواتير موردين</td></tr>'}
+            </tbody>
+            ${rows.length > 1 ? `<tfoot><tr class="rep-total">
+              <td>المجموع</td><td class="num">${rows.reduce((a, r) => a + r.invs.length, 0)}</td>
+              <td class="num">${fmtMoney(G.total)}</td><td class="num">${fmtMoney(G.paid)}</td>
+              ${methods.map(m => `<td class="num">${fmtMoney(rows.reduce((a, r) => a + r.sp[m], 0))}</td>`).join('')}
+              <td class="num">${fmtMoney(G.remaining)}</td><td>${G.total ? (G.paid / G.total * 100).toFixed(0) + '%' : ''}</td><td></td>
+            </tr></tfoot>` : ''}
+          </table>
+        </div>
+        ${rows.some(r => r.sp.none > 0.0005) ? '<p class="text-xs" style="margin-top: 8px;">بعض المبالغ المدفوعة قديمة وليس لها طريقة دفع مسجّلة، لذلك مجموع الأعمدة قد يكون أقل من المدفوع.</p>' : ''}
+
+        <h4 class="pd-title">حسب الشهر ${filtered ? '(الفترة المختارة)' : ''}</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>الشهر</th><th>عدد الدفعات</th><th>💵 كاش</th><th>💳 فيزا</th><th>🏦 تحويل</th><th>المجموع</th></tr></thead>
+            <tbody>
+              ${months.map(([k, b]) => `<tr>
+                <td>${esc(b.d.toLocaleDateString(loc, { month: 'long', year: 'numeric' }))}</td>
+                <td class="num">${b.count}</td>
+                ${methods.map(m => `<td class="num">${b[m] ? fmtMoney(b[m]) : '—'}</td>`).join('')}
+                <td class="num" style="font-weight: 700;">${fmtMoney(b.total)}</td>
+              </tr>`).join('') || '<tr><td colspan="6" class="text-center">لا توجد دفعات</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
   }
 
   renderSupplierSummaryView() {
