@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.25.1 (supplier paid vs payments reconciliation) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.25.2 (edit supplier payments) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -2054,6 +2054,13 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "✏️ تعديل دفعة المورد": "✏️ Edit supplier payment",
+  "الفاتورة *": "Invoice *",
+  "المبلغ *": "Amount *",
+  "اختر الفاتورة": "Choose the invoice",
+  "تم تعديل الدفعة": "Payment updated",
+  "الحد المتاح على هذه الفاتورة:": "Available on this invoice:",
+  "— فاتورة محذوفة —": "— deleted invoice —",
   "✅ المدفوع على كل فواتير الموردين يطابق مجموع دفعاتها في السجل": "✅ The paid amount on every supplier invoice matches its payment log",
   "مراجعة": "Review",
   "إخفاء": "Hide",
@@ -7714,6 +7721,8 @@ ${this.canDiscount() ? `
             this.deleteRecord('suppliers', id).then(() => this.switchView('suppliers'));
           }
         }
+        const editPay = e.target.closest('[data-edit-payment]');
+        if (editPay) this.editSupplierPayment(editPay.dataset.editPayment);
         const editExp = e.target.closest('[data-edit-expense]');
         if (editExp) this.editExpense(editExp.dataset.editExpense);
         const editInv = e.target.closest('[data-edit-supinv]');
@@ -10443,6 +10452,7 @@ ${this.canDiscount() ? `
                       <td>${fmtDate(pay.paymentDate)}</td>
                       <td>
                         <div class="action-cell">
+                          <button class="btn btn-xs btn-blue" data-edit-payment="${pay.id}" title="تعديل">✏️</button>
                           <button class="btn btn-xs btn-danger" data-delete-payment="${pay.id}">${icon('delete')}</button>
                         </div>
                       </td>
@@ -10534,6 +10544,105 @@ ${this.canDiscount() ? `
       e.target.disabled = true;
       this.fixPaidMismatch(list.map(m => m.inv.id));
     });
+  }
+
+  // ===== تعديل دفعة مورد =====
+  // يعدّل الدفعة ويصحّح "المدفوع" و"المتبقي" على الفاتورة (أو الفاتورتين إذا تغيّرت الفاتورة)
+  editSupplierPayment(id) {
+    const pay = this.supplierPayments.find(p => p.id === id);
+    if (!pay) return;
+    const r3 = v => Math.round((parseFloat(v) || 0) * 1000) / 1000;
+    const oldAmount = r3(pay.paymentAmount);
+    const oldInv = this.supplierInvoices.find(i => i.id === pay.supplierInvoiceId);
+    const method = supplierPaymentMethod(pay) || 'cash';
+    const receipt = supplierReceipt(pay);
+    const userNotes = String(pay.notes || '').replace(PAY_TAG_RE, ' ').replace(RECEIPT_TAG_RE, ' ').trim();
+    const supName = inv => this.suppliers.find(s => s.id === inv.supplierId)?.name || '-';
+    const invOptions = [...this.supplierInvoices]
+      .sort((a, b) => String(supName(a)).localeCompare(String(supName(b)), 'ar') || String(b.invoiceDate || '').localeCompare(String(a.invoiceDate || '')))
+      .map(i => `<option value="${i.id}" ${i.id === pay.supplierInvoiceId ? 'selected' : ''}>${esc(supName(i))} — ${esc(i.invoiceNumber || '-')} (المتبقي ${fmtMoney(r3(i.remainingAmount))})</option>`).join('');
+    const body = `
+      <div class="form-group">
+        <label>الفاتورة *</label>
+        <select id="mPayInv">${oldInv ? '' : '<option value="" selected>— فاتورة محذوفة —</option>'}${invOptions}</select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>المبلغ *</label>
+          <input type="number" id="mPayAmount" min="0" step="0.001" value="${oldAmount}">
+          <div class="text-xs" id="mPayHint" style="margin-top: 6px;"></div>
+        </div>
+        <div class="form-group">
+          <label>📅 تاريخ الدفع *</label>
+          <input type="date" id="mPayDate" value="${localYMD(pay.paymentDate || pay.createdAt)}" max="${localYMD()}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>طريقة الدفع</label>
+        ${paymentMethodPicker('mPayMethod', method)}
+      </div>
+      <div class="form-group receipt-field" data-receipt-for="mPayMethod" style="display: none;">
+        <label>🧾 رقم الإيصال / المرجع</label>
+        <input type="text" id="mPayReceipt" value="${esc(receipt)}" dir="ltr" style="text-align: right;">
+      </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <input type="text" id="mPayNotes" value="${esc(userNotes)}">
+      </div>`;
+    this.hrModal('✏️ تعديل دفعة المورد', body, async () => {
+      const invId = document.getElementById('mPayInv').value;
+      const newInv = this.supplierInvoices.find(i => i.id === invId);
+      const amount = r3(document.getElementById('mPayAmount').value);
+      const date = document.getElementById('mPayDate').value;
+      const m = readPaymentMethod('mPayMethod') || 'cash';
+      const rc = (m === 'card' || m === 'transfer') ? document.getElementById('mPayReceipt').value.trim().replace(/[\[\]]/g, '') : '';
+      const notes = document.getElementById('mPayNotes').value.trim();
+      if (!newInv) { showToast('اختر الفاتورة', 'error'); return false; }
+      if (!amount || amount <= 0) { showToast('أدخل المبلغ', 'error'); return false; }
+      if (!date || date > localYMD()) { showToast('تاريخ غير صحيح', 'error'); return false; }
+      // الحد الأقصى: المتبقي على الفاتورة + مبلغ هذه الدفعة إن كانت على نفس الفاتورة
+      const room = r3(newInv.remainingAmount) + (oldInv && newInv.id === oldInv.id ? oldAmount : 0);
+      if (amount > room + 0.0005 && !confirm(`المبلغ (${fmtMoney(amount)}) أكبر من المتبقي على الفاتورة (${fmtMoney(room)}). متابعة؟`)) return false;
+
+      const colMissing = this.missingPayMethodCol === true || (!pay.paymentMethod && PAY_TAG_RE.test(pay.notes || ''));
+      const cleanNotes = (notes + (rc ? ` [إيصال: ${rc}]` : '')).trim();
+      const data = {
+        supplier_invoice_id: newInv.id,
+        payment_amount: amount,
+        payment_date: localYMD(pay.paymentDate || pay.createdAt) === date ? (pay.paymentDate || pay.createdAt) : ymdToISO(date),
+        notes: (colMissing ? `[طريقة الدفع: ${SUPPLIER_PAY_METHODS[m]}] ${cleanNotes}` : cleanNotes).trim() || null,
+        receipt_number: rc || null,
+      };
+      if (!colMissing) data.payment_method = m;
+      const ok = await this.updateRecord('supplier_payments', id, data);
+      if (ok === false) return false;
+
+      // تصحيح الفواتير
+      const setPaid = async (inv, delta) => {
+        const paid = Math.max(0, r3(r3(inv.paidAmount) + delta));
+        const total = r3(inv.totalAmount);
+        await this.updateRecord('supplier_invoices', inv.id, { paid_amount: paid, remaining_amount: Math.max(0, r3(total - paid)) });
+      };
+      if (oldInv && oldInv.id === newInv.id) {
+        if (Math.abs(amount - oldAmount) > 0.0005) await setPaid(newInv, amount - oldAmount);
+      } else {
+        if (oldInv) await setPaid(oldInv, -oldAmount);
+        await setPaid(this.supplierInvoices.find(i => i.id === newInv.id) || newInv, amount);
+      }
+      showToast('تم تعديل الدفعة', 'success');
+      this.switchView('supplierPayments');
+      return true;
+    });
+    this.bindPayMethodPickers();
+    const hint = () => {
+      const inv = this.supplierInvoices.find(i => i.id === document.getElementById('mPayInv').value);
+      const el = document.getElementById('mPayHint');
+      if (!inv || !el) return;
+      const room = r3(inv.remainingAmount) + (oldInv && inv.id === oldInv.id ? oldAmount : 0);
+      el.innerHTML = `الحد المتاح على هذه الفاتورة: <b class="num">${fmtMoney(room)}</b>`;
+    };
+    document.getElementById('mPayInv')?.addEventListener('change', hint);
+    hint();
   }
 
   // تعديل فاتورة مورد
