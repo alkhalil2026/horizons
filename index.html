@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.24.3 (supplier duplicates check + safe invoice/payment delete) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.25.0 (quotations, edit expenses & supplier invoices, receipt no., supplier invoice notes) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1599,6 +1599,15 @@ tr.dup-row td { background: #FFF8EA !important; }
 tr.orphan-row td { background: #FBEDEB !important; }
 .dup-flag { color: #B26A00; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .badge-danger { background: #FBE5E2; color: var(--brake-red, #C4483A); }
+
+.receipt-field input { font-family: inherit; }
+.inv-note { color: var(--text-muted); max-width: 220px; white-space: normal; }
+.note-ic { cursor: help; font-size: 13px; }
+
+.quote-banner { background: #EEF4FB; border: 1px solid #BFD6EE; color: #1F4E79; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; }
+.quote-banner.conv { background: #FFF4E0; border-color: #F2C46D; color: #7A4B00; }
+.quote-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.quote-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; color: var(--text-600, #5B564C); }
 </style>
 </head>
 <body>
@@ -1702,7 +1711,7 @@ function shopMark() {
 const APP_MODE = 'manager';
 
 // الصفحات المسموحة للموظف (المدير يرى كل شيء)
-const EMPLOYEE_VIEWS = ['newSale', 'myHR', 'customers', 'appointments', 'tires', 'accessories', 'services', 'dailyExpenses', 'bankDeposits'];
+const EMPLOYEE_VIEWS = ['newSale', 'quotations', 'myHR', 'customers', 'appointments', 'tires', 'accessories', 'services', 'dailyExpenses', 'bankDeposits'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
 
@@ -1802,6 +1811,22 @@ function bankSource(d) {
 }
 function bankNotes(d) { return String(d.notes || '').replace(BANK_SRC_TAG_RE, ' ').trim(); }
 
+// رقم إيصال دفعة المورد: عمود receipt_number، ونسخة احتياطية كوسم في الملاحظات
+const RECEIPT_TAG_RE = /\s*\[إيصال: ([^\]]+)\]\s*/;
+function supplierReceipt(pay) {
+  if (pay.receiptNumber) return pay.receiptNumber;
+  const m = RECEIPT_TAG_RE.exec(pay.notes || '');
+  return m ? m[1].trim() : '';
+}
+// حقل رقم الإيصال (يظهر عند اختيار فيزا أو تحويل)
+function receiptField(id, pickerName) {
+  return `
+    <div class="form-group receipt-field" data-receipt-for="${pickerName}" style="display: none;">
+      <label>🧾 رقم الإيصال / المرجع</label>
+      <input type="text" id="${id}" placeholder="رقم إيصال التحويل أو عملية الفيزا" dir="ltr" style="text-align: right;">
+    </div>`;
+}
+
 function supplierPaymentMethod(pay) {
   if (pay.paymentMethod && SUPPLIER_PAY_METHODS[pay.paymentMethod]) return pay.paymentMethod;
   const m = PAY_TAG_RE.exec(pay.notes || '');
@@ -1817,6 +1842,7 @@ function localDateStr(d) {
 
 // أمر إنشاء جداول الموارد البشرية في Supabase
 const EXPENSES_FIX_SQL = "-- ورشتي: إصلاح حفظ المصروفات (آمن للتشغيل أكثر من مرة)\ncreate table if not exists expenses (\n  id uuid primary key default gen_random_uuid(),\n  expense_type text,\n  description text,\n  amount numeric not null default 0,\n  expense_date timestamptz default now(),\n  created_at timestamptz default now()\n);\nalter table expenses add column if not exists expense_type text;\nalter table expenses add column if not exists description text;\nalter table expenses add column if not exists notes text;\nalter table expenses add column if not exists image text;\nalter table expenses add column if not exists payment_method text default 'cash';\nalter table expenses add column if not exists expense_date timestamptz default now();\n\n-- إزالة أي قيد يمنع القيم العربية (يومية / ثابتة) في نوع المصروف\ndo $$\ndeclare c record;\nbegin\n  for c in select conname from pg_constraint\n           where conrelid = 'public.expenses'::regclass and contype = 'c'\n  loop\n    execute format('alter table public.expenses drop constraint %I', c.conname);\n  end loop;\nend $$;\n\nalter table expenses enable row level security;\ndrop policy if exists \"app access\" on expenses;\ncreate policy \"app access\" on expenses for all using (true) with check (true);\n";
+const V225_SQL = "-- ورشتي 2.25: عروض الأسعار + ملاحظات فواتير الموردين + رقم إيصال دفعات الموردين\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists quotations (\n  id uuid primary key default gen_random_uuid(),\n  quote_number text,\n  customer_name text,\n  customer_phone text,\n  items jsonb,\n  subtotal numeric default 0,\n  discount_amount numeric default 0,\n  discount_percent numeric default 0,\n  total numeric default 0,\n  warranty text,\n  valid_until timestamptz,\n  notes text,\n  status text default 'open',\n  converted_invoice text,\n  created_by text,\n  created_at timestamptz default now()\n);\nalter table quotations enable row level security;\ndrop policy if exists \"app access\" on quotations;\ncreate policy \"app access\" on quotations for all using (true) with check (true);\n\nalter table supplier_invoices add column if not exists notes text;\nalter table supplier_payments add column if not exists receipt_number text;\n";
 const V221_SQL = "-- ورشتي 2.21: سجل إيداع الكاش في الحساب البنكي\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists bank_deposits (\n  id uuid primary key default gen_random_uuid(),\n  amount numeric not null,\n  deposit_date timestamptz default now(),\n  bank text,\n  reference text,\n  notes text,\n  created_by text,\n  created_at timestamptz default now()\n);\nalter table bank_deposits add column if not exists source text default 'cash';\n\nalter table bank_deposits enable row level security;\ndrop policy if exists \"app access\" on bank_deposits;\ncreate policy \"app access\" on bank_deposits for all using (true) with check (true);\n";
 const V218_SQL = "-- ورشتي 2.18: جدول الإعدادات (لتظهر نفس الإعدادات والتوقيع على كل الأجهزة) + جدول الإكسسوارات\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists settings (\n  key text primary key,\n  value text,\n  updated_at timestamptz default now()\n);\n\ncreate table if not exists accessories (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  price numeric not null default 0,\n  cost numeric default 0,\n  stock integer default 0,\n  created_at timestamptz default now()\n);\n\nalter table settings enable row level security;\nalter table accessories enable row level security;\ndrop policy if exists \"app access\" on settings;\ndrop policy if exists \"app access\" on accessories;\ncreate policy \"app access\" on settings for all using (true) with check (true);\ncreate policy \"app access\" on accessories for all using (true) with check (true);\n";
 const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  check_in2 timestamptz,\n  check_out2 timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ndrop policy if exists \"app access\" on hr_employees;\ndrop policy if exists \"app access\" on hr_attendance;\ndrop policy if exists \"app access\" on hr_leaves;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);\n\n-- أعمدة الفترة المسائية (للجداول التي أُنشئت قبل إضافتها)\nalter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
@@ -2027,6 +2053,65 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "عروض الأسعار": "Quotations",
+  "📝 عروض الأسعار (Quotation)": "📝 Quotations",
+  "➕ عرض سعر جديد": "➕ New quotation",
+  "عرض سعر جديد": "New quotation",
+  "تعديل عرض السعر": "Edit quotation",
+  "— لا يُخصم شيء من المخزون ولا يُسجَّل كمبيعات": "— nothing is deducted from stock or recorded as a sale",
+  "تحويل عرض السعر": "Converting quotation",
+  "إلى فاتورة — راجع الأصناف والأسعار ثم أكمل": "to an invoice — review items and prices, then continue",
+  "الضمان والخصم": "Warranty & discount",
+  "⏳ العرض ساري لمدة": "⏳ Quotation valid for",
+  "أيام": "days",
+  "📝 ملاحظات على العرض": "📝 Quotation notes",
+  "اختياري — مثال: السعر يشمل التركيب والترصيص": "Optional — e.g. price includes fitting and balancing",
+  "حفظ عرض السعر": "Save quotation",
+  "حفظ تعديلات العرض": "Save quotation changes",
+  "أضف صنفاً واحداً على الأقل": "Add at least one item",
+  "تم حفظ عرض السعر": "Quotation saved",
+  "تم تعديل عرض السعر": "Quotation updated",
+  "✅ تحوّل لفاتورة": "✅ Converted to invoice",
+  "⌛ منتهي": "⌛ Expired",
+  "🕒 ساري": "🕒 Valid",
+  "🕒 سارية:": "🕒 Valid:",
+  "✅ تحولت لفواتير:": "✅ Converted:",
+  "⌛ منتهية:": "⌛ Expired:",
+  "سارية": "Valid",
+  "تحولت لفاتورة": "Converted",
+  "منتهية": "Expired",
+  "🔍 ابحث برقم العرض أو اسم العميل أو هاتفه": "🔍 Search by quotation number, customer name or phone",
+  "رقم العرض": "Quotation no.",
+  "🧾 فاتورة": "🧾 Invoice",
+  "تحويل إلى فاتورة": "Convert to invoice",
+  "لا توجد عروض أسعار — اضغط \"عرض سعر جديد\"": "No quotations — click \"New quotation\"",
+  "⚙️ تفعيل عروض الأسعار": "⚙️ Enable quotations",
+  "رقم عرض السعر": "Quotation no.",
+  "عرض سعر": "Quotation",
+  "هذا العرض ساري حتى": "This quotation is valid until",
+  "الأسعار قابلة للتغيير بعد انتهاء مدة العرض": "Prices may change after the quotation expires",
+  "عرض سعر رقم": "Quotation no.",
+  "إرسال عرض السعر واتساب": "Send quotation on WhatsApp",
+  "ساري حتى:": "Valid until:",
+  "✏️ تعديل المصروف": "✏️ Edit expense",
+  "مصروف يومي": "Daily expense",
+  "مصروف ثابت": "Fixed expense",
+  "نوع المصروف الثابت": "Fixed expense type",
+  "البيان (اختياري)": "Description (optional)",
+  "البيان *": "Description *",
+  "التاريخ *": "Date *",
+  "تاريخ غير صحيح": "Invalid date",
+  "أدخل البيان": "Enter the description",
+  "تم تعديل المصروف": "Expense updated",
+  "✏️ تعديل فاتورة المورد": "✏️ Edit supplier invoice",
+  "المدفوع على هذه الفاتورة:": "Paid on this invoice:",
+  "— المتبقي يُحسب تلقائياً.": "— the remaining amount is calculated automatically.",
+  "📝 ملاحظات": "📝 Notes",
+  "اختياري — مثال: 8 إطارات ميشلان 205/55R16، أو شروط الدفع": "Optional — e.g. 8 Michelin 205/55R16 tires, or payment terms",
+  "🧾 رقم الإيصال / المرجع": "🧾 Receipt / reference no.",
+  "رقم إيصال التحويل أو عملية الفيزا": "Transfer receipt or Visa transaction number",
+  "رقم الإيصال": "Receipt no.",
+  "⚠️ بعض الحقول لم تُحفظ لأن قاعدة البيانات تحتاج تحديث — شغّل ملف v2_25_setup.sql مرة واحدة": "⚠️ Some fields weren't saved because the database needs an update — run v2_25_setup.sql once",
   "⚠️ مكررة؟": "⚠️ Duplicate?",
   "⚠️ مكررة": "⚠️ Duplicate",
   "فاتورة محذوفة": "Deleted invoice",
@@ -3032,6 +3117,7 @@ const ICONS = {
   tires: '🛞',
   accessories: '🧩',
   bankDeposits: '🏦',
+  quotations: '📝',
   otherExpenses: '📦',
   services: '🔧',
   customers: '👥',
@@ -3152,6 +3238,16 @@ const FIELD_MAP = {
     discount_percent: 'discountPercent',
     discount_total: 'discountTotal'
   },
+  quotations: {
+    quote_number: 'quoteNumber',
+    customer_name: 'customerName',
+    customer_phone: 'customerPhone',
+    discount_amount: 'discountAmount',
+    discount_percent: 'discountPercent',
+    valid_until: 'validUntil',
+    converted_invoice: 'convertedInvoice',
+    created_by: 'createdBy',
+  },
   suppliers: {},
   supplier_invoices: {
     supplier_id: 'supplierId',
@@ -3165,6 +3261,7 @@ const FIELD_MAP = {
     supplier_invoice_id: 'supplierInvoiceId',
     payment_amount: 'paymentAmount',
     payment_date: 'paymentDate',
+    receipt_number: 'receiptNumber',
     payment_method: 'paymentMethod'
   },
   expenses: {
@@ -3236,6 +3333,7 @@ class TireShopApp {
     // Database collections
     this.tires = [];
     this.accessories = [];
+    this.quotations = [];
     this.bankDeposits = [];
     this.services = [];
     this.customers = [];
@@ -3306,6 +3404,11 @@ class TireShopApp {
   // صفحة معالج البيع: المدير داخل صفحة الفواتير، والموظف في صفحة "عملية بيع جديدة"
   saleView() {
     return this.isManager() ? 'sales' : 'newSale';
+  }
+
+  // صفحة المعالج الحالية: عرض السعر له صفحته
+  wizView() {
+    return this.saleWizard && this.saleWizard.mode === 'quote' ? 'quotations' : this.saleView();
   }
 
   // الخصم للمدير فقط
@@ -4300,7 +4403,7 @@ class TireShopApp {
     try {
       const tables = [
         'tires', 'services', 'customers', 'appointments', 'sales',
-        'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses', 'accessories', 'bank_deposits'
+        'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses', 'accessories', 'bank_deposits', 'quotations'
       ];
 
       // تحميل جميع الجداول بالتوازي بدلاً من التسلسل
@@ -4326,6 +4429,7 @@ class TireShopApp {
         
         if (table === 'accessories') this.accessoriesMissing = !!error;
         if (table === 'bank_deposits') this.bankDepositsMissing = !!error;
+        if (table === 'quotations') this.quotationsMissing = !!error;
         if (error) {
           console.error(`Error loading ${table}:`, error);
           return;
@@ -4341,6 +4445,7 @@ class TireShopApp {
         
         // المبيعات مرتبة بتاريخ الفاتورة (الأحدث أولاً) — مهم للفواتير السابقة المضافة لاحقاً
         if (table === 'sales') mapped.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+        if (table === 'quotations') mapped.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         if (table === 'supplier_invoices') mapped.sort((a, b) => String(b.invoiceDate || b.createdAt || '').localeCompare(String(a.invoiceDate || a.createdAt || '')));
         if (table === 'supplier_payments') mapped.sort((a, b) => String(b.paymentDate || b.createdAt || '').localeCompare(String(a.paymentDate || a.createdAt || '')));
         if (table === 'expenses') mapped.sort((a, b) => String(b.expenseDate || b.createdAt || '').localeCompare(String(a.expenseDate || a.createdAt || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
@@ -4578,7 +4683,7 @@ class TireShopApp {
     let v;
     if (/^\+\d*\.?\d+$/.test(raw)) v = (parseFloat(line.unitPrice) || 0) + parseFloat(raw.slice(1));
     else if (/^\d*\.?\d+$/.test(raw)) v = parseFloat(raw);
-    else { showToast('اكتب السعر (مثال 35) أو الزيادة (مثال +5)', 'warning'); this.switchView(this.saleView()); return; }
+    else { showToast('اكتب السعر (مثال 35) أو الزيادة (مثال +5)', 'warning'); this.switchView(this.wizView()); return; }
     v = Math.round(v * 1000) / 1000;
     const min = this.isManager() ? 0 : (line.basePrice ?? 0);
     if (v < min) {
@@ -4590,14 +4695,14 @@ class TireShopApp {
         showToast(`${diff > 0 ? 'زيادة' : 'تخفيض'} ${fmtMoney(Math.abs(diff))} على ${line.description}`, 'success');
       }
     }
-    this.switchView(this.saleView());
+    this.switchView(this.wizView());
   }
 
   resetCartPrice(key) {
     const line = this.saleWizard.cart.find(l => l.key === key);
     if (!line || line.basePrice == null) return;
     line.unitPrice = line.basePrice;
-    this.switchView(this.saleView());
+    this.switchView(this.wizView());
   }
 
   startEditSale(saleId) {
@@ -4670,17 +4775,18 @@ class TireShopApp {
       invoiceDate: localYMD(sale.createdAt) || localYMD(),
       originalCreatedAt: sale.createdAt || null,
     };
-    this.switchView(this.saleView());
+    this.switchView(this.wizView());
   }
 
   startNewSale() {
     this.saleWizard = { ...this.emptySaleWizard(), active: true };
-    this.switchView(this.saleView());
+    this.switchView(this.wizView());
   }
 
   cancelSale() {
+    const view = this.wizView();
     this.saleWizard = this.emptySaleWizard();
-    this.switchView(this.saleView());
+    this.switchView(view);
   }
 
   // التحقق من تقسيم الدفع: يرجع رسالة الخطأ أو null
@@ -4702,14 +4808,14 @@ class TireShopApp {
     }
     if (this.saleWizard.step < 3) {
       this.saleWizard.step++;
-      this.switchView(this.saleView());
+      this.switchView(this.wizView());
     }
   }
 
   prevWizardStep() {
     if (this.saleWizard.step > 1) {
       this.saleWizard.step--;
-      this.switchView(this.saleView());
+      this.switchView(this.wizView());
     }
   }
 
@@ -4760,7 +4866,7 @@ class TireShopApp {
         cart.push({ key, type, refId, description: service.name, unitPrice: price, basePrice: price, unitCost: 0, quantity: 1 });
       }
     }
-    this.switchView(this.saleView());
+    this.switchView(this.wizView());
   }
 
   changeCartQty(key, delta) {
@@ -4780,12 +4886,12 @@ class TireShopApp {
       }
       line.quantity = next;
     }
-    this.switchView(this.saleView());
+    this.switchView(this.wizView());
   }
 
   removeFromCart(key) {
     this.saleWizard.cart = this.saleWizard.cart.filter(l => l.key !== key);
-    this.switchView(this.saleView());
+    this.switchView(this.wizView());
   }
 
   discountLabel() {
@@ -4841,7 +4947,7 @@ class TireShopApp {
     let msg = `🏪 *${SHOP.name}*\n`;
     msg += `السجل التجاري: ${SHOP.cr}\n`;
     if (SHOP.address) msg += `📍 ${SHOP.address}\n`;
-    msg += `📋 *فاتورة رقم:* ${d.invoiceNumber}\n`;
+    msg += d.isQuote ? `📝 *عرض سعر رقم:* ${d.invoiceNumber}\n` : `📋 *فاتورة رقم:* ${d.invoiceNumber}\n`;
     msg += `التاريخ: ${fmtDate(d.date)}\n`;
     msg += `*العميل:* ${d.customerName || '-'}\n\n*التفاصيل:*\n`;
     d.items.forEach(i => {
@@ -5073,9 +5179,12 @@ class TireShopApp {
 
       showToast(editingId ? 'تم تعديل الفاتورة' : `${t('invoiceCreated')} — ${invoiceNumber}${isBackdated ? ' (' + fmtDate(createdAt) + ')' : ''}`, 'success');
       this.lastSavedInvoiceNumber = invoiceNumber;
+      if (w.fromQuoteId) {
+        await this.updateRecord('quotations', w.fromQuoteId, { status: 'converted', converted_invoice: invoiceNumber });
+      }
       if (!this.isManager()) this.lastSaleNumber = invoiceNumber;
       this.saleWizard = this.emptySaleWizard();
-      this.switchView(this.saleView());
+      this.switchView(this.wizView());
       return true;
     } finally {
       this.isSavingSale = false;
@@ -5517,7 +5626,7 @@ class TireShopApp {
   }
 
   renderSalesView() {
-    if (this.saleWizard && this.saleWizard.active) {
+    if (this.saleWizard && this.saleWizard.active && this.saleWizard.mode !== 'quote') {
       return this.renderSalesWizardView();
     }
     const filteredSales = this.filterByDate(this.sales, 'createdAt');
@@ -5949,7 +6058,7 @@ class TireShopApp {
         </div>
       `;
     }
-    if (!this.saleWizard || !this.saleWizard.active) {
+    if (!this.saleWizard || !this.saleWizard.active || this.saleWizard.mode === 'quote') {
       this.saleWizard = { ...this.emptySaleWizard(), active: true };
     }
     return this.renderSalesWizardView();
@@ -5968,13 +6077,17 @@ class TireShopApp {
   }
 
   renderSalesWizardView() {
-    if (this.saleWizard.step === 2) return this.renderWizardStep2();
-    if (this.saleWizard.step === 3) return this.renderWizardStep3();
-    return this.renderWizardStep1();
+    const w = this.saleWizard;
+    const banner = w.mode === 'quote'
+      ? `<div class="quote-banner">📝 ${w.editingQuoteId ? 'تعديل عرض السعر' : 'عرض سعر جديد'}${w.editingQuoteNumber ? ` <b class="num">${esc(w.editingQuoteNumber)}</b>` : ''} — لا يُخصم شيء من المخزون ولا يُسجَّل كمبيعات</div>`
+      : (w.fromQuoteNumber ? `<div class="quote-banner conv">🧾 تحويل عرض السعر <b class="num">${esc(w.fromQuoteNumber)}</b> إلى فاتورة — راجع الأصناف والأسعار ثم أكمل</div>` : '');
+    if (w.step === 2) return banner + this.renderWizardStep2();
+    if (w.step === 3) return banner + this.renderWizardStep3();
+    return banner + this.renderWizardStep1();
   }
 
   wizardProgress(step) {
-    const labels = ['الأصناف', 'الدفع', 'العميل'];
+    const labels = this.saleWizard.mode === 'quote' ? ['الأصناف', 'الضمان والخصم', 'العميل'] : ['الأصناف', 'الدفع', 'العميل'];
     const w = this.saleWizard;
     return `
       ${w.editingSaleId ? `<div class="wz-edit-banner">✏️ تعديل الفاتورة رقم <b class="num">${esc(w.editingInvoiceNumber || '')}</b></div>` : ''}
@@ -6115,7 +6228,7 @@ class TireShopApp {
         ${this.wizardProgress(2)}
         <div class="wz-layout">
           <div class="card">
-            <div class="card-head"><h3>الضمان والدفع</h3></div>
+            <div class="card-head"><h3>${w.mode === 'quote' ? 'الضمان' : 'الضمان والدفع'}</h3></div>
 
             <h4 style="margin: 16px 0 10px; font-weight: 700;">الضمان:</h4>
             <div class="warranty-grid">
@@ -6127,7 +6240,7 @@ class TireShopApp {
             </div>
 
             <div class="grid-2" style="margin-top: 20px;">
-              <div class="form-group">
+              <div class="form-group" ${w.mode === 'quote' ? 'style="display: none;"' : ''}>
                 <label>طريقة الدفع</label>
                 <select id="paymentMethodSelect">
                   ${['cash', 'card', 'check', 'transfer', 'split'].map(k => `<option value="${k}" ${w.paymentMethod === k ? 'selected' : ''}>${k === 'split' ? '➗ ' : ''}${t(k)}</option>`).join('')}
@@ -6214,18 +6327,37 @@ ${this.canDiscount() ? `
               <label>${t('customerPhone')} *</label>
               <input type="tel" id="customerPhoneInput" value="${esc(w.customerPhone)}" placeholder="9xxxxxxx">
             </div>
+            ${w.mode === 'quote' ? `
+              <div class="form-row">
+                <div class="form-group">
+                  <label>⏳ العرض ساري لمدة</label>
+                  <select id="quoteValidSelect">
+                    ${[3, 7, 15, 30].map(d => `<option value="${d}" ${(w.quoteValidDays || 7) == d ? 'selected' : ''}>${d} أيام</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>📝 ملاحظات على العرض</label>
+                <textarea id="quoteNotesInput" style="min-height: 56px;" placeholder="اختياري — مثال: السعر يشمل التركيب والترصيص">${esc(w.quoteNotes || '')}</textarea>
+              </div>
+              <div class="summary-box">
+                <div class="summary-row"><span>الضمان:</span><span>${t(w.warranty)}</span></div>
+              </div>` : `
             ${this.isManager() ? this.renderInvoiceDateBox() : ''}
             <div class="summary-box">
               <div class="summary-row"><span>الضمان:</span><span>${t(w.warranty)}</span></div>
               <div class="summary-row"><span>طريقة الدفع:</span><span>${w.paymentMethod === 'split' ? esc(paymentText(encodeSplit(w.paySplit))) : t(w.paymentMethod)}</span></div>
-            </div>
+            </div>`}
           </div>
           ${this.renderCartPanel(false)}
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" id="prevStep3Btn">→ رجوع</button>
+          ${w.mode === 'quote' ? `
+          <button class="btn btn-blue" id="saveQuoteBtn" style="flex: 1;">${icon('save')} ${w.editingQuoteId ? 'حفظ تعديلات العرض' : 'حفظ عرض السعر'}</button>
+          <button class="btn btn-green" id="saveQuoteWaBtn" style="flex: 1;">${icon('whatsapp')} حفظ وإرسال واتساب</button>` : `
           <button class="btn btn-blue" id="saveInvoiceBtn" style="flex: 1;">${icon('save')} ${w.editingSaleId ? 'حفظ التعديلات' : t('saveSale')}</button>
-          <button class="btn btn-green" id="sendWhatsappBtn" style="flex: 1;">${icon('whatsapp')} حفظ وإرسال واتساب</button>
+          <button class="btn btn-green" id="sendWhatsappBtn" style="flex: 1;">${icon('whatsapp')} حفظ وإرسال واتساب</button>`}
         </div>
       </div>
     `;
@@ -6256,6 +6388,7 @@ ${this.canDiscount() ? `
       ['accessories', 'الإكسسوارات', 'accessories'],
       ['appointments', t('appointments'), 'appointments'],
       ['sales', t('sales'), 'sales'],
+      ['quotations', 'عروض الأسعار', 'quotations'],
       ['reports', t('reports'), 'reports'],
       ['fixedExpenses', `💰 ${t('fixedExpenses')}`, 'fixedExpenses'],
       ['dailyExpenses', `💸 ${t('dailyExpenses')}`, 'dailyExpenses'],
@@ -6348,6 +6481,7 @@ ${this.canDiscount() ? `
       customers: t('customers'),
       appointments: t('appointments'),
       sales: t('sales'),
+      quotations: '📝 عروض الأسعار (Quotation)',
       reports: t('reports'),
       fixedExpenses: `💰 ${t('fixedExpenses')}`,
       dailyExpenses: `💸 ${t('dailyExpenses')}`,
@@ -6376,6 +6510,7 @@ ${this.canDiscount() ? `
       appointments: () => this.renderAppointmentsView(),
       reports: () => this.renderReportsView(),
       fixedExpenses: () => this.renderFixedExpensesView(),
+      quotations: () => this.renderQuotationsView(),
       dailyExpenses: () => this.renderDailyExpensesView(),
       otherExpenses: () => this.renderDailyExpensesView('other'),
       bankDeposits: () => this.renderBankDepositsView(),
@@ -6582,7 +6717,7 @@ ${this.canDiscount() ? `
       <html lang="ar" dir="rtl">
       <head>
         <meta charset="UTF-8">
-        <title>فاتورة - ${sale.invoiceNumber}</title>
+        <title>${sale.isQuote ? 'عرض سعر' : 'فاتورة'} - ${sale.invoiceNumber}</title>
         <style>
           * { margin: 0; padding: 0; }
           body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
@@ -6607,6 +6742,9 @@ ${this.canDiscount() ? `
           .sign-area img { max-height: 80px; max-width: 220px; }
           .sign-line { border-top: 1px solid #333; margin-top: 4px; }
           .invoice-number { margin-top: 8px; font-size: 16px; font-weight: bold; }
+          .doc-title { margin-top: 10px; font-size: 22px; font-weight: bold; letter-spacing: .5px; }
+          .doc-title span { font-size: 14px; color: #666; margin-inline-start: 6px; }
+          .quote-notes { margin-top: 14px; border: 1px solid #ddd; border-radius: 6px; padding: 10px 14px; font-size: 14px; }
           .warranty-box { margin-top: 20px; border: 2px dashed #333; padding: 12px; text-align: center; }
           .warranty-box b { font-size: 16px; }
           .contact { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin-top: 10px; color: #333; font-size: 14px; direction: rtl; }
@@ -6629,7 +6767,8 @@ ${this.canDiscount() ? `
             <div class="shop-info">${esc(SHOP.name)}</div>
             <div class="shop-cr">رقم السجل التجاري: ${esc(SHOP.cr)}</div>
             ${SHOP.address ? `<div class="shop-addr">📍 ${esc(SHOP.address)}</div>` : ''}
-            <div class="invoice-number">رقم الفاتورة: ${esc(sale.invoiceNumber)}</div>
+            ${sale.isQuote ? `<div class="doc-title">عرض سعر <span>QUOTATION</span></div>` : ''}
+            <div class="invoice-number">${sale.isQuote ? 'رقم عرض السعر' : 'رقم الفاتورة'}: ${esc(sale.invoiceNumber)}</div>
           </div>
           
           <div class="details">
@@ -6639,6 +6778,7 @@ ${this.canDiscount() ? `
             </div>
             <div class="details-box">
               <label>التاريخ:</label> ${fmtDate(sale.createdAt)}<br>
+              ${sale.isQuote && sale.validUntil ? `<label>ساري حتى:</label> ${fmtDate(sale.validUntil)}<br>` : ''}
               <label>المبلغ الإجمالي:</label> ${fmtMoney(sale.total || 0)}<br>
             </div>
           </div>
@@ -6673,7 +6813,13 @@ ${this.canDiscount() ? `
             </tbody>
           </table>
 
-          ${warrantyEnd ? `
+          ${sale.isQuote ? `
+          ${sale.notes ? `<div class="quote-notes">📝 ${esc(sale.notes)}</div>` : ''}
+          <div class="warranty-box">
+            ⏳ <b>هذا العرض ساري حتى ${fmtDate(sale.validUntil)}</b><br>
+            ${sale.warranty && sale.warranty !== 'noWarranty' ? `🛡️ الضمان: ${t(sale.warranty)} من تاريخ الشراء` : 'الأسعار قابلة للتغيير بعد انتهاء مدة العرض'}
+          </div>
+          ${sale.warranty && sale.warranty !== 'noWarranty' ? this.policyHtml() : ''}` : warrantyEnd ? `
           <div class="warranty-box">
             🛡️ <b>${t(sale.warranty)}</b><br>
             ساري من ${fmtDate(sale.createdAt)} حتى ${fmtDate(warrantyEnd)}
@@ -6715,7 +6861,7 @@ ${this.canDiscount() ? `
       invoiceNumber: sale.invoiceNumber, date: sale.createdAt, customerName: sale.customerName, items,
       subtotal: parseFloat(sale.subtotal) || (parseFloat(sale.total) || 0) + discount,
       discount, discountLabel: pct > 0 ? `الخصم (${+pct.toFixed(2)}%)` : 'الخصم',
-      total: parseFloat(sale.total) || 0, warranty: sale.warranty, paymentMethod: sale.paymentMethod,
+      total: parseFloat(sale.total) || 0, warranty: sale.warranty, paymentMethod: sale.paymentMethod, isQuote: sale.isQuote,
     });
 
     const encodedMessage = encodeURIComponent(message);
@@ -6784,7 +6930,8 @@ ${this.canDiscount() ? `
       wrap(`📍 ${T(SHOP.address)}`, W - 2 * P, 14, false).forEach(l => { text(l, W / 2, y, { size: 14, color: C.soft, align: 'center' }); y += 22; });
       y += 4;
     }
-    text(`${T('رقم الفاتورة')}: ${sale.invoiceNumber || '-'}`, W / 2, y, { size: 18, bold: true, align: 'center' }); y += 26;
+    if (sale.isQuote) { text(en ? 'QUOTATION' : 'عرض سعر — QUOTATION', W / 2, y + 4, { size: 22, bold: true, align: 'center' }); y += 34; }
+    text(`${T(sale.isQuote ? 'رقم عرض السعر' : 'رقم الفاتورة')}: ${sale.invoiceNumber || '-'}`, W / 2, y, { size: 18, bold: true, align: 'center' }); y += 26;
     line(y, C.ink, 2); y += 30;
 
     // بيانات العميل
@@ -6792,7 +6939,7 @@ ${this.canDiscount() ? `
     const col2 = en ? P + half : W - P - half;
     const info = [
       [[T('العميل'), sale.customerName || '-'], [T('التاريخ'), fmtDate(sale.createdAt)]],
-      [[T('الهاتف'), sale.customerPhone || '-'], [T('طريقة الدفع'), paymentText(sale.paymentMethod)]],
+      [[T('الهاتف'), sale.customerPhone || '-'], sale.isQuote ? [T('ساري حتى'), sale.validUntil ? fmtDate(sale.validUntil) : '-'] : [T('طريقة الدفع'), paymentText(sale.paymentMethod)]],
     ];
     info.forEach(row => {
       row.forEach(([k, v], i) => text(`${k}: ${v}`, i === 0 ? start : col2, y, { size: 16, color: C.ink }));
@@ -6847,8 +6994,24 @@ ${this.canDiscount() ? `
     text(`${fmtMoney(total)} ${T('ر.ع')}`, en ? W - P - 16 : P + 16, y + 27, { size: 24, bold: true, align: 'end' });
     y += 54 + 26;
 
+    // عرض السعر: ملاحظات + مدة الصلاحية
+    if (sale.isQuote) {
+      if (sale.notes) {
+        const lines = wrap(`📝 ${sale.notes}`, tableW - 32, 15, false);
+        const h = lines.length * 22 + 20;
+        ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(P, y, tableW, h);
+        lines.forEach((l, i) => text(l, start + (en ? 16 : -16), y + 20 + i * 22, { size: 15 }));
+        y += h + 14;
+      }
+      ctx.setLineDash([8, 6]); ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
+      ctx.strokeRect(P, y, tableW, 74); ctx.setLineDash([]);
+      text(`⏳ ${T('هذا العرض ساري حتى')} ${fmtDate(sale.validUntil)}`, W / 2, y + 24, { size: 17, bold: true, align: 'center' });
+      text(sale.warranty && sale.warranty !== 'noWarranty' ? `🛡️ ${T('الضمان')}: ${t(sale.warranty)}` : T('الأسعار قابلة للتغيير بعد انتهاء مدة العرض'), W / 2, y + 52, { size: 15, color: C.soft, align: 'center' });
+      y += 74 + 22;
+    }
+
     // الضمان
-    const wEnd = warrantyEndDate(sale.createdAt, sale.warranty);
+    const wEnd = sale.isQuote ? null : warrantyEndDate(sale.createdAt, sale.warranty);
     if (wEnd) {
       ctx.setLineDash([8, 6]); ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
       ctx.strokeRect(P, y, tableW, 74); ctx.setLineDash([]);
@@ -6934,17 +7097,17 @@ ${this.canDiscount() ? `
       showToast('تعذّر إنشاء صورة الفاتورة — سيتم الإرسال كنص', 'warning');
       return this.sendInvoiceText(sale, phone);
     }
-    const fileName = `invoice-${String(sale.invoiceNumber || 'INV').replace(/[^\w-]/g, '')}.png`;
+    const fileName = `${sale.isQuote ? 'quotation' : 'invoice'}-${String(sale.invoiceNumber || 'INV').replace(/[^\w-]/g, '')}.png`;
     const file = new File([img.blob], fileName, { type: 'image/png' });
     const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
     const cleanPhone = this.normalizePhone(phone);
-    const caption = `${tr('فاتورة رقم')} ${sale.invoiceNumber} — ${isEn() ? (SHOP.nameEn || SHOP.name) : SHOP.name}`;
+    const caption = `${tr(sale.isQuote ? 'عرض سعر رقم' : 'فاتورة رقم')} ${sale.invoiceNumber} — ${isEn() ? (SHOP.nameEn || SHOP.name) : SHOP.name}`;
 
     const overlay = document.getElementById('modalOverlay');
     const box = document.getElementById('modalBox');
     box.innerHTML = `
       <div class="modal-head">
-        <h3>📱 إرسال الفاتورة واتساب</h3>
+        <h3>📱 ${sale.isQuote ? 'إرسال عرض السعر واتساب' : 'إرسال الفاتورة واتساب'}</h3>
         <button class="modal-close" id="invImgClose">✕</button>
       </div>
       <div class="inv-img-preview"><img src="${img.dataUrl}" alt=""></div>
@@ -7035,6 +7198,7 @@ ${this.canDiscount() ? `
         <label>طريقة الدفع *</label>
         ${paymentMethodPicker('quickPayMethod')}
       </div>
+      ${receiptField('quickPayReceipt', 'quickPayMethod')}
       <div class="form-group">
         <label>📅 تاريخ الدفع *</label>
         <input type="date" id="quickPaymentDate" value="${localYMD()}" max="${localYMD()}">
@@ -7081,7 +7245,7 @@ ${this.canDiscount() ? `
       if (qDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الدفع في المستقبل', 'warning'); return; }
       if (!this.confirmNotDuplicatePayment(invoice, amount, qDate)) return;
       e.currentTarget.disabled = true;
-      const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('quickPayMethod'), document.getElementById('quickPaymentNotes').value, qDate);
+      const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('quickPayMethod'), document.getElementById('quickPaymentNotes').value, qDate, document.getElementById('quickPayReceipt')?.value);
       if (!ok) { e.currentTarget.disabled = false; return; }
       overlay.classList.remove('active');
       this.switchView('supplierPayments');
@@ -7089,9 +7253,10 @@ ${this.canDiscount() ? `
   }
 
   // حفظ دفعة مورد + تحديث رصيد فاتورة المورد (فقط إذا نجح حفظ الدفعة)
-  async saveSupplierPayment(invoice, amount, method, notes, payDate) {
+  async saveSupplierPayment(invoice, amount, method, notes, payDate, receipt) {
     const methodTag = `[طريقة الدفع: ${SUPPLIER_PAY_METHODS[method]}]`;
-    const cleanNotes = (notes || '').trim();
+    receipt = (method === 'card' || method === 'transfer') ? String(receipt || '').trim().replace(/[\[\]]/g, '') : '';
+    const cleanNotes = ((notes || '').trim() + (receipt ? ` [إيصال: ${receipt}]` : '')).trim();
     const colMissing = this.missingPayMethodCol === true;
     const row = {
       supplier_invoice_id: invoice.id,
@@ -7100,6 +7265,7 @@ ${this.canDiscount() ? `
       notes: colMissing ? (methodTag + ' ' + cleanNotes).trim() : cleanNotes,
     };
     if (!colMissing) row.payment_method = method;
+    if (receipt) row.receipt_number = receipt;
 
     const ok = await this.addRecord('supplier_payments', row);
     if (ok === false) return false;
@@ -7125,6 +7291,17 @@ ${this.canDiscount() ? `
   }
 
   bindPayMethodPickers() {
+    // حقل رقم الإيصال يظهر مع الفيزا والتحويل
+    const syncReceipt = () => document.querySelectorAll('[data-receipt-for]').forEach(f => {
+      const m = readPaymentMethod(f.dataset.receiptFor);
+      f.style.display = (m === 'card' || m === 'transfer') ? '' : 'none';
+    });
+    document.querySelectorAll('[data-receipt-for]').forEach(f => {
+      document.querySelectorAll(`input[name="${f.dataset.receiptFor}"]`).forEach(r => {
+        if (!r.dataset.rcBound) { r.dataset.rcBound = '1'; r.addEventListener('change', syncReceipt); }
+      });
+    });
+    syncReceipt();
     document.querySelectorAll('.pay-methods').forEach(group => {
       group.querySelectorAll('input[type="radio"]').forEach(r => r.addEventListener('change', () => {
         group.querySelectorAll('.pay-method').forEach(l => l.classList.toggle('active', l.querySelector('input').checked));
@@ -7528,6 +7705,10 @@ ${this.canDiscount() ? `
             this.deleteRecord('suppliers', id).then(() => this.switchView('suppliers'));
           }
         }
+        const editExp = e.target.closest('[data-edit-expense]');
+        if (editExp) this.editExpense(editExp.dataset.editExpense);
+        const editInv = e.target.closest('[data-edit-supinv]');
+        if (editInv) this.editSupplierInvoice(editInv.dataset.editSupinv);
         const delInv = e.target.closest('[data-delete-invoice]');
         if (delInv) {
           this.deleteSupplierInvoice(delInv.dataset.deleteInvoice).then(() => this.switchView('supplierInvoices'));
@@ -7569,7 +7750,7 @@ ${this.canDiscount() ? `
         if (e.target.matches('[data-delete-sale]')) {
           const id = e.target.dataset.deleteSale;
           if (confirm('حذف الفاتورة؟ هذا الإجراء غير قابل للتراجع')) {
-            this.deleteRecord('sales', id).then(() => this.switchView(this.saleView()));
+            this.deleteRecord('sales', id).then(() => this.switchView(this.wizView()));
           }
         }
 
@@ -7633,7 +7814,8 @@ ${this.canDiscount() ? `
     });
 
     if (view === 'dashboard') this.bindDashboardEvents();
-    if (view === 'sales' || view === 'newSale') this.bindSalesWizardEvents();
+    if (view === 'sales' || view === 'newSale' || view === 'quotations') this.bindSalesWizardEvents();
+    if (view === 'quotations') this.bindQuotationsEvents();
     if (view === 'reports') this.bindReportsEvents();
     if (view === 'hr') this.bindHREvents();
     if (view === 'myHR') this.bindMyHREvents();
@@ -7641,7 +7823,7 @@ ${this.canDiscount() ? `
     if (view === 'shopSettings') this.bindShopSettingsEvents();
     if (view === 'services') this.bindServicesEvents();
     if (view === 'customers') this.bindCustomersEvents();
-    if (view === 'sales' && !(this.saleWizard && this.saleWizard.active)) {
+    if (view === 'sales' && !(this.saleWizard && this.saleWizard.active && this.saleWizard.mode !== 'quote')) {
       const box = document.getElementById('saleSearch');
       box?.addEventListener('input', () => { this.saleQuery = box.value; this.applySaleSearch(); });
       if (this.saleQuery) this.applySaleSearch();
@@ -7919,7 +8101,8 @@ ${this.canDiscount() ? `
           total_amount: totalAmount,
           paid_amount: 0,
           remaining_amount: totalAmount,
-          invoice_date: ymdToISO(supInvDate)
+          invoice_date: ymdToISO(supInvDate),
+          notes: document.getElementById('supInvNotes')?.value.trim() || null
         };
 
         if (this.invoiceImage) {
@@ -7930,13 +8113,14 @@ ${this.canDiscount() ? `
         this.addRecord('supplier_invoices', recordData).then(async (ok) => {
           addBtn.disabled = false;
           if (ok === false) return;
+          if (recordData.notes && (this.lastDropped || []).includes('notes')) this.warnMissingColumns();
           if (paidAmount > 0) {
             const created = this.supplierInvoices
               .filter(i => (i.supplierId || i.supplier_id) === supplierId && (i.invoiceNumber || i.invoice_number) === invoiceNumber)
               .sort((a, b) => String(b.createdAt || b.invoiceDate || '').localeCompare(String(a.createdAt || a.invoiceDate || '')))[0];
             if (created) {
               if (!created.totalAmount && created.total_amount) created.totalAmount = created.total_amount;
-              await this.saveSupplierPayment(created, paidAmount, payMethod, 'دفعة عند تسجيل الفاتورة', paidDate);
+              await this.saveSupplierPayment(created, paidAmount, payMethod, 'دفعة عند تسجيل الفاتورة', paidDate, document.getElementById('invPayReceipt')?.value);
             } else {
               showToast('حُفظت الفاتورة — سجّل الدفعة من زر "دفع"', 'warning');
             }
@@ -8022,7 +8206,7 @@ ${this.canDiscount() ? `
         if (payDate > localYMD()) { showToast('لا يمكن أن يكون تاريخ الدفع في المستقبل', 'warning'); return; }
         if (!this.confirmNotDuplicatePayment(invoice, amount, payDate)) return;
         addBtn.disabled = true;
-        const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('payMethod'), notes, payDate);
+        const ok = await this.saveSupplierPayment(invoice, amount, readPaymentMethod('payMethod'), notes, payDate, document.getElementById('payReceipt')?.value);
         addBtn.disabled = false;
         if (!ok) return; // نُبقي البيانات في النموذج
         this.switchView('supplierPayments');
@@ -8116,7 +8300,7 @@ ${this.canDiscount() ? `
       refreshSplit();
       root.querySelectorAll('[data-wz-tab]').forEach(el => el.addEventListener('click', () => {
         w.tab = el.dataset.wzTab;
-        this.switchView(this.saleView());
+        this.switchView(this.wizView());
       }));
 
       // بحث فوري بدون إعادة رسم الصفحة
@@ -8145,7 +8329,7 @@ ${this.canDiscount() ? `
       document.getElementById('paymentMethodSelect')?.addEventListener('change', (e) => {
         const wasSplit = w.paymentMethod === 'split';
         w.paymentMethod = e.target.value;
-        if (wasSplit !== (w.paymentMethod === 'split')) { this.switchView(this.saleView()); return; }
+        if (wasSplit !== (w.paymentMethod === 'split')) { this.switchView(this.wizView()); return; }
       });
       const refreshDiscount = () => {
         const box = document.getElementById('wzCartBox');
@@ -8170,7 +8354,7 @@ ${this.canDiscount() ? `
         if (w.discountType === btn.dataset.discType) return;
         w.discountType = btn.dataset.discType;
         w.discount = 0;
-        this.switchView(this.saleView());
+        this.switchView(this.wizView());
         document.getElementById('discountInput')?.focus();
       }));
       if (document.getElementById('discountInput')) refreshDiscount();
@@ -8197,7 +8381,7 @@ ${this.canDiscount() ? `
           return;
         }
         w.invoiceDate = v || localYMD();
-        this.switchView(this.saleView());   // لإظهار/إخفاء ملاحظة الفاتورة السابقة
+        this.switchView(this.wizView());   // لإظهار/إخفاء ملاحظة الفاتورة السابقة
       });
       document.getElementById('manualNumberInput')?.addEventListener('input', (e) => { w.manualNumber = e.target.value; });
       document.getElementById('deductStockInput')?.addEventListener('change', (e) => { w.deductStock = e.target.checked; });
@@ -8215,6 +8399,15 @@ ${this.canDiscount() ? `
       document.getElementById('sendWhatsappBtn')?.addEventListener('click', () => {
         if (checkCustomer()) this.sendWhatsApp();
       });
+      // عرض السعر: رقم الهاتف اختياري
+      document.getElementById('quoteValidSelect')?.addEventListener('change', (e) => { w.quoteValidDays = parseInt(e.target.value, 10) || 7; });
+      document.getElementById('quoteNotesInput')?.addEventListener('input', (e) => { w.quoteNotes = e.target.value; });
+      const quoteCheck = () => {
+        if (!w.customerName.trim()) { showToast('أدخل اسم العميل', 'warning'); return false; }
+        return true;
+      };
+      document.getElementById('saveQuoteBtn')?.addEventListener('click', (e) => { if (quoteCheck()) { e.currentTarget.disabled = true; this.saveQuote(false); } });
+      document.getElementById('saveQuoteWaBtn')?.addEventListener('click', (e) => { if (quoteCheck()) { e.currentTarget.disabled = true; this.saveQuote(true); } });
       document.getElementById('prevStep3Btn')?.addEventListener('click', () => this.prevWizardStep());
     }
 
@@ -8232,7 +8425,7 @@ ${this.canDiscount() ? `
           this.currentSalesPeriod = period;
           this.currentCustomFromDate = null;
           this.currentCustomToDate = null;
-          this.switchView(this.saleView());
+          this.switchView(this.wizView());
         }
       });
     });
@@ -8249,8 +8442,226 @@ ${this.canDiscount() ? `
       this.currentSalesPeriod = 'custom';
       this.currentCustomFromDate = fromInput;
       this.currentCustomToDate = toInput;
-      this.switchView(this.saleView());
+      this.switchView(this.wizView());
     });
+  }
+
+  // =====================================================================
+  // عروض الأسعار (Quotation)
+  // =====================================================================
+  nextQuoteNumber() {
+    let max = 0;
+    (this.quotations || []).forEach(q => { const m = /^Q-(\d{1,7})$/.exec(String(q.quoteNumber || '')); if (m) max = Math.max(max, parseInt(m[1], 10)); });
+    return 'Q-' + String(max + 1).padStart(4, '0');
+  }
+
+  startNewQuote() {
+    this.saleWizard = { ...this.emptySaleWizard(), active: true, mode: 'quote', quoteValidDays: 7, quoteNotes: '' };
+    this.switchView('quotations');
+  }
+
+  quoteItems(q) {
+    let items = q.items;
+    if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = []; } }
+    return Array.isArray(items) ? items : [];
+  }
+
+  // تحويل بيانات العرض إلى سلة المعالج
+  quoteToCart(q) {
+    return this.quoteItems(q).map((i, idx) => {
+      const type = ['tire', 'service', 'accessory'].includes(i.type) ? i.type : 'custom';
+      const refId = i.refId || ('c' + idx);
+      const list = this.listPrice(type, refId);
+      return {
+        key: type + ':' + refId, type, refId, description: i.description || '-',
+        unitPrice: parseFloat(i.unitPrice) || 0, basePrice: list == null ? null : list,
+        unitCost: i.unitCost != null ? parseFloat(i.unitCost) || 0 : this.currentCost(type, refId),
+        quantity: parseFloat(i.quantity) || 1,
+      };
+    });
+  }
+
+  editQuote(id) {
+    const q = this.quotations.find(x => x.id === id);
+    if (!q) return;
+    const pct = parseFloat(q.discountPercent) || 0;
+    const days = q.validUntil ? Math.max(1, Math.round((new Date(q.validUntil) - new Date(q.createdAt || Date.now())) / 864e5)) : 7;
+    this.saleWizard = {
+      ...this.emptySaleWizard(), active: true, mode: 'quote', step: 1,
+      cart: this.quoteToCart(q), warranty: q.warranty || 'noWarranty',
+      discount: pct > 0 ? pct : (parseFloat(q.discountAmount) || 0), discountType: pct > 0 ? 'percent' : 'amount',
+      customerName: q.customerName || '', customerPhone: q.customerPhone || '',
+      editingQuoteId: q.id, editingQuoteNumber: q.quoteNumber, quoteValidDays: [3, 7, 15, 30].includes(days) ? days : 7, quoteNotes: q.notes || '',
+    };
+    this.switchView('quotations');
+  }
+
+  convertQuote(id) {
+    const q = this.quotations.find(x => x.id === id);
+    if (!q) return;
+    const cart = this.quoteToCart(q);
+    // تنبيه إذا كان المخزون لا يكفي
+    const short = cart.filter(l => (l.type === 'tire' || l.type === 'accessory') && l.quantity > this.availableStock(l.refId, l.type));
+    if (short.length && !confirm(`⚠️ المخزون الحالي لا يكفي لـ: ${short.map(l => l.description).join('، ')}.\nمتابعة التحويل؟`)) return;
+    const pct = parseFloat(q.discountPercent) || 0;
+    this.saleWizard = {
+      ...this.emptySaleWizard(), active: true, step: 1,
+      cart, warranty: q.warranty || 'noWarranty',
+      discount: pct > 0 ? pct : (parseFloat(q.discountAmount) || 0), discountType: pct > 0 ? 'percent' : 'amount',
+      customerName: q.customerName || '', customerPhone: q.customerPhone || '',
+      fromQuoteId: q.id, fromQuoteNumber: q.quoteNumber,
+    };
+    this.switchView(this.saleView());
+  }
+
+  // كائن بشكل الفاتورة للطباعة/الصورة
+  quoteAsDoc(q) {
+    return {
+      isQuote: true, invoiceNumber: q.quoteNumber, customerName: q.customerName, customerPhone: q.customerPhone,
+      createdAt: q.createdAt, items: this.quoteItems(q), subtotal: q.subtotal, discountAmount: q.discountAmount,
+      discountPercent: q.discountPercent, total: q.total, warranty: q.warranty, validUntil: q.validUntil, notes: q.notes,
+    };
+  }
+
+  async saveQuote(sendWa) {
+    const w = this.saleWizard;
+    if (!w.cart.length) { showToast('أضف صنفاً واحداً على الأقل', 'warning'); return; }
+    const { subtotal, discount, percent, total } = this.cartTotals();
+    const days = parseInt(w.quoteValidDays, 10) || 7;
+    const editing = this.quotations.find(q => q.id === w.editingQuoteId);
+    const created = editing?.createdAt ? new Date(editing.createdAt) : new Date();
+    const validUntil = new Date(created.getFullYear(), created.getMonth(), created.getDate() + days, 23, 59).toISOString();
+    const data = {
+      customer_name: w.customerName.trim(),
+      customer_phone: w.customerPhone.trim() || null,
+      items: w.cart.map(l => ({ type: l.type, refId: l.refId, description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, unitCost: l.unitCost ?? null })),
+      subtotal, discount_amount: discount, discount_percent: percent, total,
+      warranty: w.warranty, valid_until: validUntil, notes: (w.quoteNotes || '').trim() || null,
+    };
+    let number, ok;
+    if (editing) {
+      number = editing.quoteNumber;
+      ok = await this.updateRecord('quotations', editing.id, data);
+    } else {
+      number = this.nextQuoteNumber();
+      ok = await this.addRecord('quotations', { ...data, quote_number: number, status: 'open', created_by: this.currentUser?.name || null });
+    }
+    if (ok === false) {
+      if (this.quotationsMissing || /quotations|relation|schema cache/i.test(this.lastAddError || '')) showToast('قسم عروض الأسعار يحتاج تجهيز قاعدة البيانات — افتح صفحة عروض الأسعار', 'error');
+      this.switchView('quotations');
+      return;
+    }
+    showToast(editing ? `تم تعديل عرض السعر ${number}` : `تم حفظ عرض السعر ${number}`, 'success');
+    this.saleWizard = this.emptySaleWizard();
+    this.switchView('quotations');
+    const q = this.quotations.find(x => x.quoteNumber === number);
+    if (sendWa && q) this.sendInvoiceViaWhatsApp(this.quoteAsDoc(q), q.customerPhone || '');
+  }
+
+  quoteStatus(q) {
+    if (q.status === 'converted') return { key: 'converted', html: `<span class="badge badge-success">✅ تحوّل لفاتورة${q.convertedInvoice ? ' ' + esc(q.convertedInvoice) : ''}</span>` };
+    if (q.validUntil && new Date(q.validUntil) < new Date()) return { key: 'expired', html: '<span class="badge badge-danger">⌛ منتهي</span>' };
+    return { key: 'open', html: '<span class="badge badge-info">🕒 ساري</span>' };
+  }
+
+  renderQuotationsView() {
+    const w = this.saleWizard;
+    if (w && w.active && w.mode === 'quote') return this.renderSalesWizardView();
+    if (this.quotationsMissing && this.sb) {
+      if (!this.isManager()) return '<div class="card"><p class="text-center" style="padding: 30px;">قسم عروض الأسعار غير مفعّل بعد. اطلب من المدير تفعيله.</p></div>';
+      return `
+        <div class="card">
+          <div class="card-head"><h3>⚙️ تفعيل عروض الأسعار</h3></div>
+          <p style="margin-bottom: 12px;">هذا القسم يحتاج جدولاً جديداً في Supabase. افتح <b>SQL Editor</b> والصق الأمر التالي ثم اضغط <b>Run</b>، وبعدها أعد تحميل الصفحة. (الأمر يضيف أيضاً ملاحظات فواتير الموردين ورقم إيصال الدفعات.)</p>
+          <pre class="sql-box" dir="ltr">${esc(V225_SQL)}</pre>
+          <button class="btn btn-ghost btn-sm" data-copy-sql="v225">📋 نسخ الأمر</button>
+        </div>`;
+    }
+    const filter = this.quoteFilter || 'all';
+    const q0 = String(this.quoteQuery || '').trim().toLowerCase();
+    const all = this.quotations || [];
+    const counts = { all: all.length, open: 0, expired: 0, converted: 0 };
+    all.forEach(q => counts[this.quoteStatus(q).key]++);
+    const list = all.filter(q => filter === 'all' || this.quoteStatus(q).key === filter)
+      .filter(q => !q0 || [q.quoteNumber, q.customerName, q.customerPhone].join(' ').toLowerCase().includes(q0));
+    const openTotal = all.filter(q => this.quoteStatus(q).key === 'open').reduce((a, q) => a + (parseFloat(q.total) || 0), 0);
+    return `
+      <div class="quote-top">
+        <button class="btn btn-amber" id="newQuoteBtn">➕ عرض سعر جديد</button>
+        <div class="quote-stats">
+          <span>🕒 سارية: <b>${counts.open}</b> (<span class="num">${fmtMoney(openTotal)}</span>)</span>
+          <span>✅ تحولت لفواتير: <b>${counts.converted}</b></span>
+          <span>⌛ منتهية: <b>${counts.expired}</b></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>📝 عروض الأسعار (${list.length})</h3>
+          <div class="seg">
+            ${[['all', 'الكل'], ['open', 'سارية'], ['converted', 'تحولت لفاتورة'], ['expired', 'منتهية']].map(([k, l]) => `<button class="${filter === k ? 'active' : ''}" data-quote-filter="${k}">${l}</button>`).join('')}
+          </div>
+        </div>
+        <div class="tire-search-wrap">
+          <input type="search" id="quoteSearch" class="tire-search" placeholder="🔍 ابحث برقم العرض أو اسم العميل أو هاتفه" value="${esc(this.quoteQuery || '')}">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>رقم العرض</th><th>العميل</th><th>الأصناف</th><th>الإجمالي</th><th>التاريخ</th><th>ساري حتى</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+            <tbody>
+              ${list.map(q => {
+                const st = this.quoteStatus(q);
+                const items = this.quoteItems(q);
+                return `<tr>
+                  <td class="num"><b>${esc(q.quoteNumber || '-')}</b></td>
+                  <td>${esc(q.customerName || '-')}${q.customerPhone ? `<div class="text-xs" dir="ltr" style="color: var(--text-muted); text-align: right;">${esc(q.customerPhone)}</div>` : ''}</td>
+                  <td class="text-xs">${items.slice(0, 3).map(i => `${esc(i.description)} × ${+(+i.quantity).toFixed(2)}`).join('<br>')}${items.length > 3 ? `<br>+${items.length - 3}` : ''}</td>
+                  <td class="num" style="font-weight: 700;">${fmtMoney(parseFloat(q.total) || 0)}</td>
+                  <td>${fmtDate(q.createdAt)}</td>
+                  <td>${q.validUntil ? fmtDate(q.validUntil) : '—'}</td>
+                  <td>${st.html}</td>
+                  <td><div class="action-cell">
+                    <button class="btn btn-xs btn-ghost" data-quote-print="${q.id}" title="طباعة">🖨️</button>
+                    <button class="btn btn-xs btn-green" data-quote-wa="${q.id}" title="واتساب">📱</button>
+                    ${st.key !== 'converted' ? `
+                      <button class="btn btn-xs btn-blue" data-quote-edit="${q.id}" title="تعديل">✏️</button>
+                      <button class="btn btn-xs btn-amber" data-quote-convert="${q.id}" title="تحويل إلى فاتورة">🧾 فاتورة</button>` : ''}
+                    ${this.isManager() ? `<button class="btn btn-xs btn-danger" data-quote-delete="${q.id}" title="حذف">🗑️</button>` : ''}
+                  </div></td>
+                </tr>`;
+              }).join('') || '<tr><td colspan="8" class="text-center">لا توجد عروض أسعار — اضغط "عرض سعر جديد"</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  bindQuotationsEvents() {
+    const w = this.saleWizard;
+    if (w && w.active && w.mode === 'quote') return; // أحداث المعالج تُربط في bindSalesWizardEvents
+    document.querySelectorAll('[data-copy-sql="v225"]').forEach(b => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(V225_SQL); showToast('تم نسخ الأمر', 'success'); } catch (e) { prompt('انسخ الأمر:', V225_SQL); }
+    }));
+    document.getElementById('newQuoteBtn')?.addEventListener('click', () => this.startNewQuote());
+    document.querySelectorAll('[data-quote-filter]').forEach(b => b.addEventListener('click', () => { this.quoteFilter = b.dataset.quoteFilter; this.switchView('quotations'); }));
+    const box = document.getElementById('quoteSearch');
+    box?.addEventListener('input', () => {
+      this.quoteQuery = box.value;
+      const pos = box.selectionStart;
+      this.switchView('quotations');
+      const nb = document.getElementById('quoteSearch');
+      if (nb) { nb.focus(); try { nb.setSelectionRange(pos, pos); } catch (e) {} }
+    });
+    const find = id => this.quotations.find(q => q.id === id);
+    document.querySelectorAll('[data-quote-print]').forEach(b => b.addEventListener('click', () => { const q = find(b.dataset.quotePrint); if (q) this.printSaleInvoice(this.quoteAsDoc(q)); }));
+    document.querySelectorAll('[data-quote-wa]').forEach(b => b.addEventListener('click', () => { const q = find(b.dataset.quoteWa); if (q) this.sendInvoiceViaWhatsApp(this.quoteAsDoc(q), q.customerPhone || ''); }));
+    document.querySelectorAll('[data-quote-edit]').forEach(b => b.addEventListener('click', () => this.editQuote(b.dataset.quoteEdit)));
+    document.querySelectorAll('[data-quote-convert]').forEach(b => b.addEventListener('click', () => this.convertQuote(b.dataset.quoteConvert)));
+    document.querySelectorAll('[data-quote-delete]').forEach(b => b.addEventListener('click', async () => {
+      const q = find(b.dataset.quoteDelete);
+      if (!q || !confirm(`حذف عرض السعر ${q.quoteNumber}؟`)) return;
+      await this.deleteRecord('quotations', q.id);
+      this.switchView('quotations');
+    }));
   }
 
   // ===== إيداع الكاش في البنك =====
@@ -9830,6 +10241,10 @@ ${this.canDiscount() ? `
             <input type="number" id="invoiceTotal" min="0" step="0.01" placeholder="0.00">
           </div>
           <div class="form-group">
+            <label>📝 ملاحظات</label>
+            <textarea id="supInvNotes" placeholder="اختياري — مثال: 8 إطارات ميشلان 205/55R16، أو شروط الدفع" style="min-height: 56px;"></textarea>
+          </div>
+          <div class="form-group">
             <label>هل الفاتورة مدفوعة؟</label>
             <div class="pay-methods" id="invPaidChoice">
               <label class="pay-method active"><input type="radio" name="invPaid" value="no" checked><span>❌ لا</span></label>
@@ -9849,6 +10264,7 @@ ${this.canDiscount() ? `
               <label>طريقة الدفع</label>
               ${paymentMethodPicker('invPayMethod')}
             </div>
+            ${receiptField('invPayReceipt', 'invPayMethod')}
             <div class="form-group">
               <label>📅 تاريخ الدفع</label>
               <input type="date" id="invPaidDate" value="${localYMD()}" max="${localYMD()}">
@@ -9891,16 +10307,17 @@ ${this.canDiscount() ? `
                   return `
                     <tr class="${isDup ? 'dup-row' : ''}">
                       <td>${esc(supplier?.name || '-')}</td>
-                      <td>${esc(inv.invoiceNumber)}${isDup ? ' <span class="dup-flag" title="نفس رقم الفاتورة لنفس المورد مسجّل أكثر من مرة">⚠️ مكررة</span>' : ''}${nPays ? `<div class="text-xs" style="color: var(--text-muted);">${nPays} دفعة</div>` : ''}</td>
+                      <td>${esc(inv.invoiceNumber)}${inv.notes ? ` <span class="note-ic" title="${esc(inv.notes)}">📝</span>` : ''}${isDup ? ' <span class="dup-flag" title="نفس رقم الفاتورة لنفس المورد مسجّل أكثر من مرة">⚠️ مكررة</span>' : ''}${nPays ? `<div class="text-xs" style="color: var(--text-muted);">${nPays} دفعة</div>` : ''}</td>
                       <td class="num">${fmtMoney(inv.totalAmount)}</td>
                       <td class="num" style="color: var(--tread-green);">${fmtMoney(paidAmount)}</td>
                       <td class="num" style="color: ${inv.remainingAmount > 0 ? 'var(--brake-red)' : 'var(--tread-green)'}">
                         ${fmtMoney(inv.remainingAmount)}
                       </td>
-                      <td>${fmtDate(inv.invoiceDate)}</td>
+                      <td>${fmtDate(inv.invoiceDate)}${inv.notes ? `<div class="text-xs inv-note">${esc(inv.notes)}</div>` : ''}</td>
                       <td>
                         <div class="action-cell">
                           <button class="btn btn-xs btn-blue" data-pay-invoice="${inv.id}">دفع</button>
+                          <button class="btn btn-xs btn-ghost" data-edit-supinv="${inv.id}" title="تعديل">✏️</button>
                           <button class="btn btn-xs btn-danger" data-delete-invoice="${inv.id}">${icon('delete')}</button>
                         </div>
                       </td>
@@ -9958,6 +10375,7 @@ ${this.canDiscount() ? `
             <label>طريقة الدفع *</label>
             ${paymentMethodPicker('payMethod')}
           </div>
+          ${receiptField('payReceipt', 'payMethod')}
           <div class="form-group">
             <label>ملاحظات</label>
             <textarea id="paymentNotes" placeholder="ملاحظات" style="min-height: 60px;"></textarea>
@@ -9993,6 +10411,7 @@ ${this.canDiscount() ? `
                   <th>الفاتورة</th>
                   <th>المبلغ</th>
                   <th>طريقة الدفع</th>
+                  <th>رقم الإيصال</th>
                   <th>التاريخ</th>
                   <th>الإجراءات</th>
                 </tr>
@@ -10009,6 +10428,7 @@ ${this.canDiscount() ? `
                       <td>${invoice ? esc(invoice.invoiceNumber || '-') : '<span class="badge badge-danger">فاتورة محذوفة</span>'}${isDup ? ' <span class="dup-flag" title="دفعة متشابهة: نفس الفاتورة والمبلغ واليوم">⚠️ مكررة؟</span>' : ''}</td>
                       <td class="num">${fmtMoney(pay.paymentAmount)}</td>
                       <td>${(() => { const m = supplierPaymentMethod(pay); return m ? `<span class="badge ${methodBadge[m]}">${SUPPLIER_PAY_METHODS[m]}</span>` : '<span style="color: var(--text-muted);">—</span>'; })()}</td>
+                      <td dir="ltr" style="text-align: right;">${esc(supplierReceipt(pay) || '—')}</td>
                       <td>${fmtDate(pay.paymentDate)}</td>
                       <td>
                         <div class="action-cell">
@@ -10017,7 +10437,7 @@ ${this.canDiscount() ? `
                       </td>
                     </tr>
                   `;
-                }).join('') || '<tr><td colspan="6" class="text-center">لا توجد دفعات</td></tr>'}
+                }).join('') || '<tr><td colspan="7" class="text-center">لا توجد دفعات</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -10082,6 +10502,69 @@ ${this.canDiscount() ? `
       await this.updateRecord('supplier_invoices', inv.id, { paid_amount: paid, remaining_amount: Math.max(0, Math.round((total - paid) * 1000) / 1000) });
     }
     return true;
+  }
+
+  warnMissingColumns() {
+    showToast('⚠️ بعض الحقول لم تُحفظ لأن قاعدة البيانات تحتاج تحديث — شغّل ملف v2_25_setup.sql مرة واحدة', 'warning');
+  }
+
+  // تعديل فاتورة مورد
+  editSupplierInvoice(id) {
+    const inv = this.supplierInvoices.find(i => i.id === id);
+    if (!inv) return;
+    const paid = parseFloat(inv.paidAmount) || 0;
+    const body = `
+      <div class="form-group">
+        <label>المورد *</label>
+        <select id="mSupInvSupplier">
+          ${this.suppliers.map(s => `<option value="${s.id}" ${s.id === inv.supplierId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>رقم الفاتورة *</label>
+          <input type="text" id="mSupInvNo" value="${esc(inv.invoiceNumber || '')}">
+        </div>
+        <div class="form-group">
+          <label>📅 تاريخ الفاتورة *</label>
+          <input type="date" id="mSupInvDate" value="${localYMD(inv.invoiceDate || inv.createdAt)}" max="${localYMD()}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>المبلغ الإجمالي *</label>
+        <input type="number" id="mSupInvTotal" min="0" step="0.001" value="${parseFloat(inv.totalAmount) || ''}">
+        <div class="text-xs" style="margin-top: 6px;">المدفوع على هذه الفاتورة: <b class="num">${fmtMoney(paid)}</b> — المتبقي يُحسب تلقائياً.</div>
+      </div>
+      <div class="form-group">
+        <label>📝 ملاحظات</label>
+        <textarea id="mSupInvNotes" style="min-height: 56px;">${esc(inv.notes || '')}</textarea>
+      </div>`;
+    this.hrModal('✏️ تعديل فاتورة المورد', body, async () => {
+      const supplierId = document.getElementById('mSupInvSupplier').value;
+      const number = document.getElementById('mSupInvNo').value.trim();
+      const date = document.getElementById('mSupInvDate').value;
+      const total = Math.round((parseFloat(document.getElementById('mSupInvTotal').value) || 0) * 1000) / 1000;
+      const notes = document.getElementById('mSupInvNotes').value.trim();
+      if (!supplierId || !number || !total) { showToast('أدخل البيانات', 'error'); return false; }
+      if (!date || date > localYMD()) { showToast('تاريخ غير صحيح', 'error'); return false; }
+      if (total + 0.0005 < paid) { showToast(`الإجمالي لا يمكن أن يكون أقل من المدفوع (${fmtMoney(paid)})`, 'error'); return false; }
+      const dup = this.supplierInvoices.find(i => i.id !== id && i.supplierId === supplierId && this.normInvNo(i.invoiceNumber) === this.normInvNo(number));
+      if (dup && !confirm(`⚠️ يوجد فاتورة أخرى بنفس الرقم ${dup.invoiceNumber} لهذا المورد. متابعة؟`)) return false;
+      const data = {
+        supplier_id: supplierId,
+        invoice_number: number,
+        invoice_date: localYMD(inv.invoiceDate || inv.createdAt) === date ? (inv.invoiceDate || inv.createdAt) : ymdToISO(date),
+        total_amount: total,
+        remaining_amount: Math.max(0, Math.round((total - paid) * 1000) / 1000),
+        notes: notes || null,
+      };
+      const ok = await this.updateRecord('supplier_invoices', id, data);
+      if (ok === false) return false;
+      if (notes && (this.lastDropped || []).includes('notes')) this.warnMissingColumns();
+      showToast('تم تعديل الفاتورة', 'success');
+      this.switchView('supplierInvoices');
+      return true;
+    });
   }
 
   // حذف فاتورة مورد: نسأل ماذا نفعل بدفعاتها
@@ -10186,7 +10669,7 @@ ${this.canDiscount() ? `
                           <td class="num">${fmtMoney(n(i.totalAmount))}</td>
                           <td class="num">${fmtMoney(paid)}</td>
                           <td class="num" style="color: ${rem > 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${rem > 0 ? fmtMoney(rem) : '✓'}</td>
-                          <td class="text-xs">${ps.map(p => { const m = supplierPaymentMethod(p); return `<div>${fmtDate(p.paymentDate || p.createdAt)} — <b class="num">${fmtMoney(n(p.paymentAmount))}</b> ${m ? mLabel[m] : ''}</div>`; }).join('') || '<span style="color: var(--text-muted);">لا توجد دفعات</span>'}</td>
+                          <td class="text-xs">${ps.map(p => { const m = supplierPaymentMethod(p); return `<div>${fmtDate(p.paymentDate || p.createdAt)} — <b class="num">${fmtMoney(n(p.paymentAmount))}</b> ${m ? mLabel[m] : ''}${supplierReceipt(p) ? ` <span dir="ltr">#${esc(supplierReceipt(p))}</span>` : ''}</div>`; }).join('') || '<span style="color: var(--text-muted);">لا توجد دفعات</span>'}</td>
                         </tr>`;
                       }).join('')}
                     </tbody>
@@ -10362,7 +10845,10 @@ ${this.canDiscount() ? `
                     <td>${expensePayBadge(e)}</td>
                     <td>${fmtDate(e.expenseDate)}</td>
                     <td>
-                      <button class="btn btn-xs btn-danger" data-delete-fixed-expense="${e.id}">🗑️</button>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-expense="${e.id}" title="تعديل">✏️</button>
+                        <button class="btn btn-xs btn-danger" data-delete-fixed-expense="${e.id}">🗑️</button>
+                      </div>
                     </td>
                   </tr>
                 `).join('') || '<tr><td colspan="6" class="text-center">لا توجد مصروفات ثابتة</td></tr>'}
@@ -10451,7 +10937,10 @@ ${this.canDiscount() ? `
                     <td>${expensePayBadge(e)}</td>
                     <td>${fmtDate(e.expenseDate)}</td>
                     <td>
-                      <button class="btn btn-xs btn-danger" data-delete-daily-expense="${e.id}">🗑️</button>
+                      <div class="action-cell">
+                        <button class="btn btn-xs btn-blue" data-edit-expense="${e.id}" title="تعديل">✏️</button>
+                        <button class="btn btn-xs btn-danger" data-delete-daily-expense="${e.id}">🗑️</button>
+                      </div>
                     </td>
                   </tr>
                 `).join('') || `<tr><td colspan="5" class="text-center">${kind === 'other' ? 'لا توجد مصاريف أخرى' : 'لا توجد مصروفات يومية'}</td></tr>`}
@@ -10553,6 +11042,84 @@ ${this.canDiscount() ? `
         </div>
       </div>
     `;
+  }
+
+  // ===== تعديل مصروف =====
+  editExpense(id) {
+    const e = this.expenses.find(x => x.id === id);
+    if (!e) return;
+    const isFixed = e.expenseType === 'ثابتة';
+    const fixedTypes = ['rent', 'electricity', 'water', 'salary', 'maintenance', 'insurance', 'other'];
+    const desc = expenseDesc(e.description);
+    const pay = expensePayMethod(e);
+    const body = `
+      <div class="form-group">
+        <label>نوع المصروف</label>
+        <select id="mExpKind">
+          <option value="يومية" ${e.expenseType === 'يومية' ? 'selected' : ''}>مصروف يومي</option>
+          <option value="ثابتة" ${isFixed ? 'selected' : ''}>مصروف ثابت</option>
+          <option value="أخرى" ${e.expenseType !== 'يومية' && !isFixed ? 'selected' : ''}>مصاريف أخرى</option>
+        </select>
+      </div>
+      <div class="form-group" id="mExpFixedTypeWrap" style="${isFixed ? '' : 'display: none;'}">
+        <label>نوع المصروف الثابت</label>
+        <select id="mExpFixedType">
+          ${fixedTypes.map(k => `<option value="${k}" ${desc === k ? 'selected' : ''}>${t(k)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label id="mExpDescLabel">${isFixed ? 'البيان (اختياري)' : 'البيان *'}</label>
+        <input type="text" id="mExpDesc" value="${esc(isFixed ? expenseDesc(e.notes) : desc)}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>المبلغ *</label>
+          <input type="number" id="mExpAmount" min="0" step="0.001" value="${parseFloat(e.amount) || ''}">
+        </div>
+        <div class="form-group">
+          <label>التاريخ *</label>
+          <input type="date" id="mExpDate" value="${localYMD(e.expenseDate || e.createdAt)}" max="${localYMD()}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>طريقة الدفع</label>
+        ${expensePayPicker('mExpPay', pay)}
+      </div>`;
+    this.hrModal('✏️ تعديل المصروف', body, async () => {
+      const kind = document.getElementById('mExpKind').value;
+      const amount = parseFloat(document.getElementById('mExpAmount').value) || 0;
+      const date = document.getElementById('mExpDate').value;
+      const text = document.getElementById('mExpDesc').value.trim();
+      const method = readPaymentMethod('mExpPay') || 'cash';
+      if (!amount || amount <= 0) { showToast('أدخل المبلغ', 'error'); return false; }
+      if (!date || date > localYMD()) { showToast('تاريخ غير صحيح', 'error'); return false; }
+      if (kind !== 'ثابتة' && !text) { showToast('أدخل البيان', 'error'); return false; }
+      const data = {
+        expense_type: kind,
+        amount,
+        expense_date: localYMD(e.expenseDate || e.createdAt) === date ? (e.expenseDate || e.createdAt) : this.expenseDateISO(date),
+        payment_method: method,
+      };
+      if (kind === 'ثابتة') {
+        data.description = withPayTag(document.getElementById('mExpFixedType').value, method);
+        data.notes = text || null;
+      } else {
+        data.description = withPayTag(text, method);
+        data.notes = null;
+      }
+      const ok = await this.updateRecord('expenses', id, data);
+      if (ok === false) return false;
+      showToast('تم تعديل المصروف', 'success');
+      this.switchView(this.currentView);
+      return true;
+    });
+    this.bindPayMethodPickers();
+    const kindSel = document.getElementById('mExpKind');
+    kindSel?.addEventListener('change', () => {
+      const f = kindSel.value === 'ثابتة';
+      document.getElementById('mExpFixedTypeWrap').style.display = f ? '' : 'none';
+      document.getElementById('mExpDescLabel').textContent = tr(f ? 'البيان (اختياري)' : 'البيان *');
+    });
   }
 
   // تاريخ المصروف من حقل التاريخ (منتصف اليوم المحلي، واليوم إذا كان فارغاً)
