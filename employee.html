@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.25.0 (quotations, edit expenses & supplier invoices, receipt no., supplier invoice notes) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.25.1 (supplier paid vs payments reconciliation) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1594,6 +1594,7 @@ table.pd-inner thead th, .pd-detail table.pd-inner th { background: #EFEBE2 !imp
 
 .dup-banner { background: #FFF4E0; border: 1px solid #F2C46D; color: #7A4B00; border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; font-size: 13.5px; line-height: 1.8; }
 .dup-banner .btn { margin-inline-start: 6px; }
+.mismatch-card { margin-bottom: 14px; }
 .dup-ok { color: var(--tread-green, #1E7B3A); font-size: 13px; margin-bottom: 8px; }
 tr.dup-row td { background: #FFF8EA !important; }
 tr.orphan-row td { background: #FBEDEB !important; }
@@ -2053,6 +2054,14 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "✅ المدفوع على كل فواتير الموردين يطابق مجموع دفعاتها في السجل": "✅ The paid amount on every supplier invoice matches its payment log",
+  "مراجعة": "Review",
+  "إخفاء": "Hide",
+  "تصحيح": "Fix",
+  "المدفوع المسجّل": "Recorded paid",
+  "الفرق": "Difference",
+  "بعد التصحيح: المتبقي": "Remaining after fix",
+  "تم تصحيح": "Fixed",
   "عروض الأسعار": "Quotations",
   "📝 عروض الأسعار (Quotation)": "📝 Quotations",
   "➕ عرض سعر جديد": "➕ New quotation",
@@ -7841,6 +7850,7 @@ ${this.canDiscount() ? `
     if (view === 'bankDeposits') this.bindBankDepositsEvents();
     if (view === 'suppliers') this.bindSuppliersEvents();
     if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
+    if (view === 'supplierInvoices') this.bindPaidMismatchEvents();
     if (view === 'supplierPayments') this.bindSupplierPaymentsEvents();
 
     // ربط أحداث الفلتر
@@ -10214,6 +10224,7 @@ ${this.canDiscount() ? `
     
     return `
       ${this.renderDateFilterBar()}
+      ${this.renderPaidMismatchBox()}
       ${dupCount ? `<div class="dup-banner">⚠️ يوجد <b>${dupCount}</b> فاتورة برقم مكرر لنفس المورد — معلّمة بـ "⚠️ مكررة" في الجدول. إذا كانت مكررة بالخطأ احذف النسخة الزائدة (تُحذف معها دفعاتها).</div>` : ''}
       <div class="grid-2">
         <div class="card">
@@ -10507,6 +10518,23 @@ ${this.canDiscount() ? `
     showToast('⚠️ بعض الحقول لم تُحفظ لأن قاعدة البيانات تحتاج تحديث — شغّل ملف v2_25_setup.sql مرة واحدة', 'warning');
   }
 
+  bindPaidMismatchEvents() {
+    document.getElementById('toggleMismatch')?.addEventListener('click', () => { this.mismatchOpen = !this.mismatchOpen; this.switchView('supplierInvoices'); });
+    document.querySelectorAll('[data-fix-paid]').forEach(b => b.addEventListener('click', () => {
+      const m = this.paidMismatches().find(x => x.inv.id === b.dataset.fixPaid);
+      if (!m) return;
+      if (!confirm(`تصحيح الفاتورة ${m.inv.invoiceNumber}:\nالمدفوع من ${fmtMoney(m.recorded)} إلى ${fmtMoney(m.sum)} (مجموع دفعاتها)؟`)) return;
+      b.disabled = true;
+      this.fixPaidMismatch([m.inv.id]);
+    }));
+    document.getElementById('fixAllPaid')?.addEventListener('click', (e) => {
+      const list = this.paidMismatches();
+      if (!confirm(`تصحيح ${list.length} فاتورة بحيث يصبح المدفوع = مجموع دفعاتها في السجل؟\n\nلا تفعل ذلك إذا كانت بعض الفواتير مدفوعة قبل أن تبدأ بتسجيل الدفعات في النظام.`)) return;
+      e.target.disabled = true;
+      this.fixPaidMismatch(list.map(m => m.inv.id));
+    });
+  }
+
   // تعديل فاتورة مورد
   editSupplierInvoice(id) {
     const inv = this.supplierInvoices.find(i => i.id === id);
@@ -10564,6 +10592,68 @@ ${this.canDiscount() ? `
       this.switchView('supplierInvoices');
       return true;
     });
+  }
+
+  // ===== مطابقة المدفوع على فواتير الموردين مع سجل الدفعات =====
+  // فواتير يختلف فيها "المدفوع" المسجّل على الفاتورة عن مجموع دفعاتها في السجل
+  paidMismatches() {
+    const r3 = v => Math.round((parseFloat(v) || 0) * 1000) / 1000;
+    return this.supplierInvoices.map(inv => {
+      const pays = this.supplierPayments.filter(p => p.supplierInvoiceId === inv.id);
+      const recorded = r3(inv.paidAmount);
+      const sum = r3(pays.reduce((a, p) => a + (parseFloat(p.paymentAmount) || 0), 0));
+      return { inv, recorded, sum, count: pays.length, diff: r3(recorded - sum) };
+    }).filter(m => Math.abs(m.diff) > 0.0005);
+  }
+
+  async fixPaidMismatch(ids) {
+    const list = this.paidMismatches().filter(m => ids.includes(m.inv.id));
+    for (const m of list) {
+      const total = parseFloat(m.inv.totalAmount) || 0;
+      await this.updateRecord('supplier_invoices', m.inv.id, {
+        paid_amount: m.sum,
+        remaining_amount: Math.max(0, Math.round((total - m.sum) * 1000) / 1000),
+      });
+    }
+    showToast(`تم تصحيح ${list.length} فاتورة`, 'success');
+    this.switchView('supplierInvoices');
+  }
+
+  renderPaidMismatchBox() {
+    const list = this.paidMismatches();
+    if (!list.length) return `<div class="dup-ok">✅ المدفوع على كل فواتير الموردين يطابق مجموع دفعاتها في السجل</div>`;
+    const sup = id => this.suppliers.find(s => s.id === id)?.name || '-';
+    const open = !!this.mismatchOpen;
+    return `
+      <div class="dup-banner">
+        ⚠️ يوجد <b>${list.length}</b> فاتورة "المدفوع" المسجّل عليها لا يطابق مجموع دفعاتها في السجل (الفرق الكلي <b class="num">${fmtMoney(list.reduce((a, m) => a + m.diff, 0))}</b>).
+        <button class="btn btn-xs btn-ghost" id="toggleMismatch">${open ? 'إخفاء' : 'مراجعة'}</button>
+      </div>
+      ${open ? `
+      <div class="card mismatch-card">
+        <p class="text-xs" style="margin-bottom: 10px;">
+          <b>فرق موجب</b> (المسجّل أكبر من الدفعات): غالباً دفعة حُذفت قبل التحديث ولم يرجع مبلغها — اضغط "تصحيح".<br>
+          <b>لكن انتبه:</b> إذا كانت الفاتورة مدفوعة فعلاً قبل أن تبدأ بتسجيل الدفعات في النظام، فلا تصحّحها، لأن التصحيح سيجعل المدفوع = مجموع الدفعات المسجّلة فقط.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>المورد</th><th>الفاتورة</th><th>الإجمالي</th><th>المدفوع المسجّل</th><th>مجموع الدفعات (${''}عددها)</th><th>الفرق</th><th>بعد التصحيح: المتبقي</th><th></th></tr></thead>
+            <tbody>
+              ${list.map(m => `<tr>
+                <td>${esc(sup(m.inv.supplierId))}</td>
+                <td>${esc(m.inv.invoiceNumber || '-')}</td>
+                <td class="num">${fmtMoney(parseFloat(m.inv.totalAmount) || 0)}</td>
+                <td class="num">${fmtMoney(m.recorded)}</td>
+                <td class="num">${fmtMoney(m.sum)} <span class="text-xs">(${m.count})</span></td>
+                <td class="num" style="font-weight: 700; color: ${m.diff > 0 ? 'var(--brake-red)' : 'var(--info-blue, #2F6E9E)'};">${m.diff > 0 ? '+' : ''}${fmtMoney(m.diff)}</td>
+                <td class="num">${fmtMoney(Math.max(0, (parseFloat(m.inv.totalAmount) || 0) - m.sum))}</td>
+                <td><button class="btn btn-xs btn-amber" data-fix-paid="${m.inv.id}">تصحيح</button></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${list.length > 1 ? `<button class="btn btn-sm btn-amber" id="fixAllPaid" style="margin-top: 10px;">تصحيح الكل (${list.length})</button>` : ''}
+      </div>` : ''}`;
   }
 
   // حذف فاتورة مورد: نسأل ماذا نفعل بدفعاتها
