@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.25.2 (edit supplier payments) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.26.0 (supplier searches, promo codes, daily+fixed dashboard tile) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1609,6 +1609,13 @@ tr.orphan-row td { background: #FBEDEB !important; }
 .quote-banner.conv { background: #FFF4E0; border-color: #F2C46D; color: #7A4B00; }
 .quote-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
 .quote-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; color: var(--text-600, #5B564C); }
+
+.exp-break-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1100px) { .exp-break-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .exp-break-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.exp-tile.exp-sum { background: #FFF8EA; border: 1px solid #F2C46D; cursor: default; }
+.promo-box.applied { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #EEF8F1; border: 1px dashed var(--tread-green, #1E7B3A); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.promo-code { font-family: ui-monospace, monospace; letter-spacing: 1px; background: #F4F1EA; padding: 2px 8px; border-radius: 6px; }
 </style>
 </head>
 <body>
@@ -1843,6 +1850,7 @@ function localDateStr(d) {
 
 // أمر إنشاء جداول الموارد البشرية في Supabase
 const EXPENSES_FIX_SQL = "-- ورشتي: إصلاح حفظ المصروفات (آمن للتشغيل أكثر من مرة)\ncreate table if not exists expenses (\n  id uuid primary key default gen_random_uuid(),\n  expense_type text,\n  description text,\n  amount numeric not null default 0,\n  expense_date timestamptz default now(),\n  created_at timestamptz default now()\n);\nalter table expenses add column if not exists expense_type text;\nalter table expenses add column if not exists description text;\nalter table expenses add column if not exists notes text;\nalter table expenses add column if not exists image text;\nalter table expenses add column if not exists payment_method text default 'cash';\nalter table expenses add column if not exists expense_date timestamptz default now();\n\n-- إزالة أي قيد يمنع القيم العربية (يومية / ثابتة) في نوع المصروف\ndo $$\ndeclare c record;\nbegin\n  for c in select conname from pg_constraint\n           where conrelid = 'public.expenses'::regclass and contype = 'c'\n  loop\n    execute format('alter table public.expenses drop constraint %I', c.conname);\n  end loop;\nend $$;\n\nalter table expenses enable row level security;\ndrop policy if exists \"app access\" on expenses;\ncreate policy \"app access\" on expenses for all using (true) with check (true);\n";
+const V226_SQL = "-- ورشتي 2.26: أكواد الخصم (العروض)\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists promo_codes (\n  id uuid primary key default gen_random_uuid(),\n  code text not null,\n  title text,\n  discount_type text default 'percent',\n  discount_value numeric default 0,\n  apply_to text default 'all',\n  min_total numeric default 0,\n  max_uses integer,\n  used_count integer default 0,\n  expires_at timestamptz,\n  active boolean default true,\n  created_at timestamptz default now()\n);\ncreate unique index if not exists promo_codes_code_key on promo_codes (upper(code));\nalter table promo_codes enable row level security;\ndrop policy if exists \"app access\" on promo_codes;\ncreate policy \"app access\" on promo_codes for all using (true) with check (true);\n\n-- حفظ الكود المستخدم في الفاتورة\nalter table sales add column if not exists promo_code text;\n";
 const V225_SQL = "-- ورشتي 2.25: عروض الأسعار + ملاحظات فواتير الموردين + رقم إيصال دفعات الموردين\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists quotations (\n  id uuid primary key default gen_random_uuid(),\n  quote_number text,\n  customer_name text,\n  customer_phone text,\n  items jsonb,\n  subtotal numeric default 0,\n  discount_amount numeric default 0,\n  discount_percent numeric default 0,\n  total numeric default 0,\n  warranty text,\n  valid_until timestamptz,\n  notes text,\n  status text default 'open',\n  converted_invoice text,\n  created_by text,\n  created_at timestamptz default now()\n);\nalter table quotations enable row level security;\ndrop policy if exists \"app access\" on quotations;\ncreate policy \"app access\" on quotations for all using (true) with check (true);\n\nalter table supplier_invoices add column if not exists notes text;\nalter table supplier_payments add column if not exists receipt_number text;\n";
 const V221_SQL = "-- ورشتي 2.21: سجل إيداع الكاش في الحساب البنكي\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists bank_deposits (\n  id uuid primary key default gen_random_uuid(),\n  amount numeric not null,\n  deposit_date timestamptz default now(),\n  bank text,\n  reference text,\n  notes text,\n  created_by text,\n  created_at timestamptz default now()\n);\nalter table bank_deposits add column if not exists source text default 'cash';\n\nalter table bank_deposits enable row level security;\ndrop policy if exists \"app access\" on bank_deposits;\ncreate policy \"app access\" on bank_deposits for all using (true) with check (true);\n";
 const V218_SQL = "-- ورشتي 2.18: جدول الإعدادات (لتظهر نفس الإعدادات والتوقيع على كل الأجهزة) + جدول الإكسسوارات\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists settings (\n  key text primary key,\n  value text,\n  updated_at timestamptz default now()\n);\n\ncreate table if not exists accessories (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  price numeric not null default 0,\n  cost numeric default 0,\n  stock integer default 0,\n  created_at timestamptz default now()\n);\n\nalter table settings enable row level security;\nalter table accessories enable row level security;\ndrop policy if exists \"app access\" on settings;\ndrop policy if exists \"app access\" on accessories;\ncreate policy \"app access\" on settings for all using (true) with check (true);\ncreate policy \"app access\" on accessories for all using (true) with check (true);\n";
@@ -2054,6 +2062,52 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "🔍 ابحث باسم المورد أو رقم الفاتورة": "🔍 Search by supplier name or invoice number",
+  "🔍 ابحث برقم الفاتورة أو اسم المورد أو رقم الإيصال": "🔍 Search by invoice number, supplier name or receipt number",
+  "اليومية + الثابتة": "Daily + fixed",
+  "أكواد الخصم": "Discount codes",
+  "🎟️ أكواد الخصم (العروض)": "🎟️ Discount codes (offers)",
+  "🎟️ كود الخصم — اختياري": "🎟️ Discount code — optional",
+  "اكتب الكود": "Enter the code",
+  "✕ إزالة": "✕ Remove",
+  "الكود غير صحيح": "Invalid code",
+  "هذا الكود متوقف": "This code is paused",
+  "تم استخدام هذا الكود بالكامل": "This code has been fully used",
+  "➕ إنشاء كود خصم": "➕ Create a discount code",
+  "✏️ تعديل الكود": "✏️ Edit code",
+  "🎟️ إنشاء الكود": "🎟️ Create code",
+  "💾 حفظ التعديل": "💾 Save changes",
+  "الكود *": "Code *",
+  "اسم العرض": "Offer name",
+  "مثال: عرض الشتاء": "e.g. Winter offer",
+  "نوع الخصم *": "Discount type *",
+  "نسبة %": "Percentage %",
+  "مبلغ ثابت (ر.ع)": "Fixed amount (OMR)",
+  "قيمة الخصم *": "Discount value *",
+  "يُطبَّق على": "Applies to",
+  "أقل قيمة للفاتورة": "Minimum invoice value",
+  "بدون حد": "No minimum",
+  "ينتهي في": "Expires on",
+  "عدد مرات الاستخدام": "Usage limit",
+  "غير محدود": "Unlimited",
+  "كل الفاتورة": "Whole invoice",
+  "🎟️ الأكواد": "🎟️ Codes",
+  "الاستخدام": "Usage",
+  "ينتهي": "Expires",
+  "⏸️ متوقف": "⏸️ Paused",
+  "🔚 نفد": "🔚 Used up",
+  "✅ فعّال": "✅ Active",
+  "لا توجد أكواد بعد": "No codes yet",
+  "هذا الكود موجود مسبقاً": "This code already exists",
+  "أدخل قيمة الخصم": "Enter the discount value",
+  "أقصى نسبة 100%": "Maximum is 100%",
+  "تم تعديل الكود": "Code updated",
+  "تم إنشاء الكود": "Code created",
+  "الكود من 3 إلى 20 حرفاً/رقماً بالإنجليزية بدون مسافات": "The code must be 3–20 English letters/digits without spaces",
+  "⚙️ تفعيل أكواد الخصم": "⚙️ Enable discount codes",
+  "الموظف والمدير يكتبان الكود في خطوة \"الضمان والدفع\" عند إصدار الفاتورة، فيُخصم تلقائياً.": "The employee or manager enters the code in the \"Warranty & payment\" step when issuing the invoice, and it's deducted automatically.",
+  "هذه الصفحة للمدير فقط.": "This page is for the manager only.",
+  "توليد كود عشوائي": "Generate a random code",
   "✏️ تعديل دفعة المورد": "✏️ Edit supplier payment",
   "الفاتورة *": "Invoice *",
   "المبلغ *": "Amount *",
@@ -3134,6 +3188,7 @@ const ICONS = {
   accessories: '🧩',
   bankDeposits: '🏦',
   quotations: '📝',
+  promoCodes: '🎟️',
   otherExpenses: '📦',
   services: '🔧',
   customers: '👥',
@@ -3252,7 +3307,17 @@ const FIELD_MAP = {
     payment_method: 'paymentMethod',
     discount_amount: 'discountAmount',
     discount_percent: 'discountPercent',
-    discount_total: 'discountTotal'
+    discount_total: 'discountTotal',
+    promo_code: 'promoCode'
+  },
+  promo_codes: {
+    discount_type: 'discountType',
+    discount_value: 'discountValue',
+    apply_to: 'applyTo',
+    min_total: 'minTotal',
+    max_uses: 'maxUses',
+    used_count: 'usedCount',
+    expires_at: 'expiresAt',
   },
   quotations: {
     quote_number: 'quoteNumber',
@@ -3350,6 +3415,7 @@ class TireShopApp {
     this.tires = [];
     this.accessories = [];
     this.quotations = [];
+    this.promoCodes = [];
     this.bankDeposits = [];
     this.services = [];
     this.customers = [];
@@ -4419,7 +4485,7 @@ class TireShopApp {
     try {
       const tables = [
         'tires', 'services', 'customers', 'appointments', 'sales',
-        'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses', 'accessories', 'bank_deposits', 'quotations'
+        'suppliers', 'supplier_invoices', 'supplier_payments', 'expenses', 'accessories', 'bank_deposits', 'quotations', 'promo_codes'
       ];
 
       // تحميل جميع الجداول بالتوازي بدلاً من التسلسل
@@ -4446,6 +4512,7 @@ class TireShopApp {
         if (table === 'accessories') this.accessoriesMissing = !!error;
         if (table === 'bank_deposits') this.bankDepositsMissing = !!error;
         if (table === 'quotations') this.quotationsMissing = !!error;
+        if (table === 'promo_codes') this.promoMissing = !!error;
         if (error) {
           console.error(`Error loading ${table}:`, error);
           return;
@@ -4456,7 +4523,8 @@ class TireShopApp {
         const propName = table
           .replace('supplier_invoices', 'supplierInvoices')
           .replace('supplier_payments', 'supplierPayments')
-          .replace('bank_deposits', 'bankDeposits');
+          .replace('bank_deposits', 'bankDeposits')
+          .replace('promo_codes', 'promoCodes');
         if (table === 'bank_deposits') mapped.sort((a, b) => String(b.depositDate || b.createdAt || '').localeCompare(String(a.depositDate || a.createdAt || '')));
         
         // المبيعات مرتبة بتاريخ الفاتورة (الأحدث أولاً) — مهم للفواتير السابقة المضافة لاحقاً
@@ -4540,7 +4608,7 @@ class TireShopApp {
   async addRecord(table, data) {
     if (!this.sb) {
       const id = uid();
-      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments').replace('bank_deposits', 'bankDeposits');
+      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments').replace('bank_deposits', 'bankDeposits').replace('promo_codes', 'promoCodes');
       const record = { ...rowFromDb({ ...data, id, created_at: new Date().toISOString() }, table) };
       (this[prop] = this[prop] || []).unshift(record);
       return true;
@@ -4782,6 +4850,8 @@ class TireShopApp {
       paySplit: split ? { cash: split.cash || '', card: split.card || '', transfer: split.transfer || '' } : { cash: '', card: '', transfer: '' },
       discountType: pct > 0 ? 'percent' : 'amount',
       discount: pct > 0 ? pct : amt,
+      promo: sale.promoCode ? (() => { const pc = this.findPromo(sale.promoCode); return { id: pc?.id || null, code: String(sale.promoCode).toUpperCase(), title: pc?.title || '', type: pct > 0 ? 'percent' : 'amount', value: pct > 0 ? pct : amt, applyTo: pct > 0 ? 'all' : 'all' }; })() : null,
+      originalPromo: sale.promoCode ? String(sale.promoCode).toUpperCase() : null,
       customerName: sale.customerName || '',
       customerPhone: sale.customerPhone || '',
       editingSaleId: sale.id,
@@ -4912,12 +4982,260 @@ class TireShopApp {
 
   discountLabel() {
     const { percent } = this.cartTotals();
+    const p = this.saleWizard.promo;
+    if (p) return `الخصم (${p.code}${p.type === 'percent' ? ' — ' + (+(+p.value).toFixed(2)) + '%' : ''})`;
     return percent > 0 ? `الخصم (${+percent.toFixed(2)}%)` : 'الخصم';
+  }
+
+  // =====================================================================
+  // أكواد الخصم (العروض)
+  // =====================================================================
+  promoBase(applyTo) {
+    const cart = this.saleWizard.cart;
+    const map = { tires: 'tire', services: 'service', accessories: 'accessory' };
+    const lines = !applyTo || applyTo === 'all' ? cart : cart.filter(l => l.type === map[applyTo]);
+    return lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  }
+
+  findPromo(code) {
+    const c = String(code || '').trim().toUpperCase();
+    return (this.promoCodes || []).find(p => String(p.code || '').trim().toUpperCase() === c);
+  }
+
+  // يرجع رسالة الخطأ أو null
+  promoError(p) {
+    if (!p) return 'الكود غير صحيح';
+    if (p.active === false) return 'هذا الكود متوقف';
+    if (p.expiresAt && new Date(p.expiresAt) < new Date()) return `انتهت صلاحية الكود في ${fmtDate(p.expiresAt)}`;
+    if (p.maxUses && (parseInt(p.usedCount) || 0) >= parseInt(p.maxUses)) return 'تم استخدام هذا الكود بالكامل';
+    const subtotal = this.saleWizard.cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+    if ((parseFloat(p.minTotal) || 0) > subtotal) return `الكود يتطلب فاتورة بقيمة ${fmtMoney(p.minTotal)} على الأقل`;
+    if (this.promoBase(p.applyTo) <= 0) return `الكود خاص بـ ${this.promoApplyLabel(p.applyTo)} ولا توجد في الفاتورة`;
+    return null;
+  }
+
+  promoApplyLabel(k) {
+    return { all: 'كل الفاتورة', tires: 'الإطارات', services: 'الخدمات', accessories: 'الإكسسوارات' }[k || 'all'] || 'كل الفاتورة';
+  }
+
+  promoValueText(p) {
+    return p.discountType === 'percent' ? `${+(+p.discountValue).toFixed(2)}%` : `${fmtMoney(p.discountValue)} ر.ع`;
+  }
+
+  applyPromoCode(code) {
+    const w = this.saleWizard;
+    const p = this.findPromo(code);
+    const err = this.promoError(p);
+    if (err) { showToast(err, 'error'); return false; }
+    w.promo = { id: p.id, code: String(p.code).toUpperCase(), title: p.title || '', type: p.discountType, value: parseFloat(p.discountValue) || 0, applyTo: p.applyTo || 'all' };
+    w.discount = 0;
+    const { discount } = this.cartTotals();
+    showToast(`✅ تم تطبيق الكود ${w.promo.code} — خصم ${fmtMoney(discount)}`, 'success');
+    return true;
+  }
+
+  renderPromoBox() {
+    const w = this.saleWizard;
+    if (this.promoMissing && this.sb) return '';
+    if (w.promo) {
+      const { discount } = this.cartTotals();
+      return `
+        <div class="promo-box applied">
+          <div>🎟️ <b dir="ltr">${esc(w.promo.code)}</b>${w.promo.title ? ` — ${esc(w.promo.title)}` : ''}
+            <div class="text-xs">${w.promo.type === 'percent' ? (+w.promo.value) + '%' : fmtMoney(w.promo.value) + ' ر.ع'} على ${this.promoApplyLabel(w.promo.applyTo)} = خصم <b class="num">${fmtMoney(discount)}</b></div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-xs" id="removePromoBtn">✕ إزالة</button>
+        </div>`;
+    }
+    return `
+      <div class="form-group">
+        <label>🎟️ كود الخصم — اختياري</label>
+        <div class="disc-row">
+          <input type="text" id="promoCodeInput" placeholder="اكتب الكود" dir="ltr" style="text-transform: uppercase; text-align: center;" autocomplete="off">
+          <button type="button" class="btn btn-amber btn-sm" id="applyPromoBtn">تطبيق</button>
+        </div>
+      </div>`;
+  }
+
+  renderPromoCodesView() {
+    if (!this.isManager()) return '<div class="card"><p class="text-center" style="padding: 30px;">هذه الصفحة للمدير فقط.</p></div>';
+    if (this.promoMissing && this.sb) {
+      return `
+        <div class="card">
+          <div class="card-head"><h3>⚙️ تفعيل أكواد الخصم</h3></div>
+          <p style="margin-bottom: 12px;">هذا القسم يحتاج جدولاً جديداً في Supabase. افتح <b>SQL Editor</b> والصق الأمر التالي ثم اضغط <b>Run</b>، وبعدها أعد تحميل الصفحة.</p>
+          <pre class="sql-box" dir="ltr">${esc(V226_SQL)}</pre>
+          <button class="btn btn-ghost btn-sm" data-copy-sql="v226">📋 نسخ الأمر</button>
+        </div>`;
+    }
+    const list = [...(this.promoCodes || [])].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const status = p => {
+      if (p.active === false) return '<span class="badge">⏸️ متوقف</span>';
+      if (p.expiresAt && new Date(p.expiresAt) < new Date()) return '<span class="badge badge-danger">⌛ منتهي</span>';
+      if (p.maxUses && (parseInt(p.usedCount) || 0) >= parseInt(p.maxUses)) return '<span class="badge badge-danger">🔚 نفد</span>';
+      return '<span class="badge badge-success">✅ فعّال</span>';
+    };
+    const usedSales = code => this.sales.filter(s => String(s.promoCode || '').toUpperCase() === String(code).toUpperCase());
+    return `
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>${this.editingPromoId ? '✏️ تعديل الكود' : '➕ إنشاء كود خصم'}</h3></div>
+          ${this.promoForm(list.find(p => p.id === this.editingPromoId) || {})}
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-amber" id="savePromoBtn" style="flex: 1;">${this.editingPromoId ? '💾 حفظ التعديل' : '🎟️ إنشاء الكود'}</button>
+            ${this.editingPromoId ? '<button class="btn btn-ghost" id="cancelPromoEdit">إلغاء</button>' : ''}
+          </div>
+          <p class="text-xs" style="margin-top: 10px;">الموظف والمدير يكتبان الكود في خطوة "الضمان والدفع" عند إصدار الفاتورة، فيُخصم تلقائياً.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>🎟️ الأكواد (${list.length})</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>الكود</th><th>الخصم</th><th>على</th><th>الاستخدام</th><th>ينتهي</th><th>الحالة</th><th></th></tr></thead>
+              <tbody>
+                ${list.map(p => {
+                  const used = usedSales(p.code);
+                  const totalDisc = used.reduce((a, s) => a + (parseFloat(s.discountAmount) || 0), 0);
+                  return `<tr>
+                    <td><b dir="ltr" class="promo-code">${esc(p.code)}</b>${p.title ? `<div class="text-xs" style="color: var(--text-muted);">${esc(p.title)}</div>` : ''}</td>
+                    <td class="num">${this.promoValueText(p)}${(parseFloat(p.minTotal) || 0) > 0 ? `<div class="text-xs">من ${fmtMoney(p.minTotal)}</div>` : ''}</td>
+                    <td>${this.promoApplyLabel(p.applyTo)}</td>
+                    <td class="num">${parseInt(p.usedCount) || 0}${p.maxUses ? ' / ' + p.maxUses : ''}${totalDisc ? `<div class="text-xs">خصم ${fmtMoney(totalDisc)}</div>` : ''}</td>
+                    <td>${p.expiresAt ? fmtDate(p.expiresAt) : '—'}</td>
+                    <td>${status(p)}</td>
+                    <td><div class="action-cell">
+                      <button class="btn btn-xs btn-blue" data-promo-edit="${p.id}" title="تعديل">✏️</button>
+                      <button class="btn btn-xs btn-ghost" data-promo-toggle="${p.id}" title="${p.active === false ? 'تفعيل' : 'إيقاف'}">${p.active === false ? '▶️' : '⏸️'}</button>
+                      <button class="btn btn-xs btn-danger" data-promo-delete="${p.id}">🗑️</button>
+                    </div></td>
+                  </tr>`;
+                }).join('') || '<tr><td colspan="7" class="text-center">لا توجد أكواد بعد</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  promoForm(p) {
+    const type = p.discountType || 'percent';
+    return `
+      <div class="form-row">
+        <div class="form-group">
+          <label>الكود *</label>
+          <div class="disc-row">
+            <input type="text" id="promoCode" value="${esc(p.code || '')}" placeholder="مثال: WINTER10" dir="ltr" style="text-transform: uppercase;">
+            <button type="button" class="btn btn-ghost btn-sm" id="genPromoCode" title="توليد كود عشوائي">🎲</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>اسم العرض</label>
+          <input type="text" id="promoTitle" value="${esc(p.title || '')}" placeholder="مثال: عرض الشتاء">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>نوع الخصم *</label>
+          <select id="promoType">
+            <option value="percent" ${type === 'percent' ? 'selected' : ''}>نسبة %</option>
+            <option value="amount" ${type === 'amount' ? 'selected' : ''}>مبلغ ثابت (ر.ع)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>قيمة الخصم *</label>
+          <input type="number" id="promoValue" min="0" step="0.5" value="${parseFloat(p.discountValue) || ''}" placeholder="مثال: 10">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>يُطبَّق على</label>
+          <select id="promoApplyTo">
+            ${['all', 'tires', 'services', 'accessories'].map(k => `<option value="${k}" ${(p.applyTo || 'all') === k ? 'selected' : ''}>${this.promoApplyLabel(k)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>أقل قيمة للفاتورة</label>
+          <input type="number" id="promoMin" min="0" step="1" value="${parseFloat(p.minTotal) || ''}" placeholder="بدون حد">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ينتهي في</label>
+          <input type="date" id="promoExpires" value="${p.expiresAt ? localYMD(p.expiresAt) : ''}" min="${localYMD()}">
+        </div>
+        <div class="form-group">
+          <label>عدد مرات الاستخدام</label>
+          <input type="number" id="promoMaxUses" min="1" step="1" value="${parseInt(p.maxUses) || ''}" placeholder="غير محدود">
+        </div>
+      </div>`;
+  }
+
+  bindPromoCodesEvents() {
+    document.querySelectorAll('[data-copy-sql="v226"]').forEach(b => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(V226_SQL); showToast('تم نسخ الأمر', 'success'); } catch (e) { prompt('انسخ الأمر:', V226_SQL); }
+    }));
+    document.getElementById('genPromoCode')?.addEventListener('click', () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      document.getElementById('promoCode').value = 'HZ' + Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    });
+    document.getElementById('cancelPromoEdit')?.addEventListener('click', () => { this.editingPromoId = null; this.switchView('promoCodes'); });
+    document.getElementById('savePromoBtn')?.addEventListener('click', async (e) => {
+      const code = document.getElementById('promoCode').value.trim().toUpperCase().replace(/\s+/g, '');
+      const type = document.getElementById('promoType').value;
+      const value = parseFloat(document.getElementById('promoValue').value) || 0;
+      const exp = document.getElementById('promoExpires').value;
+      if (!/^[A-Z0-9_-]{3,20}$/.test(code)) { showToast('الكود من 3 إلى 20 حرفاً/رقماً بالإنجليزية بدون مسافات', 'error'); return; }
+      if (value <= 0) { showToast('أدخل قيمة الخصم', 'error'); return; }
+      if (type === 'percent' && value > 100) { showToast('أقصى نسبة 100%', 'error'); return; }
+      const dup = this.findPromo(code);
+      if (dup && dup.id !== this.editingPromoId) { showToast('هذا الكود موجود مسبقاً', 'error'); return; }
+      const data = {
+        code, title: document.getElementById('promoTitle').value.trim() || null,
+        discount_type: type, discount_value: value,
+        apply_to: document.getElementById('promoApplyTo').value,
+        min_total: parseFloat(document.getElementById('promoMin').value) || 0,
+        max_uses: parseInt(document.getElementById('promoMaxUses').value, 10) || null,
+        expires_at: exp ? (() => { const [y, m, d] = exp.split('-').map(Number); return new Date(y, m - 1, d, 23, 59, 59).toISOString(); })() : null,
+      };
+      e.target.disabled = true;
+      const ok = this.editingPromoId
+        ? await this.updateRecord('promo_codes', this.editingPromoId, data)
+        : await this.addRecord('promo_codes', { ...data, used_count: 0, active: true });
+      e.target.disabled = false;
+      if (ok === false) return;
+      showToast(this.editingPromoId ? 'تم تعديل الكود' : `تم إنشاء الكود ${code}`, 'success');
+      this.editingPromoId = null;
+      this.switchView('promoCodes');
+    });
+    document.querySelectorAll('[data-promo-edit]').forEach(b => b.addEventListener('click', () => { this.editingPromoId = b.dataset.promoEdit; this.switchView('promoCodes'); window.scrollTo(0, 0); }));
+    document.querySelectorAll('[data-promo-toggle]').forEach(b => b.addEventListener('click', async () => {
+      const p = this.promoCodes.find(x => x.id === b.dataset.promoToggle);
+      if (!p) return;
+      await this.updateRecord('promo_codes', p.id, { active: p.active === false });
+      this.switchView('promoCodes');
+    }));
+    document.querySelectorAll('[data-promo-delete]').forEach(b => b.addEventListener('click', async () => {
+      const p = this.promoCodes.find(x => x.id === b.dataset.promoDelete);
+      if (!p || !confirm(`حذف الكود ${p.code}؟`)) return;
+      await this.deleteRecord('promo_codes', p.id);
+      this.switchView('promoCodes');
+    }));
   }
 
   cartTotals() {
     const subtotal = this.saleWizard.cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
     const w = this.saleWizard;
+    // كود خصم مطبَّق: يحل محل الخصم اليدوي
+    if (w.promo) {
+      const base = this.promoBase(w.promo.applyTo);
+      const v = Math.max(parseFloat(w.promo.value) || 0, 0);
+      const isPct = w.promo.type === 'percent';
+      let d = isPct ? base * Math.min(v, 100) / 100 : Math.min(v, base);
+      d = Math.round(Math.min(d, subtotal) * 1000) / 1000;
+      // النسبة تُحفظ فقط إذا كانت على كامل الفاتورة
+      const percent = isPct && (w.promo.applyTo || 'all') === 'all' ? Math.min(v, 100) : 0;
+      return { subtotal, discount: d, percent, total: subtotal - d };
+    }
     const value = this.canDiscount() ? Math.max(parseFloat(w.discount) || 0, 0) : 0;
     const isPercent = w.discountType === 'percent';
     const percent = isPercent ? Math.min(value, 100) : 0;
@@ -5118,6 +5436,7 @@ class TireShopApp {
       total: total,
       items: items,
       created_at: createdAt,
+      promo_code: w.promo && w.promo.id ? w.promo.code : null,
     };
 
     try {
@@ -5195,6 +5514,11 @@ class TireShopApp {
 
       showToast(editingId ? 'تم تعديل الفاتورة' : `${t('invoiceCreated')} — ${invoiceNumber}${isBackdated ? ' (' + fmtDate(createdAt) + ')' : ''}`, 'success');
       this.lastSavedInvoiceNumber = invoiceNumber;
+      // زيادة عدد مرات استخدام الكود (فاتورة جديدة أو كود جديد في التعديل)
+      if (w.promo && w.promo.id && (!editingId || w.promo.code !== w.originalPromo)) {
+        const pc = this.promoCodes.find(p => p.id === w.promo.id);
+        if (pc) await this.updateRecord('promo_codes', pc.id, { used_count: (parseInt(pc.usedCount) || 0) + 1 });
+      }
       if (w.fromQuoteId) {
         await this.updateRecord('quotations', w.fromQuoteId, { status: 'converted', converted_invoice: invoiceNumber });
       }
@@ -5513,7 +5837,13 @@ class TireShopApp {
       </div>
 
       <!-- تفصيل المصروفات -->
-      <div class="grid-4 mt-16 exp-break">
+      <div class="mt-16 exp-break exp-break-5">
+        <div class="stat exp-tile exp-sum">
+          <div class="exp-ic">🧾</div>
+          <h4>اليومية + الثابتة</h4>
+          <p class="v num">${fmtMoney(totalDailyExpenses + totalFixedExpenses)}</p>
+          <p class="text-xs">${dailyList.length + fixedList.length} مصروف — ${expSplit([...dailyList, ...fixedList])}</p>
+        </div>
         <div class="stat exp-tile" data-goto="dailyExpenses">
           <div class="exp-ic">🗓️</div>
           <h4>المصاريف اليومية</h4>
@@ -6272,7 +6602,8 @@ class TireShopApp {
                     <div class="split-status" id="splitStatus"></div>
                   </div>` : ''}
               </div>
-${this.canDiscount() ? `
+${this.renderPromoBox()}
+${this.canDiscount() && !w.promo ? `
               <div class="form-group">
                 <label>الخصم — اختياري</label>
                 <div class="disc-row">
@@ -6405,6 +6736,7 @@ ${this.canDiscount() ? `
       ['appointments', t('appointments'), 'appointments'],
       ['sales', t('sales'), 'sales'],
       ['quotations', 'عروض الأسعار', 'quotations'],
+      ['promoCodes', 'أكواد الخصم', 'promoCodes'],
       ['reports', t('reports'), 'reports'],
       ['fixedExpenses', `💰 ${t('fixedExpenses')}`, 'fixedExpenses'],
       ['dailyExpenses', `💸 ${t('dailyExpenses')}`, 'dailyExpenses'],
@@ -6498,6 +6830,7 @@ ${this.canDiscount() ? `
       appointments: t('appointments'),
       sales: t('sales'),
       quotations: '📝 عروض الأسعار (Quotation)',
+      promoCodes: '🎟️ أكواد الخصم (العروض)',
       reports: t('reports'),
       fixedExpenses: `💰 ${t('fixedExpenses')}`,
       dailyExpenses: `💸 ${t('dailyExpenses')}`,
@@ -6527,6 +6860,7 @@ ${this.canDiscount() ? `
       reports: () => this.renderReportsView(),
       fixedExpenses: () => this.renderFixedExpensesView(),
       quotations: () => this.renderQuotationsView(),
+      promoCodes: () => this.renderPromoCodesView(),
       dailyExpenses: () => this.renderDailyExpensesView(),
       otherExpenses: () => this.renderDailyExpensesView('other'),
       bankDeposits: () => this.renderBankDepositsView(),
@@ -6819,7 +7153,7 @@ ${this.canDiscount() ? `
               `).join('')}
               ${(parseFloat(sale.discountAmount) || 0) > 0 ? `
               <tr>
-                <td colspan="3">الخصم${(parseFloat(sale.discountPercent) || 0) > 0 ? ' (' + (+parseFloat(sale.discountPercent).toFixed(2)) + '%)' : ''}</td>
+                <td colspan="3">الخصم${sale.promoCode ? ' — كود ' + esc(sale.promoCode) : ''}${(parseFloat(sale.discountPercent) || 0) > 0 ? ' (' + (+parseFloat(sale.discountPercent).toFixed(2)) + '%)' : ''}</td>
                 <td>− ${fmtMoney(sale.discountAmount)}</td>
               </tr>` : ''}
               <tr class="total-row">
@@ -6876,7 +7210,7 @@ ${this.canDiscount() ? `
     const message = this.buildInvoiceMessage({
       invoiceNumber: sale.invoiceNumber, date: sale.createdAt, customerName: sale.customerName, items,
       subtotal: parseFloat(sale.subtotal) || (parseFloat(sale.total) || 0) + discount,
-      discount, discountLabel: pct > 0 ? `الخصم (${+pct.toFixed(2)}%)` : 'الخصم',
+      discount, discountLabel: `الخصم${sale.promoCode ? ' — كود ' + sale.promoCode : ''}${pct > 0 ? ` (${+pct.toFixed(2)}%)` : ''}`,
       total: parseFloat(sale.total) || 0, warranty: sale.warranty, paymentMethod: sale.paymentMethod, isQuote: sale.isQuote,
     });
 
@@ -7003,7 +7337,7 @@ ${this.canDiscount() ? `
     };
     if (discount > 0) {
       sumRow(T('المجموع'), `${fmtMoney(subtotal)} ${T('ر.ع')}`);
-      sumRow(pct > 0 ? `${T('الخصم')} (${+pct.toFixed(2)}%)` : T('الخصم'), `− ${fmtMoney(discount)} ${T('ر.ع')}`, { color: C.red });
+      sumRow(`${T('الخصم')}${sale.promoCode ? ' — ' + sale.promoCode : ''}${pct > 0 ? ` (${+pct.toFixed(2)}%)` : ''}`, `− ${fmtMoney(discount)} ${T('ر.ع')}`, { color: C.red });
     }
     ctx.fillStyle = C.amberBg; ctx.fillRect(P, y, tableW, 54);
     text(T('الإجمالي'), en ? P + 16 : W - P - 16, y + 27, { size: 20, bold: true, align: 'start' });
@@ -7594,7 +7928,7 @@ ${this.canDiscount() ? `
 
   async updateRecord(table, id, data) {
     if (!this.sb) {
-      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments').replace('bank_deposits', 'bankDeposits');
+      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments').replace('bank_deposits', 'bankDeposits').replace('promo_codes', 'promoCodes');
       const list = this[prop] || [];
       const idx = list.findIndex(x => x.id === id);
       if (idx > -1) {
@@ -7625,7 +7959,7 @@ ${this.canDiscount() ? `
 
   async deleteRecord(table, id) {
     if (!this.sb) {
-      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments').replace('bank_deposits', 'bankDeposits');
+      const prop = table.replace('supplier_invoices', 'supplierInvoices').replace('supplier_payments', 'supplierPayments').replace('bank_deposits', 'bankDeposits').replace('promo_codes', 'promoCodes');
       const list = this[prop] || [];
       const idx = list.findIndex(x => x.id === id);
       if (idx > -1) {
@@ -7834,6 +8168,7 @@ ${this.canDiscount() ? `
     if (view === 'dashboard') this.bindDashboardEvents();
     if (view === 'sales' || view === 'newSale' || view === 'quotations') this.bindSalesWizardEvents();
     if (view === 'quotations') this.bindQuotationsEvents();
+    if (view === 'promoCodes') this.bindPromoCodesEvents();
     if (view === 'reports') this.bindReportsEvents();
     if (view === 'hr') this.bindHREvents();
     if (view === 'myHR') this.bindMyHREvents();
@@ -7862,6 +8197,16 @@ ${this.canDiscount() ? `
     if (view === 'supplierInvoices') this.bindSupplierInvoicesEvents();
     if (view === 'supplierInvoices') this.bindPaidMismatchEvents();
     if (view === 'supplierPayments') this.bindSupplierPaymentsEvents();
+    if (view === 'supplierInvoices') {
+      const box = document.getElementById('supInvSearch');
+      box?.addEventListener('input', () => { this.supInvQuery = box.value; this.applySupInvSearch(); });
+      if (this.supInvQuery) this.applySupInvSearch();
+    }
+    if (view === 'supplierPayments') {
+      const box = document.getElementById('paySearch');
+      box?.addEventListener('input', () => { this.payQuery = box.value; this.applyPaySearch(); });
+      if (this.payQuery) this.applyPaySearch();
+    }
 
     // ربط أحداث الفلتر
     document.getElementById('applyDateFilterBtn')?.addEventListener('click', () => {
@@ -8377,6 +8722,14 @@ ${this.canDiscount() ? `
         document.getElementById('discountInput')?.focus();
       }));
       if (document.getElementById('discountInput')) refreshDiscount();
+      const applyPromo = () => {
+        const v = document.getElementById('promoCodeInput')?.value;
+        if (!v || !v.trim()) { showToast('اكتب الكود', 'warning'); return; }
+        if (this.applyPromoCode(v)) this.switchView(this.wizView());
+      };
+      document.getElementById('applyPromoBtn')?.addEventListener('click', applyPromo);
+      document.getElementById('promoCodeInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyPromo(); } });
+      document.getElementById('removePromoBtn')?.addEventListener('click', () => { w.promo = null; this.switchView(this.wizView()); });
       document.getElementById('prevStep2Btn')?.addEventListener('click', () => this.prevWizardStep());
       document.getElementById('nextStep2Btn')?.addEventListener('click', () => this.nextWizardStep());
 
@@ -9272,6 +9625,34 @@ ${this.canDiscount() ? `
         </div>
       </div>
     `;
+  }
+
+  // بحث عام في صفوف جدول (يُخفي ما لا يطابق)
+  liveFilterRows(selector, query) {
+    const q = String(query || '').trim().toLowerCase().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    const words = q.split(/\s+/).filter(Boolean);
+    let shown = 0, sum = 0;
+    const rows = document.querySelectorAll(selector);
+    rows.forEach(tr => {
+      const ok = words.every(w => (tr.dataset.search || '').includes(w));
+      tr.style.display = ok ? '' : 'none';
+      if (ok) { shown++; sum += parseFloat(tr.dataset.amount) || 0; }
+    });
+    return { q, shown, total: rows.length, sum };
+  }
+
+  applySupInvSearch() {
+    const r = this.liveFilterRows('[data-supinv-row]', this.supInvQuery);
+    const c = document.getElementById('supInvCount');
+    if (c) c.textContent = r.q ? `${r.shown} من ${r.total}` : r.total;
+  }
+
+  applyPaySearch() {
+    const r = this.liveFilterRows('[data-pay-row]', this.payQuery);
+    const g = document.getElementById('payGrandTotal');
+    if (g) g.textContent = fmtMoney(r.sum);
+    const m = document.getElementById('payMatchCount');
+    if (m) m.textContent = r.q ? `(${r.shown} دفعة من ${r.total} تطابق البحث)` : '';
   }
 
   // البحث في الفواتير: رقم الفاتورة أو اسم الزبون أو رقم هاتفه
@@ -10302,7 +10683,10 @@ ${this.canDiscount() ? `
 
         <div class="card">
           <div class="card-head">
-            <h3>${t('supplierInvoiceTitle')} (${filteredInvoices.length})</h3>
+            <h3>${t('supplierInvoiceTitle')} (<span id="supInvCount">${filteredInvoices.length}</span>)</h3>
+          </div>
+          <div class="tire-search-wrap">
+            <input type="search" id="supInvSearch" class="tire-search" placeholder="🔍 ابحث باسم المورد أو رقم الفاتورة" value="${esc(this.supInvQuery || '')}" autocomplete="off">
           </div>
           <div class="table-wrap">
             <table>
@@ -10325,7 +10709,7 @@ ${this.canDiscount() ? `
                   const isDup = this._dupInv.has(inv.id);
                   const nPays = this.supplierPayments.filter(p => p.supplierInvoiceId === inv.id).length;
                   return `
-                    <tr class="${isDup ? 'dup-row' : ''}">
+                    <tr class="${isDup ? 'dup-row' : ''}" data-supinv-row data-search="${esc([supplier?.name, inv.invoiceNumber, String(inv.invoiceNumber || '').replace(/^0+/, ''), inv.notes].filter(Boolean).join(' ').toLowerCase())}">
                       <td>${esc(supplier?.name || '-')}</td>
                       <td>${esc(inv.invoiceNumber)}${inv.notes ? ` <span class="note-ic" title="${esc(inv.notes)}">📝</span>` : ''}${isDup ? ' <span class="dup-flag" title="نفس رقم الفاتورة لنفس المورد مسجّل أكثر من مرة">⚠️ مكررة</span>' : ''}${nPays ? `<div class="text-xs" style="color: var(--text-muted);">${nPays} دفعة</div>` : ''}</td>
                       <td class="num">${fmtMoney(inv.totalAmount)}</td>
@@ -10417,7 +10801,10 @@ ${this.canDiscount() ? `
               ${dups.size ? `<div class="dup-banner">⚠️ يوجد <b>${dups.size}</b> دفعة متشابهة (نفس الفاتورة ونفس المبلغ ونفس اليوم) — معلّمة بـ ⚠️ في الجدول. راجعها، فقد تكون مكررة.</div>` : `<div class="dup-ok">✅ لا توجد دفعات مكررة (نفس الفاتورة والمبلغ واليوم)</div>`}
               ${orph.length ? `<div class="dup-banner">🗑️ يوجد <b>${orph.length}</b> دفعة فاتورتها محذوفة بمجموع <b class="num">${fmtMoney(orph.reduce((a, p) => a + (parseFloat(p.paymentAmount) || 0), 0))}</b> — معلّمة "فاتورة محذوفة". <button class="btn btn-xs btn-danger" data-delete-orphans>حذفها</button></div>` : ''}`;
           })()}
-          <div class="pay-grand">المجموع المدفوع: <b class="num">${fmtMoney(filteredPayments.reduce((a, p) => a + (parseFloat(p.paymentAmount) || 0), 0))}</b></div>
+          <div class="tire-search-wrap">
+            <input type="search" id="paySearch" class="tire-search" placeholder="🔍 ابحث برقم الفاتورة أو اسم المورد أو رقم الإيصال" value="${esc(this.payQuery || '')}" autocomplete="off">
+          </div>
+          <div class="pay-grand">المجموع المدفوع: <b class="num" id="payGrandTotal">${fmtMoney(filteredPayments.reduce((a, p) => a + (parseFloat(p.paymentAmount) || 0), 0))}</b> <span class="text-xs" id="payMatchCount"></span></div>
           <div class="pay-totals">
             ${Object.entries(SUPPLIER_PAY_METHODS).map(([k, label]) => `
               <div class="pay-total"><span>${label}</span><b class="num">${fmtMoney(byMethod[k])}</b></div>
@@ -10443,7 +10830,7 @@ ${this.canDiscount() ? `
                   const supplier = this.suppliers.find(x => x.id === invoice?.supplierId);
                   const isDup = this._dupPay.has(pay.id);
                   return `
-                    <tr class="${isDup ? 'dup-row' : ''} ${invoice ? '' : 'orphan-row'}">
+                    <tr class="${isDup ? 'dup-row' : ''} ${invoice ? '' : 'orphan-row'}" data-pay-row data-amount="${parseFloat(pay.paymentAmount) || 0}" data-search="${esc([supplier?.name, invoice?.invoiceNumber, String(invoice?.invoiceNumber || '').replace(/^0+/, ''), supplierReceipt(pay)].filter(Boolean).join(' ').toLowerCase())}">
                       <td>${esc(supplier?.name || '-')}</td>
                       <td>${invoice ? esc(invoice.invoiceNumber || '-') : '<span class="badge badge-danger">فاتورة محذوفة</span>'}${isDup ? ' <span class="dup-flag" title="دفعة متشابهة: نفس الفاتورة والمبلغ واليوم">⚠️ مكررة؟</span>' : ''}</td>
                       <td class="num">${fmtMoney(pay.paymentAmount)}</td>
