@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.26.0 (supplier searches, promo codes, daily+fixed dashboard tile) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.26.1 (link tire to supplier invoice) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1603,6 +1603,7 @@ tr.orphan-row td { background: #FBEDEB !important; }
 
 .receipt-field input { font-family: inherit; }
 .inv-note { color: var(--text-muted); max-width: 220px; white-space: normal; }
+.tire-inv { color: var(--info-blue, #2F6E9E); white-space: nowrap; }
 .note-ic { cursor: help; font-size: 13px; }
 
 .quote-banner { background: #EEF4FB; border: 1px solid #BFD6EE; color: #1F4E79; border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; }
@@ -2062,6 +2063,12 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "🧾 فاتورة المورد": "🧾 Supplier invoice",
+  "اختر المورد أولاً": "Choose the supplier first",
+  "— بدون فاتورة —": "— No invoice —",
+  "لا توجد فواتير لهذا المورد": "No invoices for this supplier",
+  "صنف إطارات": "tire items",
+  "⚠️ لم يُحفظ ربط الفاتورة — شغّل ملف v2_27_tire_invoice.sql مرة واحدة في Supabase": "⚠️ The invoice link wasn't saved — run v2_27_tire_invoice.sql once in Supabase",
   "🔍 ابحث باسم المورد أو رقم الفاتورة": "🔍 Search by supplier name or invoice number",
   "🔍 ابحث برقم الفاتورة أو اسم المورد أو رقم الإيصال": "🔍 Search by invoice number, supplier name or receipt number",
   "اليومية + الثابتة": "Daily + fixed",
@@ -3293,7 +3300,8 @@ const FIELD_MAP = {
   tires: { 
     selling_price: 'sellingPrice', 
     cost: 'cost',
-    supplier_id: 'supplierId'
+    supplier_id: 'supplierId',
+    supplier_invoice_id: 'supplierInvoiceId'
   },
   services: {},
   accessories: {},
@@ -7789,6 +7797,10 @@ ${this.canDiscount() && !w.promo ? `
           </select>
         </div>
       </div>
+      <div class="form-group">
+        <label>🧾 فاتورة المورد</label>
+        <select id="editTireSupInvoice" ${(tire.supplierId || tire.supplier_id) ? '' : 'disabled'}>${this.supInvOptions(tire.supplierId || tire.supplier_id, tire.supplierInvoiceId)}</select>
+      </div>
 
       <!-- الأسعار -->
       <div class="form-row">
@@ -7828,6 +7840,7 @@ ${this.canDiscount() && !w.promo ? `
       overlay.classList.remove('active');
     });
     
+    this.bindSupInvPicker('editTireSupplier', 'editTireSupInvoice');
     document.getElementById('saveEditTireBtn')?.addEventListener('click', () => {
       const size = document.getElementById('editTireSize').value.trim();
       const brand = document.getElementById('editTireBrand').value.trim();
@@ -7841,15 +7854,18 @@ ${this.canDiscount() && !w.promo ? `
         return;
       }
 
+      const supInvId = supplierId ? (document.getElementById('editTireSupInvoice')?.value || null) : null;
       this.updateRecord('tires', tire.id, {
         size,
         brand,
         model,
         supplier_id: supplierId || null,
+        supplier_invoice_id: supInvId,
         cost: parseFloat(document.getElementById('editTireCostPrice').value) || 0,
         selling_price: sellingPrice,
         stock
       }).then(() => {
+        if (supInvId && (this.lastDropped || []).includes('supplier_invoice_id')) this.warnTireInvCol();
         overlay.classList.remove('active');
         this.switchView('tires');
       });
@@ -8301,7 +8317,12 @@ ${this.canDiscount() && !w.promo ? `
     // معالجات الحذف والتعديل موجودة في event delegation بـ bindViewEvents
   }
 
+  warnTireInvCol() {
+    showToast('⚠️ لم يُحفظ ربط الفاتورة — شغّل ملف v2_27_tire_invoice.sql مرة واحدة في Supabase', 'warning');
+  }
+
   bindTiresEvents() {
+    this.bindSupInvPicker('tireSupplier', 'tireSupInvoice');
     if (!this.isManager()) return;
     const addBtn = document.getElementById('addTireBtn');
     if (addBtn && !addBtn.hasListener) {
@@ -8320,19 +8341,24 @@ ${this.canDiscount() && !w.promo ? `
           return;
         }
 
+        const supInvId = document.getElementById('tireSupInvoice')?.value || null;
         this.addRecord('tires', {
           size, 
           brand, 
           model,
           supplier_id: supplierId,
+          supplier_invoice_id: supInvId,
           cost, 
           selling_price: sellingPrice, 
           stock
         }).then(() => {
+          if (supInvId && (this.lastDropped || []).includes('supplier_invoice_id')) this.warnTireInvCol();
           document.getElementById('tireSize').value = '';
           document.getElementById('tireBrand').value = '';
           document.getElementById('tireModel').value = '';
           document.getElementById('tireSupplier').value = '';
+          const ti = document.getElementById('tireSupInvoice');
+          if (ti) { ti.innerHTML = this.supInvOptions('', ''); ti.disabled = true; }
           document.getElementById('tireCostPrice').value = '';
           document.getElementById('tireSellingPrice').value = '';
           document.getElementById('tireQuantity').value = '';
@@ -9558,6 +9584,10 @@ ${this.canDiscount() && !w.promo ? `
               </select>
             </div>
           </div>
+          <div class="form-group">
+            <label>🧾 فاتورة المورد</label>
+            <select id="tireSupInvoice" disabled>${this.supInvOptions('', '')}</select>
+          </div>
 
           <!-- الأسعار -->
           <div class="form-row">
@@ -9608,7 +9638,7 @@ ${this.canDiscount() && !w.promo ? `
                     <td class="num"><span style="color: ${(parseInt(t.stock) || 0) > 0 ? 'inherit' : 'var(--brake-red)'}; font-weight: 700;">${parseInt(t.stock) || 0}</span></td>
                     ${canEdit ? `<td class="num" style="color: var(--text-600);">${fmtMoney(parseFloat(t.cost) || 0)}</td>` : ''}
                     <td class="num">${fmtMoney(parseFloat(t.sellingPrice) || 0)}</td>
-                    ${canEdit ? `<td>${esc(this.suppliers.find(s => s.id === t.supplierId)?.name || '-')}</td>
+                    ${canEdit ? `<td>${esc(this.suppliers.find(s => s.id === t.supplierId)?.name || '-')}${this.tireInvoice(t) ? `<div class="text-xs tire-inv">🧾 فاتورة ${esc(this.tireInvoice(t).invoiceNumber)}</div>` : ''}</td>
                     <td>
                       <div class="action-cell">
                         <button class="btn btn-xs btn-blue" data-edit-tire="${t.id}">${icon('edit')}</button>
@@ -9676,7 +9706,7 @@ ${this.canDiscount() && !w.promo ? `
 
   // نص البحث للإطار: المقاس بصيغته ومجرّداً من الرموز (205/55R16 = 2055516)
   tireSearchText(t) {
-    const sup = this.suppliers.find(s => s.id === t.supplierId)?.name || '';
+    const sup = (this.suppliers.find(s => s.id === t.supplierId)?.name || '') + ' ' + (this.tireInvoice(t)?.invoiceNumber || '');
     const size = String(t.size || '');
     return [size, size.replace(/[^0-9a-z]/gi, ''), size.replace(/[^0-9]/g, ''), t.brand, t.model, sup].filter(Boolean).join(' ').toLowerCase();
   }
@@ -10710,7 +10740,7 @@ ${this.canDiscount() && !w.promo ? `
                   return `
                     <tr class="${isDup ? 'dup-row' : ''}" data-supinv-row data-search="${esc([supplier?.name, inv.invoiceNumber, String(inv.invoiceNumber || '').replace(/^0+/, ''), inv.notes].filter(Boolean).join(' ').toLowerCase())}">
                       <td>${esc(supplier?.name || '-')}</td>
-                      <td>${esc(inv.invoiceNumber)}${inv.notes ? ` <span class="note-ic" title="${esc(inv.notes)}">📝</span>` : ''}${isDup ? ' <span class="dup-flag" title="نفس رقم الفاتورة لنفس المورد مسجّل أكثر من مرة">⚠️ مكررة</span>' : ''}${nPays ? `<div class="text-xs" style="color: var(--text-muted);">${nPays} دفعة</div>` : ''}</td>
+                      <td>${esc(inv.invoiceNumber)}${inv.notes ? ` <span class="note-ic" title="${esc(inv.notes)}">📝</span>` : ''}${isDup ? ' <span class="dup-flag" title="نفس رقم الفاتورة لنفس المورد مسجّل أكثر من مرة">⚠️ مكررة</span>' : ''}${nPays ? `<div class="text-xs" style="color: var(--text-muted);">${nPays} دفعة</div>` : ''}${(() => { const tl = this.tires.filter(t => t.supplierInvoiceId === inv.id); return tl.length ? `<div class="text-xs tire-inv" title="${esc(tl.map(t => this.tireLabel(t)).join('، '))}">🛞 ${tl.length} صنف إطارات</div>` : ''; })()}</td>
                       <td class="num">${fmtMoney(inv.totalAmount)}</td>
                       <td class="num" style="color: var(--tread-green);">${fmtMoney(paidAmount)}</td>
                       <td class="num" style="color: ${inv.remainingAmount > 0 ? 'var(--brake-red)' : 'var(--tread-green)'}">
@@ -11088,6 +11118,29 @@ ${this.canDiscount() && !w.promo ? `
       this.switchView('supplierInvoices');
       return true;
     });
+  }
+
+  // ===== ربط الإطار بفاتورة المورد =====
+  supInvOptions(supplierId, selectedId) {
+    if (!supplierId) return '<option value="">اختر المورد أولاً</option>';
+    const list = this.supplierInvoices.filter(i => i.supplierId === supplierId)
+      .sort((a, b) => String(b.invoiceDate || b.createdAt || '').localeCompare(String(a.invoiceDate || a.createdAt || '')));
+    return `<option value="">— بدون فاتورة —</option>` + list.map(i =>
+      `<option value="${i.id}" ${i.id === selectedId ? 'selected' : ''}>فاتورة ${esc(i.invoiceNumber || '-')} — ${fmtDate(i.invoiceDate || i.createdAt)} — ${fmtMoney(parseFloat(i.totalAmount) || 0)}</option>`).join('')
+      + (list.length ? '' : '<option value="" disabled>لا توجد فواتير لهذا المورد</option>');
+  }
+
+  bindSupInvPicker(supplierSelId, invSelId) {
+    const sup = document.getElementById(supplierSelId), inv = document.getElementById(invSelId);
+    if (!sup || !inv) return;
+    sup.addEventListener('change', () => {
+      inv.innerHTML = this.supInvOptions(sup.value, '');
+      inv.disabled = !sup.value;
+    });
+  }
+
+  tireInvoice(t) {
+    return t.supplierInvoiceId ? this.supplierInvoices.find(i => i.id === t.supplierInvoiceId) : null;
   }
 
   // ===== مطابقة المدفوع على فواتير الموردين مع سجل الدفعات =====
