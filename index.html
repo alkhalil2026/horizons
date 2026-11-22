@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.27.0 (shop stamp + manual cash/bank adjustments) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.27.2 (bank account hidden from employee) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1626,6 +1626,8 @@ tr.orphan-row td { background: #FBEDEB !important; }
 .adj-grid .adj-notes { grid-column: 1 / -1; }
 @media (max-width: 700px) { .adj-grid { grid-template-columns: 1fr; } }
 .cf-item.adj { border-style: dashed; background: #FFF8EA; }
+
+.login-hint { background: #FFF4E0; border: 1px solid #F2C46D; color: #7A4B00; border-radius: 10px; padding: 10px 12px; text-align: center; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -1730,7 +1732,7 @@ function shopMark() {
 const APP_MODE = 'manager';
 
 // الصفحات المسموحة للموظف (المدير يرى كل شيء)
-const EMPLOYEE_VIEWS = ['newSale', 'quotations', 'myHR', 'customers', 'appointments', 'tires', 'accessories', 'services', 'dailyExpenses', 'bankDeposits'];
+const EMPLOYEE_VIEWS = ['newSale', 'quotations', 'myHR', 'customers', 'appointments', 'tires', 'accessories', 'services', 'dailyExpenses'];
 const SHOP_NAME = SHOP.name;
 const SHOP_CR_NUMBER = SHOP.cr;
 
@@ -2075,6 +2077,10 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "اسم المستخدم أو كلمة المرور غير صحيحة": "Incorrect username or password",
+  "لوحة المفاتيح على العربي — حوّلها إلى الإنجليزي واكتب البيانات مرة ثانية": "The keyboard is set to Arabic — switch to English and type again",
+  "👔 افتح صفحة الموظف": "👔 Open the employee page",
+  "👤 افتح صفحة المدير": "👤 Open the manager page",
   "🔵 ختم المحل": "🔵 Shop stamp",
   "ختم المحل": "Shop stamp",
   "الختم": "Stamp",
@@ -4723,8 +4729,25 @@ class TireShopApp {
 
     role = APP_MODE;
     const c = creds[role];
+    // تنظيف المدخلات: مسافات زائدة، حروف كبيرة (لوحة الجوال)، أرقام عربية
+    const digits = v => String(v || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+    username = digits(username).trim().toLowerCase();
+    password = digits(password).trim();
     if (!c || username !== c.u || password !== c.p) {
-      showToast('بيانات خاطئة', 'error');
+      // بيانات الموظف في صفحة المدير (أو العكس)
+      if (role === 'manager' && username === creds.employee.u && password === creds.employee.p) {
+        this.showLoginHint('هذه بيانات <b>الموظف</b>، وأنت في صفحة <b>المدير</b>.', 'employee.html', '👔 افتح صفحة الموظف');
+        return;
+      }
+      if (role === 'employee' && username === 'admin') {
+        this.showLoginHint('هذه صفحة <b>الموظف</b>. المدير يدخل من الصفحة الرئيسية.', './', '👤 افتح صفحة المدير');
+        return;
+      }
+      if (/[\u0600-\u06FF]/.test(username + password)) {
+        showToast('لوحة المفاتيح على العربي — حوّلها إلى الإنجليزي واكتب البيانات مرة ثانية', 'error');
+        return;
+      }
+      showToast('اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
       return;
     }
 
@@ -4732,6 +4755,16 @@ class TireShopApp {
     sessionStorage.setItem('tireshop_user', JSON.stringify(this.currentUser));
     this.currentView = this.homeView();
     this.loadAllData().then(() => this.render());
+  }
+
+  showLoginHint(html, href, label) {
+    let box = document.getElementById('loginHint');
+    const btn = document.getElementById('doLoginBtn');
+    if (!box && btn) { box = document.createElement('div'); box.id = 'loginHint'; btn.after(box); }
+    if (box) {
+      box.className = 'login-hint';
+      box.innerHTML = `${html}<br><a class="btn btn-ghost btn-sm" href="${href}" style="margin-top: 8px;">${label}</a>`;
+    }
   }
 
   logout() {
@@ -5699,14 +5732,14 @@ class TireShopApp {
               <label style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
                 <span>👤 المستخدم</span>
               </label>
-              <input type="text" id="username" placeholder="أدخل المستخدم" autocomplete="username" style="font-size: 16px; padding: 12px;">
+              <input type="text" id="username" placeholder="أدخل المستخدم" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" dir="ltr" style="font-size: 16px; padding: 12px;">
             </div>
 
             <div class="form-group">
               <label style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
                 <span>🔐 كلمة المرور</span>
               </label>
-              <input type="password" id="password" placeholder="أدخل كلمة المرور" autocomplete="current-password" style="font-size: 16px; padding: 12px;">
+              <input type="password" id="password" placeholder="أدخل كلمة المرور" autocomplete="current-password" dir="ltr" style="font-size: 16px; padding: 12px;">
             </div>
           </div>
 
