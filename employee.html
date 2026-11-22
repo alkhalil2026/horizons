@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.26.1 (link tire to supplier invoice) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.27.0 (shop stamp + manual cash/bank adjustments) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1482,6 +1482,9 @@ html[dir="ltr"] .pick-badge { left: auto; right: -9px; }
 .inv-img-row .btn { flex: 1; }
 
 .sign-preview { width: 200px; }
+.stamp-preview { width: 140px; height: 140px; }
+.stamp-preview img { max-height: 130px; }
+.stamp-preview .text-xs { text-align: center; color: var(--text-muted); }
 .sign-preview .text-xs { text-align: center; color: var(--text-muted); }
 #settingPolicy { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; font-family: inherit; font-size: 14px; line-height: 1.7; resize: vertical; }
 
@@ -1617,6 +1620,12 @@ tr.orphan-row td { background: #FBEDEB !important; }
 .exp-tile.exp-sum { background: #FFF8EA; border: 1px solid #F2C46D; cursor: default; }
 .promo-box.applied { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #EEF8F1; border: 1px dashed var(--tread-green, #1E7B3A); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
 .promo-code { font-family: ui-monospace, monospace; letter-spacing: 1px; background: #F4F1EA; padding: 2px 8px; border-radius: 6px; }
+
+.adj-card { margin-bottom: 16px; border: 1px dashed #F2C46D; }
+.adj-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.adj-grid .adj-notes { grid-column: 1 / -1; }
+@media (max-width: 700px) { .adj-grid { grid-template-columns: 1fr; } }
+.cf-item.adj { border-style: dashed; background: #FFF8EA; }
 </style>
 </head>
 <body>
@@ -1658,12 +1667,13 @@ const DEFAULT_WARRANTY_POLICY = "الضمان يشمل:\n* سطح الإطار �
 SHOP.address = DEFAULT_ADDRESS;
 SHOP.warrantyPolicy = DEFAULT_WARRANTY_POLICY;
 SHOP.signature = '';
+SHOP.stamp = '';         // صورة ختم المحل (تظهر بجانب التوقيع)
 SHOP.employeePhone = '';   // رقم الموظف (يظهر أسفل الفاتورة)
 SHOP.managerPhone = '';    // رقم المسؤول (يظهر أسفل الفاتورة)
 SHOP.invoiceStart = '1';   // رقم أول فاتورة في الترقيم المتسلسل
 // هذه المفاتيح يمكن تفريغها عمداً (لإخفائها من الفاتورة)
-const SHOP_CLEARABLE_KEYS = ['address', 'warrantyPolicy', 'signature', 'employeePhone', 'managerPhone'];
-const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature', 'employeePhone', 'managerPhone', 'invoiceStart'];
+const SHOP_CLEARABLE_KEYS = ['address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone'];
+const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone', 'invoiceStart'];
 
 // ===== ترقيم الفواتير المتسلسل: INV-0001, INV-0002 ... =====
 // الأرقام القديمة العشوائية (INV-1790670643117) لا تدخل في الحساب
@@ -1812,11 +1822,13 @@ function withPayTag(text, method) {
 
 // ===== حركات الحساب البنكي: إيداع كاش أو تحويل وارد =====
 // النوع يُحفظ في عمود source، ونسخة احتياطية كوسم في الملاحظات إن لم يوجد العمود
-const BANK_SRC_TAG_RE = /\s*\[نوع: (إيداع كاش|تحويل وارد)\]\s*/;
+const BANK_SRC_TAG_RE = /\s*\[نوع: (إيداع كاش|تحويل وارد|تسوية صندوق|تسوية بنك)\]\s*/;
+const BANK_SRC_TAGS = { cash: 'إيداع كاش', transfer: 'تحويل وارد', cash_adj: 'تسوية صندوق', bank_adj: 'تسوية بنك' };
 function bankSource(d) {
-  if (d.source === 'transfer' || d.source === 'cash') return d.source;
+  if (BANK_SRC_TAGS[d.source]) return d.source;
   const m = BANK_SRC_TAG_RE.exec(d.notes || '');
-  return m && m[1] === 'تحويل وارد' ? 'transfer' : 'cash';
+  if (!m) return 'cash';
+  return Object.keys(BANK_SRC_TAGS).find(k => BANK_SRC_TAGS[k] === m[1]) || 'cash';
 }
 function bankNotes(d) { return String(d.notes || '').replace(BANK_SRC_TAG_RE, ' ').trim(); }
 
@@ -2063,6 +2075,41 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "🔵 ختم المحل": "🔵 Shop stamp",
+  "ختم المحل": "Shop stamp",
+  "الختم": "Stamp",
+  "لا يوجد ختم": "No stamp",
+  "(يظهر مكان فارغ للختم باليد)": "(an empty space is left for a hand stamp)",
+  "تغيير صورة الختم": "Change stamp image",
+  "رفع صورة الختم": "Upload stamp image",
+  "🗑️ حذف الختم": "🗑️ Delete stamp",
+  "تم حفظ الختم": "Stamp saved",
+  "تم حذف الختم": "Stamp deleted",
+  "حذف صورة الختم؟": "Delete the stamp image?",
+  "اختم على ورقة بيضاء وصوّرها من الأعلى بإضاءة جيدة، أو ارفع صورة PNG شفافة للختم. يظهر بجانب التوقيع في الفاتورة وعرض السعر.": "Stamp on white paper and photograph it from above in good light, or upload a transparent PNG. It appears next to the signature on invoices and quotations.",
+  "⚖️ تعديل يدوي للرصيد": "⚖️ Manual balance adjustment",
+  "🏦 الحساب البنكي": "🏦 Bank account",
+  "الرصيد الحالي في النظام:": "Current balance in the system:",
+  "طريقة التعديل": "Adjustment method",
+  "اكتب الرصيد الفعلي": "Enter the actual balance",
+  "أضف / اخصم مبلغ": "Add / subtract an amount",
+  "الرصيد الفعلي في الحساب الآن *": "Actual account balance now *",
+  "الكاش الموجود فعلاً في الصندوق الآن *": "Cash actually in the drawer now *",
+  "مبلغ التعديل * (اكتب − للخصم، مثال: -150)": "Adjustment amount * (use − to subtract, e.g. -150)",
+  "السبب *": "Reason *",
+  "مثال: رصيد افتتاحي — مبيعات قبل استخدام النظام": "e.g. Opening balance — sales before using the system",
+  "⚖️ تسجيل التعديل": "⚖️ Record adjustment",
+  "⚖️ تسويات يدوية": "⚖️ Manual adjustments",
+  "⚖️ تسويات": "⚖️ Adjustments",
+  "⚖️ تسوية صندوق": "⚖️ Cash adjustment",
+  "⚖️ تسوية بنك": "⚖️ Bank adjustment",
+  "التعديل:": "Adjustment:",
+  "الرصيد بعده:": "Balance after:",
+  "اكتب مبلغاً صحيحاً": "Enter a valid amount",
+  "الرصيد مطابق — لا يوجد تعديل": "The balance already matches — nothing to adjust",
+  "اكتب سبب التعديل": "Enter the reason",
+  "تم تسجيل التعديل": "Adjustment recorded",
+  "استخدمه لضبط الرصيد إذا كانت عندك مبيعات قديمة غير مُدخلة في النظام، أو رصيد افتتاحي، أو فرق في العدّ. يُسجَّل كحركة \"تسوية\" في السجل، وتقدر تحذفه في أي وقت.": "Use it to set the balance if you have old sales not entered in the system, an opening balance, or a counting difference. It is recorded as an \"adjustment\" entry in the log and can be deleted at any time.",
   "🧾 فاتورة المورد": "🧾 Supplier invoice",
   "اختر المورد أولاً": "Choose the supplier first",
   "— بدون فاتورة —": "— No invoice —",
@@ -4399,7 +4446,7 @@ class TireShopApp {
   readLocalSettings() {
     let obj = {};
     try { obj = JSON.parse(localStorage.getItem('tireshop_settings') || '{}') || {}; } catch (e) {}
-    ['logo', 'signature'].forEach(k => {
+    ['logo', 'signature', 'stamp'].forEach(k => {
       try {
         const v = localStorage.getItem('tireshop_set_' + k);
         if (v !== null) obj[k] = v;
@@ -4410,7 +4457,7 @@ class TireShopApp {
 
   writeLocalSettings(obj) {
     const rest = { ...obj };
-    ['logo', 'signature'].forEach(k => {
+    ['logo', 'signature', 'stamp'].forEach(k => {
       if (k in rest) {
         try { localStorage.setItem('tireshop_set_' + k, rest[k] || ''); } catch (e) { console.warn('تعذّر حفظ ' + k + ' محلياً (الذاكرة ممتلئة)'); }
         delete rest[k];
@@ -6165,6 +6212,21 @@ class TireShopApp {
           </div>
         </div>
         <div class="form-group">
+          <label>🔵 ختم المحل</label>
+          <div class="logo-setting">
+            <div class="logo-preview stamp-preview">${SHOP.stamp ? `<img src="${SHOP.stamp}" alt="">` : '<span class="text-xs">لا يوجد ختم<br>(يظهر مكان فارغ للختم باليد)</span>'}</div>
+            <div class="logo-actions">
+              <label class="btn btn-ghost btn-sm" style="cursor: pointer;">
+                📤 ${SHOP.stamp ? 'تغيير صورة الختم' : 'رفع صورة الختم'}
+                <input type="file" id="stampFileInput" accept="image/png,image/jpeg,image/webp" hidden>
+              </label>
+              <label class="text-xs"><input type="checkbox" id="stampRemoveBg" checked> إزالة خلفية الورقة تلقائياً</label>
+              ${SHOP.stamp ? '<button type="button" class="btn btn-ghost btn-sm" id="stampRemoveBtn">🗑️ حذف الختم</button>' : ''}
+              <p class="text-xs">اختم على ورقة بيضاء وصوّرها من الأعلى بإضاءة جيدة، أو ارفع صورة PNG شفافة للختم. يظهر بجانب التوقيع في الفاتورة وعرض السعر.</p>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
           <label>🛡️ سياسة الضمان <span style="color: #999;">(تظهر في الفاتورة عند اختيار ضمان)</span></label>
           <textarea id="settingPolicy" rows="7">${esc(SHOP.warrantyPolicy || '')}</textarea>
           <p class="text-xs">ابدأ كل بند بـ <b>*</b> — السطر الذي ينتهي بـ <b>:</b> يصبح عنواناً، والبنود تحت عنوان فيه "لا يشمل" تظهر بعلامة ✗. اتركها فارغة لإخفاء السياسة.</p>
@@ -6186,7 +6248,7 @@ class TireShopApp {
         <div class="inv-fixed-box">
           <b>يظهر تلقائياً في كل فاتورة (بدون إدخاله كل مرة):</b>
           <div class="inv-fixed-list">
-            ${[['التوقيع', SHOP.signature], ['رقم المحل', SHOP.phone], ['رقم الموظف', SHOP.employeePhone], ['رقم المسؤول', SHOP.managerPhone], ['العنوان', SHOP.address], ['سياسة الضمان', SHOP.warrantyPolicy]]
+            ${[['التوقيع', SHOP.signature], ['الختم', SHOP.stamp], ['رقم المحل', SHOP.phone], ['رقم الموظف', SHOP.employeePhone], ['رقم المسؤول', SHOP.managerPhone], ['العنوان', SHOP.address], ['سياسة الضمان', SHOP.warrantyPolicy]]
               .map(([l, v]) => `<span class="${v ? 'ok' : 'no'}">${v ? '✅' : '⬜'} ${l}</span>`).join('')}
           </div>
           ${!this.settingsInDb && this.sb ? `
@@ -6336,6 +6398,27 @@ class TireShopApp {
       } catch (err) {
         showToast(err?.message === 'empty' ? 'لم يُعثر على توقيع في الصورة — جرّب بدون إزالة الخلفية' : 'تعذّرت قراءة الصورة', 'error');
       }
+    });
+    document.getElementById('stampFileInput')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 8 * 1024 * 1024) { showToast('حجم الصورة كبير (الحد 8MB)', 'error'); return; }
+      try {
+        const dataUrl = await this.readSignatureFile(file, document.getElementById('stampRemoveBg')?.checked);
+        const where = await this.saveSettings({ stamp: dataUrl });
+        SHOP.stamp = dataUrl;
+        showToast(where === 'db' ? 'تم حفظ الختم' : 'تم حفظ الختم على هذا الجهاز فقط', where === 'db' ? 'success' : 'warning');
+        this.switchView('shopSettings');
+      } catch (err) {
+        showToast(err?.message === 'empty' ? 'لم يُعثر على الختم في الصورة — جرّب بدون إزالة الخلفية' : 'تعذّرت قراءة الصورة', 'error');
+      }
+    });
+    document.getElementById('stampRemoveBtn')?.addEventListener('click', async () => {
+      if (!confirm('حذف صورة الختم؟')) return;
+      await this.saveSettings({ stamp: '' });
+      SHOP.stamp = '';
+      showToast('تم حذف الختم', 'success');
+      this.switchView('shopSettings');
     });
     document.getElementById('signRemoveBtn')?.addEventListener('click', async () => {
       if (!confirm('حذف صورة التوقيع؟')) return;
@@ -7092,7 +7175,10 @@ ${this.canDiscount() && !w.promo ? `
           .policy li .mk { display: inline-block; width: 18px; font-weight: bold; color: #2e7d4f; }
           .policy li.x .mk { color: #c4483a; }
           .policy .pn { margin-top: 6px; color: #444; }
-          .sign-row { display: flex; justify-content: flex-end; margin-top: 26px; }
+          .sign-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 26px; gap: 30px; }
+          .stamp-box { width: 170px; }
+          .stamp-area { height: 120px; }
+          .stamp-area img { max-height: 120px; max-width: 160px; opacity: .92; }
           .sign-box { width: 230px; text-align: center; }
           .sign-label { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
           .sign-area { height: 80px; display: flex; align-items: flex-end; justify-content: center; }
@@ -7184,6 +7270,11 @@ ${this.canDiscount() && !w.promo ? `
           ${this.policyHtml()}` : ''}
 
           <div class="sign-row">
+            <div class="sign-box stamp-box">
+              <div class="sign-label">ختم المحل</div>
+              <div class="sign-area stamp-area">${SHOP.stamp ? `<img src="${SHOP.stamp}" alt="">` : ''}</div>
+              <div class="sign-line"></div>
+            </div>
             <div class="sign-box">
               <div class="sign-label">توقيع المدير المسؤول</div>
               <div class="sign-area">${SHOP.signature ? `<img src="${SHOP.signature}" alt="">` : ''}</div>
@@ -7400,20 +7491,33 @@ ${this.canDiscount() && !w.promo ? `
       }
     }
 
-    // توقيع المدير المسؤول (جهة النهاية)
+    // الختم (جهة البداية) + توقيع المدير المسؤول (جهة النهاية)
     {
       const boxW = 240, bx = en ? W - P - boxW : P, cx = bx + boxW / 2;
+      const stW = 200, sx = en ? P : W - P - stW, scx = sx + stW / 2;
       y += 6;
-      text(T('توقيع المدير المسؤول'), cx, y, { size: 15, bold: true, align: 'center' }); y += 14;
+      text(T('توقيع المدير المسؤول'), cx, y, { size: 15, bold: true, align: 'center' });
+      text(T('ختم المحل'), scx, y, { size: 15, bold: true, align: 'center' });
+      y += 14;
       const sig = await this.loadImg(SHOP.signature);
-      const areaH = 80;
+      const stamp = await this.loadImg(SHOP.stamp);
+      const areaH = 120;
       if (sig) {
-        const sc = Math.min(1, (boxW - 20) / sig.width, areaH / sig.height);
+        const sc = Math.min(1, (boxW - 20) / sig.width, 80 / sig.height);
         const sw = sig.width * sc, sh = sig.height * sc;
         ctx.drawImage(sig, cx - sw / 2, y + areaH - sh, sw, sh);
       }
+      if (stamp) {
+        const sc = Math.min(1, (stW - 10) / stamp.width, areaH / stamp.height);
+        const sw = stamp.width * sc, sh = stamp.height * sc;
+        ctx.globalAlpha = 0.92;
+        ctx.drawImage(stamp, scx - sw / 2, y + (areaH - sh) / 2, sw, sh);
+        ctx.globalAlpha = 1;
+      }
       y += areaH + 6;
-      ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx, y); ctx.lineTo(bx + boxW, y); ctx.stroke();
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(bx, y); ctx.lineTo(bx + boxW, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + stW, y); ctx.stroke();
       y += 34;
     }
 
@@ -9071,7 +9175,9 @@ ${this.canDiscount() && !w.promo ? `
     const supplierCash = this.supplierPayments.filter(p => supplierPaymentMethod(p) === 'cash').reduce((a, p) => a + n(p.paymentAmount), 0);
     // إيداعات الكاش فقط (التحويلات الواردة لا تخرج من الصندوق)
     const deposited = this.bankDeposits.filter(d => bankSource(d) === 'cash').reduce((a, d) => a + n(d.amount), 0);
-    return { cashSales, dailyExp, supplierCash, deposited, onHand: cashSales - dailyExp - supplierCash - deposited };
+    // تسويات يدوية للصندوق (+ أو −): رصيد افتتاحي أو فروقات قديمة
+    const adjust = this.bankDeposits.filter(d => bankSource(d) === 'cash_adj').reduce((a, d) => a + n(d.amount), 0);
+    return { cashSales, dailyExp, supplierCash, deposited, adjust, onHand: cashSales - dailyExp - supplierCash - deposited + adjust };
   }
 
   // حساب الشركة البنكي: الوارد − الصادر (اختياري: داخل فترة)
@@ -9087,7 +9193,9 @@ ${this.canDiscount() && !w.promo ? `
     const supplierBank = this.supplierPayments.filter(p => inRange(p.paymentDate || p.createdAt) && ['transfer', 'card'].includes(supplierPaymentMethod(p))).reduce((a, p) => a + n(p.paymentAmount), 0);
     const incoming = cashDeposits + manualTransfers + saleTransfers + saleCards;
     const outgoing = cardExpenses + supplierBank;
-    return { cashDeposits, manualTransfers, saleTransfers, saleCards, cardExpenses, supplierBank, incoming, outgoing, balance: incoming - outgoing };
+    // تسويات يدوية للحساب البنكي (+ أو −)
+    const adjust = deps.filter(d => bankSource(d) === 'bank_adj').reduce((a, d) => a + n(d.amount), 0);
+    return { cashDeposits, manualTransfers, saleTransfers, saleCards, cardExpenses, supplierBank, incoming, outgoing, adjust, balance: incoming - outgoing + adjust };
   }
 
   renderBankDepositsView() {
@@ -9106,7 +9214,7 @@ ${this.canDiscount() && !w.promo ? `
     const acc = this.bankAccount();
     const kind = this.bankKind === 'transfer' ? 'transfer' : 'cash';
     const filter = this.bankFilter || 'all';
-    const list = this.bankDeposits.filter(d => filter === 'all' || bankSource(d) === filter);
+    const list = this.bankDeposits.filter(d => filter === 'all' || bankSource(d) === filter || (filter === 'adjust' && bankSource(d).endsWith('_adj')));
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const sumOf = arr => arr.reduce((a, d) => a + (parseFloat(d.amount) || 0), 0);
     const monthCash = sumOf(this.bankDeposits.filter(d => bankSource(d) === 'cash' && new Date(d.depositDate || d.createdAt) >= monthStart));
@@ -9125,6 +9233,8 @@ ${this.canDiscount() && !w.promo ? `
         <div class="cf-item"><span>💳 مبيعات الفيزا</span><b class="num">${fmtMoney(acc.saleCards)}</b></div>
         <div class="cf-op">−</div>
         <div class="cf-item"><span>📤 مدفوعات من الحساب</span><b class="num">${fmtMoney(acc.outgoing)}</b></div>
+        ${acc.adjust ? `<div class="cf-op">${acc.adjust < 0 ? '−' : '+'}</div>
+        <div class="cf-item adj"><span>⚖️ تسويات يدوية</span><b class="num">${fmtMoney(Math.abs(acc.adjust))}</b></div>` : ''}
         <div class="cf-op">=</div>
         <div class="cf-item result ${acc.balance < 0 ? 'neg' : ''}"><span>🏦 الرصيد المتوقع في الحساب</span><b class="num">${fmtMoney(acc.balance)}</b></div>
       </div>
@@ -9139,10 +9249,14 @@ ${this.canDiscount() && !w.promo ? `
         <div class="cf-item"><span>🚚 دفعات موردين كاش</span><b class="num">${fmtMoney(box.supplierCash)}</b></div>
         <div class="cf-op">−</div>
         <div class="cf-item"><span>🏦 المودع في البنك</span><b class="num">${fmtMoney(box.deposited)}</b></div>
+        ${box.adjust ? `<div class="cf-op">${box.adjust < 0 ? '−' : '+'}</div>
+        <div class="cf-item adj"><span>⚖️ تسويات يدوية</span><b class="num">${fmtMoney(Math.abs(box.adjust))}</b></div>` : ''}
         <div class="cf-op">=</div>
         <div class="cf-item result ${box.onHand < 0 ? 'neg' : ''}"><span>🧰 الكاش المتوقع في الصندوق</span><b class="num">${fmtMoney(box.onHand)}</b></div>
       </div>
       <p class="text-xs" style="margin: -6px 0 16px;">قارن "الكاش المتوقع في الصندوق" مع المبلغ الموجود فعلاً في الدرج. أي فرق يعني مصروفاً أو إيداعاً لم يُسجَّل.</p>` : ''}
+
+      ${isMgr ? this.renderAdjustCard(box, acc) : ''}
 
       <div class="grid-2">
         <div class="card">
@@ -9192,6 +9306,7 @@ ${this.canDiscount() && !w.promo ? `
             <button class="${filter === 'all' ? 'active' : ''}" data-bank-filter="all">الكل</button>
             <button class="${filter === 'cash' ? 'active' : ''}" data-bank-filter="cash">💵 إيداعات كاش</button>
             <button class="${filter === 'transfer' ? 'active' : ''}" data-bank-filter="transfer">🔁 تحويلات</button>
+            <button class="${filter === 'adjust' ? 'active' : ''}" data-bank-filter="adjust">⚖️ تسويات</button>
           </div>
           <div class="table-wrap">
             <table>
@@ -9199,8 +9314,8 @@ ${this.canDiscount() && !w.promo ? `
               <tbody>
                 ${list.map(d => `<tr>
                   <td>${fmtDate(d.depositDate || d.createdAt)}</td>
-                  <td>${bankSource(d) === 'transfer' ? '<span class="badge badge-info">🔁 تحويل</span>' : '<span class="badge badge-success">💵 إيداع كاش</span>'}</td>
-                  <td class="num" style="font-weight: 700;">${fmtMoney(parseFloat(d.amount) || 0)}</td>
+                  <td>${{ transfer: '<span class="badge badge-info">🔁 تحويل</span>', cash_adj: '<span class="badge badge-warning">⚖️ تسوية صندوق</span>', bank_adj: '<span class="badge badge-warning">⚖️ تسوية بنك</span>' }[bankSource(d)] || '<span class="badge badge-success">💵 إيداع كاش</span>'}</td>
+                  <td class="num" style="font-weight: 700; ${(parseFloat(d.amount) || 0) < 0 ? 'color: var(--brake-red);' : ''}">${bankSource(d).endsWith('_adj') && (parseFloat(d.amount) || 0) > 0 ? '+' : ''}${fmtMoney(parseFloat(d.amount) || 0)}</td>
                   <td>${esc(d.bank || '-')}</td>
                   <td dir="ltr" style="text-align: right;">${esc(d.reference || '-')}</td>
                   <td class="text-xs">${esc(bankNotes(d))}${d.createdBy ? `<div style="color: var(--text-muted);">👤 ${esc(d.createdBy)}</div>` : ''}</td>
@@ -9223,7 +9338,91 @@ ${this.canDiscount() && !w.promo ? `
       </div>`;
   }
 
+  // ===== تعديل يدوي لرصيد الصندوق أو الحساب البنكي =====
+  renderAdjustCard(box, acc) {
+    const target = this.adjTarget === 'bank' ? 'bank' : 'cash';
+    const mode = this.adjMode === 'delta' ? 'delta' : 'actual';
+    const expected = target === 'bank' ? acc.balance : box.onHand;
+    return `
+      <div class="card adj-card">
+        <div class="card-head"><h3>⚖️ تعديل يدوي للرصيد</h3></div>
+        <p class="text-xs" style="margin-bottom: 10px;">استخدمه لضبط الرصيد إذا كانت عندك مبيعات قديمة غير مُدخلة في النظام، أو رصيد افتتاحي، أو فرق في العدّ. يُسجَّل كحركة "تسوية" في السجل، وتقدر تحذفه في أي وقت.</p>
+        <div class="adj-grid">
+          <div class="form-group">
+            <label>الرصيد</label>
+            <div class="seg">
+              <button class="${target === 'cash' ? 'active' : ''}" data-adj-target="cash">🧰 الصندوق (الكاش)</button>
+              <button class="${target === 'bank' ? 'active' : ''}" data-adj-target="bank">🏦 الحساب البنكي</button>
+            </div>
+            <div class="text-xs" style="margin-top: 6px;">الرصيد الحالي في النظام: <b class="num" style="color: ${expected < 0 ? 'var(--brake-red)' : 'inherit'};">${fmtMoney(expected)}</b></div>
+          </div>
+          <div class="form-group">
+            <label>طريقة التعديل</label>
+            <div class="seg">
+              <button class="${mode === 'actual' ? 'active' : ''}" data-adj-mode="actual">اكتب الرصيد الفعلي</button>
+              <button class="${mode === 'delta' ? 'active' : ''}" data-adj-mode="delta">أضف / اخصم مبلغ</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>${mode === 'actual' ? (target === 'bank' ? 'الرصيد الفعلي في الحساب الآن *' : 'الكاش الموجود فعلاً في الصندوق الآن *') : 'مبلغ التعديل * (اكتب − للخصم، مثال: -150)'}</label>
+            <input type="text" inputmode="decimal" id="adjValue" placeholder="${mode === 'actual' ? '0.000' : 'مثال: 500 أو -150'}" dir="ltr" style="text-align: center;">
+            <div class="text-xs" id="adjPreview" style="margin-top: 6px;"></div>
+          </div>
+          <div class="form-group">
+            <label>التاريخ</label>
+            <input type="date" id="adjDate" value="${localYMD()}" max="${localYMD()}">
+          </div>
+          <div class="form-group adj-notes">
+            <label>السبب *</label>
+            <input type="text" id="adjNotes" placeholder="مثال: رصيد افتتاحي — مبيعات قبل استخدام النظام">
+          </div>
+        </div>
+        <button class="btn btn-amber" id="saveAdjBtn">⚖️ تسجيل التعديل</button>
+      </div>`;
+  }
+
   bindBankDepositsEvents() {
+    document.querySelectorAll('[data-adj-target]').forEach(b => b.addEventListener('click', () => { this.adjTarget = b.dataset.adjTarget; this.switchView('bankDeposits'); }));
+    document.querySelectorAll('[data-adj-mode]').forEach(b => b.addEventListener('click', () => { this.adjMode = b.dataset.adjMode; this.switchView('bankDeposits'); }));
+    const adjCalc = () => {
+      const target = this.adjTarget === 'bank' ? 'bank' : 'cash';
+      const expected = target === 'bank' ? this.bankAccount().balance : this.cashBox().onHand;
+      const raw = String(document.getElementById('adjValue')?.value || '').trim().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('٫', '.').replace(/\s+/g, '');
+      if (!/^[-+]?\d*\.?\d+$/.test(raw)) return null;
+      const v = parseFloat(raw);
+      const delta = this.adjMode === 'delta' ? v : v - expected;
+      return { target, expected, delta: Math.round(delta * 1000) / 1000, after: Math.round((expected + delta) * 1000) / 1000 };
+    };
+    document.getElementById('adjValue')?.addEventListener('input', () => {
+      const el = document.getElementById('adjPreview');
+      const r = adjCalc();
+      if (!el) return;
+      el.innerHTML = !r ? '' : `التعديل: <b class="num" style="color: ${r.delta < 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${r.delta > 0 ? '+' : ''}${fmtMoney(r.delta)}</b> — الرصيد بعده: <b class="num">${fmtMoney(r.after)}</b>`;
+    });
+    document.getElementById('saveAdjBtn')?.addEventListener('click', async (e) => {
+      const r = adjCalc();
+      const notes = document.getElementById('adjNotes').value.trim();
+      const date = document.getElementById('adjDate').value || localYMD();
+      if (!r) { showToast('اكتب مبلغاً صحيحاً', 'error'); return; }
+      if (Math.abs(r.delta) < 0.0005) { showToast('الرصيد مطابق — لا يوجد تعديل', 'warning'); return; }
+      if (!notes) { showToast('اكتب سبب التعديل', 'error'); return; }
+      if (date > localYMD()) { showToast('تاريخ غير صحيح', 'error'); return; }
+      const kind = r.target === 'bank' ? 'bank_adj' : 'cash_adj';
+      if (!confirm(`${r.target === 'bank' ? 'الحساب البنكي' : 'الصندوق'}: ${fmtMoney(r.expected)} ← ${fmtMoney(r.after)}\nالتعديل ${r.delta > 0 ? '+' : ''}${fmtMoney(r.delta)}\n\nتسجيل التعديل؟`)) return;
+      e.target.disabled = true;
+      const ok = await this.addRecord('bank_deposits', {
+        amount: r.delta,
+        deposit_date: ymdToISO(date),
+        bank: null, reference: null,
+        source: kind,
+        notes: `${notes} [نوع: ${BANK_SRC_TAGS[kind]}]`,
+        created_by: this.currentUser?.name || null,
+      });
+      e.target.disabled = false;
+      if (ok === false) return;
+      showToast('تم تسجيل التعديل', 'success');
+      this.switchView('bankDeposits');
+    });
     document.querySelectorAll('[data-copy-sql="v221"]').forEach(b => b.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(V221_SQL); showToast('تم نسخ الأمر', 'success'); }
       catch (e) { prompt('انسخ الأمر:', V221_SQL); }
