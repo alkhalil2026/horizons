@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.28.1 (manage/delete employee logins) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.28.2 (delete HR employee) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -2086,6 +2086,9 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "حذف الموظف نهائياً": "Delete employee permanently",
+  "الاسم غير مطابق — لم يُحذف شيء": "Name doesn't match — nothing was deleted",
+  "وسجلاته": "and their records",
   "🗑️ حذف اسم المستخدم وكلمة المرور": "🗑️ Delete username and password",
   "تم حذف الحساب": "Account deleted",
   "تم حفظ بيانات الدخول": "Login details saved",
@@ -4077,13 +4080,14 @@ class TireShopApp {
                       <button class="btn btn-xs btn-blue" data-hr-edit-emp="${e.id}" title="تعديل">✏️</button>
                       ${this.hrNeedsLoginCols ? '' : `<button class="btn btn-xs ${e.login_username ? 'btn-amber' : 'btn-ghost'}" data-hr-login-emp="${e.id}" title="دخول صفحة الموظف">🔐</button>`}
                       <button class="btn btn-xs btn-ghost" data-hr-toggle-emp="${e.id}" title="${active ? 'إيقاف' : 'تفعيل'}">${active ? '⏸️' : '▶️'}</button>
+                      <button class="btn btn-xs btn-danger" data-hr-del-emp="${e.id}" title="حذف الموظف نهائياً">🗑️</button>
                     </div></td>
                   </tr>`;
                 }).join('') || '<tr><td colspan="9" class="text-center">لا يوجد موظفون بعد</td></tr>'}
               </tbody>
             </table>
           </div>
-          <p class="text-xs" style="margin-top: 10px;">الرصيد يُحسب للسنة الحالية. كل الأيام تُحتسب من الإجازة. الموظف الموقوف يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور.</p>
+          <p class="text-xs" style="margin-top: 10px;">الرصيد يُحسب للسنة الحالية. كل الأيام تُحتسب من الإجازة. الموظف الموقوف (⏸️) يبقى سجلّه محفوظاً لكنه لا يظهر في الحضور. الحذف (🗑️) يمسح الموظف وكل سجلاته نهائياً.</p>
         </div>
       </div>
     `;
@@ -4269,6 +4273,25 @@ class TireShopApp {
       }
       if (await this.hrWrite('hr_employees', 'update', data, e.id)) {
         showToast(active ? `تم إيقاف ${e.name}${data.login_username === null ? ' وحذف حسابه' : ''}` : `تم تفعيل ${e.name}`, 'success');
+        rerender();
+      }
+    }));
+    // حذف موظف نهائياً مع سجلاته
+    root.querySelectorAll('[data-hr-del-emp]').forEach(b => b.addEventListener('click', async () => {
+      const e = this.hrEmployees.find(x => x.id === b.dataset.hrDelEmp);
+      if (!e) return;
+      const att = (this.hrAttendance || []).filter(a => a.employee_id === e.id);
+      const lv = (this.hrLeaves || []).filter(l => l.employee_id === e.id);
+      if (!confirm(`حذف ${e.name} نهائياً؟\n\nسيُحذف معه:\n• ${att.length} يوم حضور\n• ${lv.length} طلب إجازة${e.login_username ? `\n• حساب الدخول (${e.login_username})` : ''}\n\nلا يمكن التراجع. إذا تريد الاحتفاظ بسجلّه استخدم "إيقاف" ⏸️ بدلاً من الحذف.`)) return;
+      const typed = prompt(`للتأكيد اكتب اسم الموظف كما هو: ${e.name}`);
+      if (typed === null) return;
+      if (typed.trim() !== String(e.name).trim()) { showToast('الاسم غير مطابق — لم يُحذف شيء', 'warning'); return; }
+      // نحذف السجلات أولاً (في حال لم تكن قاعدة البيانات تحذفها تلقائياً)
+      for (const a of att) await this.sb.from('hr_attendance').delete().eq('id', a.id);
+      for (const l of lv) await this.sb.from('hr_leaves').delete().eq('id', l.id);
+      if (await this.hrWrite('hr_employees', 'delete', null, e.id)) {
+        try { if (localStorage.getItem('tireshop_hr_me') === e.id) localStorage.removeItem('tireshop_hr_me'); } catch (err) {}
+        showToast(`تم حذف ${e.name} وسجلاته`, 'success');
         rerender();
       }
     }));
