@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.27.2 (bank account hidden from employee) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.28.0 (employee logins from HR) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1628,6 +1628,11 @@ tr.orphan-row td { background: #FBEDEB !important; }
 .cf-item.adj { border-style: dashed; background: #FFF8EA; }
 
 .login-hint { background: #FFF4E0; border: 1px solid #F2C46D; color: #7A4B00; border-radius: 10px; padding: 10px 12px; text-align: center; font-size: 14px; }
+
+.hr-login-box .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hr-login-box .form-row > .form-group { min-width: 0; }
+.hr-login-box input { width: 100%; min-width: 0; box-sizing: border-box; }
+.hr-login-box { border: 1px dashed var(--line, #E3DDD0); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; background: #FAF8F3; }
 </style>
 </head>
 <body>
@@ -1869,6 +1874,7 @@ const V226_SQL = "-- ورشتي 2.26: أكواد الخصم (العروض)\n-- �
 const V225_SQL = "-- ورشتي 2.25: عروض الأسعار + ملاحظات فواتير الموردين + رقم إيصال دفعات الموردين\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists quotations (\n  id uuid primary key default gen_random_uuid(),\n  quote_number text,\n  customer_name text,\n  customer_phone text,\n  items jsonb,\n  subtotal numeric default 0,\n  discount_amount numeric default 0,\n  discount_percent numeric default 0,\n  total numeric default 0,\n  warranty text,\n  valid_until timestamptz,\n  notes text,\n  status text default 'open',\n  converted_invoice text,\n  created_by text,\n  created_at timestamptz default now()\n);\nalter table quotations enable row level security;\ndrop policy if exists \"app access\" on quotations;\ncreate policy \"app access\" on quotations for all using (true) with check (true);\n\nalter table supplier_invoices add column if not exists notes text;\nalter table supplier_payments add column if not exists receipt_number text;\n";
 const V221_SQL = "-- ورشتي 2.21: سجل إيداع الكاش في الحساب البنكي\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists bank_deposits (\n  id uuid primary key default gen_random_uuid(),\n  amount numeric not null,\n  deposit_date timestamptz default now(),\n  bank text,\n  reference text,\n  notes text,\n  created_by text,\n  created_at timestamptz default now()\n);\nalter table bank_deposits add column if not exists source text default 'cash';\n\nalter table bank_deposits enable row level security;\ndrop policy if exists \"app access\" on bank_deposits;\ncreate policy \"app access\" on bank_deposits for all using (true) with check (true);\n";
 const V218_SQL = "-- ورشتي 2.18: جدول الإعدادات (لتظهر نفس الإعدادات والتوقيع على كل الأجهزة) + جدول الإكسسوارات\n-- آمن للتشغيل أكثر من مرة\ncreate table if not exists settings (\n  key text primary key,\n  value text,\n  updated_at timestamptz default now()\n);\n\ncreate table if not exists accessories (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  price numeric not null default 0,\n  cost numeric default 0,\n  stock integer default 0,\n  created_at timestamptz default now()\n);\n\nalter table settings enable row level security;\nalter table accessories enable row level security;\ndrop policy if exists \"app access\" on settings;\ndrop policy if exists \"app access\" on accessories;\ncreate policy \"app access\" on settings for all using (true) with check (true);\ncreate policy \"app access\" on accessories for all using (true) with check (true);\n";
+const HR_LOGIN_SQL = "-- ورشتي 2.28: حسابات دخول الموظفين لصفحة الموظف (اسم مستخدم + كلمة مرور)\nalter table hr_employees add column if not exists login_username text;\nalter table hr_employees add column if not exists login_password text;\ncreate unique index if not exists hr_employees_login_key on hr_employees (lower(login_username)) where login_username is not null;\n";
 const HR_SETUP_SQL = "-- الموارد البشرية: الموظفون + الحضور والانصراف + الإجازات\ncreate table if not exists hr_employees (\n  id uuid primary key default gen_random_uuid(),\n  name text not null,\n  job_title text,\n  phone text,\n  annual_leave_days numeric default 30,\n  active boolean default true,\n  created_at timestamptz default now()\n);\n\ncreate table if not exists hr_attendance (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  work_date date not null,\n  check_in timestamptz,\n  check_out timestamptz,\n  check_in2 timestamptz,\n  check_out2 timestamptz,\n  notes text,\n  created_at timestamptz default now(),\n  unique (employee_id, work_date)\n);\n\ncreate table if not exists hr_leaves (\n  id uuid primary key default gen_random_uuid(),\n  employee_id uuid references hr_employees(id) on delete cascade,\n  start_date date not null,\n  end_date date not null,\n  days numeric not null default 0,\n  reason text,\n  status text not null default 'pending',\n  decided_at timestamptz,\n  created_at timestamptz default now()\n);\n\n-- نفس صلاحيات باقي جداول النظام (الوصول من الموقع)\nalter table hr_employees enable row level security;\nalter table hr_attendance enable row level security;\nalter table hr_leaves enable row level security;\ndrop policy if exists \"app access\" on hr_employees;\ndrop policy if exists \"app access\" on hr_attendance;\ndrop policy if exists \"app access\" on hr_leaves;\ncreate policy \"app access\" on hr_employees for all using (true) with check (true);\ncreate policy \"app access\" on hr_attendance for all using (true) with check (true);\ncreate policy \"app access\" on hr_leaves for all using (true) with check (true);\n\n-- أعمدة الفترة المسائية (للجداول التي أُنشئت قبل إضافتها)\nalter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
 const HR_SHIFT_SQL = "alter table hr_attendance add column if not exists check_in2 timestamptz;\nalter table hr_attendance add column if not exists check_out2 timestamptz;";
 
@@ -2077,6 +2083,24 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "دخول صفحة الموظف": "Employee page login",
+  "— لا يوجد": "— none",
+  "المستخدَم": "Used",
+  "🔐 دخول صفحة الموظف": "🔐 Employee page login",
+  "مفعّل": "Enabled",
+  "(اختياري)": "(optional)",
+  "اسم المستخدم": "Username",
+  "مثال: ahmed": "e.g. ahmed",
+  "(اتركها فارغة لعدم التغيير)": "(leave empty to keep)",
+  "4 أحرف على الأقل": "At least 4 characters",
+  "إلغاء دخول هذا الموظف": "Remove this employee's login",
+  "يدخل بها الموظف من صفحة الموظف، ويُسجَّل اسمه على الفواتير والحضور تلقائياً.": "The employee uses these on the employee page; their name is recorded on invoices and attendance automatically.",
+  "اسم المستخدم: 3 أحرف على الأقل بالإنجليزي أو أرقام، بدون مسافات": "Username: at least 3 English letters or digits, no spaces",
+  "اسم المستخدم هذا محجوز — اختر اسماً آخر": "This username is reserved — choose another",
+  "كلمة المرور 4 أحرف/أرقام على الأقل": "Password must be at least 4 characters",
+  "هذا الحساب موقوف — راجع المدير": "This account is suspended — contact the manager",
+  "كلمة المرور غير صحيحة": "Incorrect password",
+  "لإضافة اسم مستخدم وكلمة مرور لكل موظف، شغّل هذا الأمر مرة واحدة في SQL Editor في Supabase ثم أعد تحميل الصفحة:": "To add a username and password for each employee, run this command once in the Supabase SQL Editor, then reload the page:",
   "اسم المستخدم أو كلمة المرور غير صحيحة": "Incorrect username or password",
   "لوحة المفاتيح على العربي — حوّلها إلى الإنجليزي واكتب البيانات مرة ثانية": "The keyboard is set to Arabic — switch to English and type again",
   "👔 افتح صفحة الموظف": "👔 Open the employee page",
@@ -3309,6 +3333,13 @@ function ymdToISO(ymd) {
   return new Date(y, m - 1, d, 12).toISOString();
 }
 
+// تشفير كلمة مرور الموظف (SHA-256) — لا تُحفظ كلمة المرور كنص
+async function hashPassword(pw) {
+  const data = new TextEncoder().encode('horizons-tires:' + String(pw));
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function localYMD(d) {
   const x = d ? new Date(d) : new Date();
   if (isNaN(x)) return '';
@@ -3585,6 +3616,12 @@ class TireShopApp {
       }
       this[tables[tb]] = data || [];
     });
+    // أعمدة حسابات الدخول
+    this.hrNeedsLoginCols = false;
+    if (!this.hrMissing) {
+      const { error } = await this.sb.from('hr_employees').select('login_username').limit(1);
+      if (error) this.hrNeedsLoginCols = true;
+    }
     // أعمدة الفترة المسائية (check_in2 / check_out2)
     this.hrNeedsShiftCols = false;
     if (!this.hrMissing) {
@@ -4003,6 +4040,7 @@ class TireShopApp {
           <div class="form-group"><label>المسمى الوظيفي</label><input type="text" id="hrEmpTitle" placeholder="مثال: فني إطارات"></div>
           <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="hrEmpPhone"></div>
           <div class="form-group"><label>رصيد الإجازة السنوية (يوم)</label><input type="number" id="hrEmpLeave" min="0" value="30"></div>
+          ${this.hrLoginFields('hrEmp', null)}
           <button class="btn btn-amber btn-block" id="hrAddEmpBtn">➕ إضافة</button>
         </div>
 
@@ -4010,7 +4048,7 @@ class TireShopApp {
           <div class="card-head"><h3>👥 الموظفون (${all.length})</h3></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>الاسم</th><th>المسمى</th><th>الهاتف</th><th>رصيد الإجازة</th><th>المستخدم</th><th>المتبقي</th><th>الحالة</th><th></th></tr></thead>
+              <thead><tr><th>الاسم</th><th>المسمى</th><th>الهاتف</th><th>دخول صفحة الموظف</th><th>رصيد الإجازة</th><th>المستخدَم</th><th>المتبقي</th><th>الحالة</th><th></th></tr></thead>
               <tbody>
                 ${all.map(e => {
                   const b = this.leaveBalance(e);
@@ -4020,6 +4058,7 @@ class TireShopApp {
                     <td style="font-weight: 700;">${esc(e.name)}</td>
                     <td>${esc(e.job_title || '—')}</td>
                     <td class="num" dir="ltr">${esc(e.phone || '—')}</td>
+                    <td>${e.login_username ? `<span class="badge badge-info" dir="ltr">👤 ${esc(e.login_username)}</span>` : '<span class="text-xs" style="color: var(--text-muted);">— لا يوجد</span>'}</td>
                     <td class="num">${b.entitled}</td>
                     <td class="num">${+b.used.toFixed(1)}${b.pending ? ` <span class="text-xs">(+${b.pending} معلّق)</span>` : ''}</td>
                     <td class="num" style="font-weight: 800; color: ${b.remaining < 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${+b.remaining.toFixed(1)}</td>
@@ -4029,7 +4068,7 @@ class TireShopApp {
                       <button class="btn btn-xs btn-ghost" data-hr-toggle-emp="${e.id}" title="${active ? 'إيقاف' : 'تفعيل'}">${active ? '⏸️' : '▶️'}</button>
                     </div></td>
                   </tr>`;
-                }).join('') || '<tr><td colspan="8" class="text-center">لا يوجد موظفون بعد</td></tr>'}
+                }).join('') || '<tr><td colspan="9" class="text-center">لا يوجد موظفون بعد</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -4039,7 +4078,61 @@ class TireShopApp {
     `;
   }
 
+  // حقول اسم المستخدم وكلمة المرور لصفحة الموظف
+  hrLoginFields(prefix, emp) {
+    if (this.hrNeedsLoginCols) {
+      return `
+        <div class="hr-login-box">
+          <b>🔐 دخول صفحة الموظف</b>
+          <p class="text-xs" style="margin: 6px 0;">لإضافة اسم مستخدم وكلمة مرور لكل موظف، شغّل هذا الأمر مرة واحدة في SQL Editor في Supabase ثم أعد تحميل الصفحة:</p>
+          <pre class="sql-box" dir="ltr">${esc(HR_LOGIN_SQL)}</pre>
+          <button type="button" class="btn btn-ghost btn-sm" data-copy-sql="hrlogin">📋 نسخ الأمر</button>
+        </div>`;
+    }
+    const has = !!emp?.login_username;
+    return `
+      <div class="hr-login-box">
+        <b>🔐 دخول صفحة الموظف ${has ? '<span class="badge badge-success">مفعّل</span>' : '<span class="text-xs">(اختياري)</span>'}</b>
+        <div class="form-row" style="margin-top: 8px;">
+          <div class="form-group">
+            <label>اسم المستخدم</label>
+            <input type="text" id="${prefix}User" value="${esc(emp?.login_username || '')}" placeholder="مثال: ahmed" dir="ltr" autocapitalize="none" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="form-group">
+            <label>كلمة المرور ${has ? '<span class="text-xs">(اتركها فارغة لعدم التغيير)</span>' : ''}</label>
+            <input type="text" id="${prefix}Pass" placeholder="${has ? '••••••' : '4 أحرف على الأقل'}" dir="ltr" autocomplete="new-password" spellcheck="false">
+          </div>
+        </div>
+        ${has ? `<label class="text-xs"><input type="checkbox" id="${prefix}NoLogin"> إلغاء دخول هذا الموظف</label>` : ''}
+        <p class="text-xs" style="margin-top: 6px;">يدخل بها الموظف من صفحة الموظف، ويُسجَّل اسمه على الفواتير والحضور تلقائياً.</p>
+      </div>`;
+  }
+
+  // يقرأ حقول الدخول ويرجع البيانات المطلوب حفظها (أو null عند خطأ)
+  async readHrLogin(prefix, emp) {
+    if (this.hrNeedsLoginCols) return {};
+    const user = String(document.getElementById(prefix + 'User')?.value || '').trim().toLowerCase();
+    const pass = String(document.getElementById(prefix + 'Pass')?.value || '').trim();
+    if (document.getElementById(prefix + 'NoLogin')?.checked) return { login_username: null, login_password: null };
+    if (!user && !pass) return emp?.login_username ? { login_username: null, login_password: null } : {};
+    if (!/^[a-z0-9._-]{3,30}$/.test(user)) { showToast('اسم المستخدم: 3 أحرف على الأقل بالإنجليزي أو أرقام، بدون مسافات', 'error'); return null; }
+    if (['admin', 'employee'].includes(user)) { showToast('اسم المستخدم هذا محجوز — اختر اسماً آخر', 'error'); return null; }
+    const taken = (this.hrEmployees || []).find(x => x.id !== emp?.id && String(x.login_username || '').toLowerCase() === user);
+    if (taken) { showToast(`اسم المستخدم مستخدم للموظف ${taken.name}`, 'error'); return null; }
+    const out = { login_username: user };
+    if (pass) {
+      if (pass.length < 4) { showToast('كلمة المرور 4 أحرف/أرقام على الأقل', 'error'); return null; }
+      out.login_password = await hashPassword(pass);
+    } else if (!emp?.login_password) {
+      showToast('أدخل كلمة المرور', 'error'); return null;
+    }
+    return out;
+  }
+
   bindHREvents() {
+    document.querySelectorAll('[data-copy-sql="hrlogin"]').forEach(b => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(HR_LOGIN_SQL); showToast('تم نسخ الأمر', 'success'); } catch (e) { prompt('انسخ الأمر:', HR_LOGIN_SQL); }
+    }));
     document.getElementById('copyHrSqlBtn')?.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(HR_SETUP_SQL); showToast('تم نسخ الأمر', 'success'); }
       catch (e) { prompt('انسخ الأمر:', HR_SETUP_SQL); }
@@ -4142,12 +4235,15 @@ class TireShopApp {
     document.getElementById('hrAddEmpBtn')?.addEventListener('click', async () => {
       const name = document.getElementById('hrEmpName').value.trim();
       if (!name) { showToast('أدخل اسم الموظف', 'error'); return; }
+      const login = await this.readHrLogin('hrEmp', null);
+      if (login === null) return;
       const ok = await this.hrWrite('hr_employees', 'insert', {
         name,
         job_title: document.getElementById('hrEmpTitle').value.trim() || null,
         phone: document.getElementById('hrEmpPhone').value.trim() || null,
         annual_leave_days: parseFloat(document.getElementById('hrEmpLeave').value) || 0,
         active: true,
+        ...login,
       });
       if (ok) { showToast('تمت إضافة الموظف', 'success'); rerender(); }
     });
@@ -4166,14 +4262,18 @@ class TireShopApp {
         <div class="form-group"><label>المسمى الوظيفي</label><input type="text" id="hrEdTitle" value="${esc(e.job_title || '')}"></div>
         <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="hrEdPhone" value="${esc(e.phone || '')}"></div>
         <div class="form-group"><label>رصيد الإجازة السنوية (يوم)</label><input type="number" id="hrEdLeave" min="0" value="${parseFloat(e.annual_leave_days ?? 30) || 0}"></div>
+        ${this.hrLoginFields('hrEd', e)}
       `, async () => {
         const name = document.getElementById('hrEdName').value.trim();
         if (!name) { showToast('أدخل اسم الموظف', 'error'); return false; }
+        const login = await this.readHrLogin('hrEd', e);
+        if (login === null) return false;
         const ok = await this.hrWrite('hr_employees', 'update', {
           name,
           job_title: document.getElementById('hrEdTitle').value.trim() || null,
           phone: document.getElementById('hrEdPhone').value.trim() || null,
           annual_leave_days: parseFloat(document.getElementById('hrEdLeave').value) || 0,
+          ...login,
         }, e.id);
         if (ok) { showToast('تم التحديث', 'success'); rerender(); }
         return ok;
@@ -4187,6 +4287,7 @@ class TireShopApp {
   hrMe() {
     let id = null;
     try { id = localStorage.getItem('tireshop_hr_me'); } catch (e) {}
+    if (this.currentUser?.hrEmployeeId) id = this.currentUser.hrEmployeeId;
     return this.hrActiveEmployees().find(e => e.id === id) || null;
   }
 
@@ -4197,7 +4298,8 @@ class TireShopApp {
       return '<div class="card"><p class="text-center" style="padding: 30px;">لم يُضف المدير أي موظف بعد.</p></div>';
     }
     const me = this.hrMe();
-    const picker = `
+    const picker = this.currentUser?.hrEmployeeId && me ? `
+      <div class="card hr-me"><label style="font-weight: 700;">👤 ${esc(me.name)}</label></div>` : `
       <div class="card hr-me">
         <label style="font-weight: 700;">👤 أنا:</label>
         <select id="hrMeSelect">
@@ -4721,7 +4823,21 @@ class TireShopApp {
     }
   }
 
-  login(username, password, role) {
+  // دخول موظف بحسابه من الموارد البشرية
+  async findHrLogin(username, password) {
+    if (!this.sb || !username || !password) return null;
+    try {
+      const { data, error } = await this.sb.from('hr_employees').select('id, name, active, login_username, login_password').ilike('login_username', username).limit(1);
+      if (error || !data || !data.length) return null;
+      const emp = data[0];
+      if (String(emp.login_username || '').toLowerCase() !== username) return null;
+      if (emp.login_password !== await hashPassword(password)) return { wrong: true };
+      if (emp.active === false) return { inactive: true, emp };
+      return { emp };
+    } catch (e) { console.warn('HR login check failed', e); return null; }
+  }
+
+  async login(username, password, role) {
     const creds = {
       employee: { u: 'employee', p: 'emp123', name: 'الموظف' },
     };
@@ -4733,6 +4849,26 @@ class TireShopApp {
     username = digits(username).trim().toLowerCase();
     password = digits(password).trim();
     if (!c || username !== c.u || password !== c.p) {
+      // حساب موظف من الموارد البشرية
+      const btn = document.getElementById('doLoginBtn');
+      if (btn) btn.disabled = true;
+      const hr = await this.findHrLogin(username, password);
+      if (btn) btn.disabled = false;
+      if (hr?.emp && !hr.inactive) {
+        if (role !== 'employee') {
+          this.showLoginHint(`هذا حساب الموظف <b>${esc(hr.emp.name)}</b>، وأنت في صفحة <b>المدير</b>.`, 'employee.html', '👔 افتح صفحة الموظف');
+          return;
+        }
+        this.currentUser = { id: hr.emp.id, name: hr.emp.name, role: 'employee', hrEmployeeId: hr.emp.id, username };
+        try { localStorage.setItem('tireshop_hr_me', hr.emp.id); } catch (e) {}
+        sessionStorage.setItem('tireshop_user', JSON.stringify(this.currentUser));
+        this.currentView = this.homeView();
+        showToast(`أهلاً ${hr.emp.name} 👋`, 'success');
+        this.loadAllData().then(() => this.render());
+        return;
+      }
+      if (hr?.inactive) { showToast('هذا الحساب موقوف — راجع المدير', 'error'); return; }
+      if (hr?.wrong) { showToast('كلمة المرور غير صحيحة', 'error'); return; }
       // بيانات الموظف في صفحة المدير (أو العكس)
       if (role === 'manager' && username === creds.employee.u && password === creds.employee.p) {
         this.showLoginHint('هذه بيانات <b>الموظف</b>، وأنت في صفحة <b>المدير</b>.', 'employee.html', '👔 افتح صفحة الموظف');
