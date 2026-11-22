@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.28.0 (employee logins from HR) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.28.1 (manage/delete employee logins) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1633,6 +1633,9 @@ tr.orphan-row td { background: #FBEDEB !important; }
 .hr-login-box .form-row > .form-group { min-width: 0; }
 .hr-login-box input { width: 100%; min-width: 0; box-sizing: border-box; }
 .hr-login-box { border: 1px dashed var(--line, #E3DDD0); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; background: #FAF8F3; }
+
+.hr-login-del { border-top: 1px dashed var(--line, #E3DDD0); padding-top: 12px; margin-top: 4px; }
+.hr-login-del .text-xs { margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -2083,6 +2086,13 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "🗑️ حذف اسم المستخدم وكلمة المرور": "🗑️ Delete username and password",
+  "تم حذف الحساب": "Account deleted",
+  "تم حفظ بيانات الدخول": "Login details saved",
+  "أدخل اسم المستخدم وكلمة المرور": "Enter the username and password",
+  "اسم المستخدم *": "Username *",
+  "كلمة المرور *": "Password *",
+  "موقوف — لا يستطيع الدخول": "Suspended — cannot log in",
   "دخول صفحة الموظف": "Employee page login",
   "— لا يوجد": "— none",
   "المستخدَم": "Used",
@@ -4058,13 +4068,14 @@ class TireShopApp {
                     <td style="font-weight: 700;">${esc(e.name)}</td>
                     <td>${esc(e.job_title || '—')}</td>
                     <td class="num" dir="ltr">${esc(e.phone || '—')}</td>
-                    <td>${e.login_username ? `<span class="badge badge-info" dir="ltr">👤 ${esc(e.login_username)}</span>` : '<span class="text-xs" style="color: var(--text-muted);">— لا يوجد</span>'}</td>
+                    <td>${e.login_username ? `<span class="badge ${active ? 'badge-info' : 'badge-danger'}" dir="ltr" title="${active ? '' : 'موقوف — لا يستطيع الدخول'}">${active ? '👤' : '⛔'} ${esc(e.login_username)}</span>` : '<span class="text-xs" style="color: var(--text-muted);">— لا يوجد</span>'}</td>
                     <td class="num">${b.entitled}</td>
                     <td class="num">${+b.used.toFixed(1)}${b.pending ? ` <span class="text-xs">(+${b.pending} معلّق)</span>` : ''}</td>
                     <td class="num" style="font-weight: 800; color: ${b.remaining < 0 ? 'var(--brake-red)' : 'var(--tread-green)'};">${+b.remaining.toFixed(1)}</td>
                     <td>${active ? '<span class="badge badge-success">نشط</span>' : '<span class="badge">موقوف</span>'}</td>
                     <td><div class="action-cell">
-                      <button class="btn btn-xs btn-blue" data-hr-edit-emp="${e.id}">✏️</button>
+                      <button class="btn btn-xs btn-blue" data-hr-edit-emp="${e.id}" title="تعديل">✏️</button>
+                      ${this.hrNeedsLoginCols ? '' : `<button class="btn btn-xs ${e.login_username ? 'btn-amber' : 'btn-ghost'}" data-hr-login-emp="${e.id}" title="دخول صفحة الموظف">🔐</button>`}
                       <button class="btn btn-xs btn-ghost" data-hr-toggle-emp="${e.id}" title="${active ? 'إيقاف' : 'تفعيل'}">${active ? '⏸️' : '▶️'}</button>
                     </div></td>
                   </tr>`;
@@ -4251,8 +4262,52 @@ class TireShopApp {
       const e = this.hrEmployees.find(x => x.id === b.dataset.hrToggleEmp);
       if (!e) return;
       const active = e.active !== false;
-      if (active && !confirm(`إيقاف ${e.name}؟ سيبقى سجلّه محفوظاً.`)) return;
-      if (await this.hrWrite('hr_employees', 'update', { active: !active }, e.id)) rerender();
+      if (active && !confirm(`إيقاف ${e.name}؟ سيبقى سجلّه محفوظاً، ولن يستطيع الدخول لصفحة الموظف.`)) return;
+      const data = { active: !active };
+      if (active && e.login_username && confirm(`هل تريد أيضاً حذف اسم المستخدم (${e.login_username}) وكلمة المرور الخاصة بـ ${e.name}؟\n\n"موافق" = حذف الحساب نهائياً\n"إلغاء" = إبقاؤه موقوفاً (يعود عند إعادة التفعيل)`)) {
+        data.login_username = null; data.login_password = null;
+      }
+      if (await this.hrWrite('hr_employees', 'update', data, e.id)) {
+        showToast(active ? `تم إيقاف ${e.name}${data.login_username === null ? ' وحذف حسابه' : ''}` : `تم تفعيل ${e.name}`, 'success');
+        rerender();
+      }
+    }));
+    root.querySelectorAll('[data-hr-login-emp]').forEach(b => b.addEventListener('click', () => {
+      const e = this.hrEmployees.find(x => x.id === b.dataset.hrLoginEmp);
+      if (!e) return;
+      const has = !!e.login_username;
+      this.hrModal(`🔐 دخول صفحة الموظف: ${esc(e.name)}`, `
+        ${e.active === false ? '<div class="dup-banner">⛔ هذا الموظف موقوف — لا يستطيع الدخول حتى لو كان له حساب.</div>' : ''}
+        <div class="form-group">
+          <label>اسم المستخدم *</label>
+          <input type="text" id="hrLgUser" value="${esc(e.login_username || '')}" placeholder="مثال: ahmed" dir="ltr" autocapitalize="none" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="form-group">
+          <label>${has ? 'كلمة مرور جديدة <span class="text-xs">(اتركها فارغة لعدم التغيير)</span>' : 'كلمة المرور *'}</label>
+          <input type="text" id="hrLgPass" placeholder="4 أحرف على الأقل" dir="ltr" autocomplete="new-password" spellcheck="false">
+        </div>
+        ${has ? `
+        <div class="hr-login-del">
+          <button type="button" class="btn btn-danger btn-sm" id="hrLgDelete">🗑️ حذف اسم المستخدم وكلمة المرور</button>
+          <p class="text-xs">بعد الحذف لا يستطيع ${esc(e.name)} الدخول لصفحة الموظف. سجلّه في الحضور والإجازات يبقى محفوظاً.</p>
+        </div>` : ''}
+      `, async () => {
+        const login = await this.readHrLogin('hrLg', e);
+        if (login === null) return false;
+        if (!Object.keys(login).length) { showToast('أدخل اسم المستخدم وكلمة المرور', 'error'); return false; }
+        const ok = await this.hrWrite('hr_employees', 'update', login, e.id);
+        if (ok) { showToast(login.login_username === null ? 'تم حذف الحساب' : 'تم حفظ بيانات الدخول', 'success'); rerender(); }
+        return ok;
+      });
+      document.getElementById('hrLgDelete')?.addEventListener('click', async () => {
+        if (!confirm(`حذف اسم المستخدم وكلمة المرور الخاصة بـ ${e.name}؟`)) return;
+        const ok = await this.hrWrite('hr_employees', 'update', { login_username: null, login_password: null }, e.id);
+        if (ok) {
+          document.getElementById('modalOverlay')?.classList.remove('active');
+          showToast(`تم حذف حساب ${e.name}`, 'success');
+          rerender();
+        }
+      });
     }));
     root.querySelectorAll('[data-hr-edit-emp]').forEach(b => b.addEventListener('click', () => {
       const e = this.hrEmployees.find(x => x.id === b.dataset.hrEditEmp);
