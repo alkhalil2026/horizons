@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- EMPLOYEE BUILD | VERSION: 2.30.0 (invoice issuer name) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- EMPLOYEE BUILD | VERSION: 2.30.1 (issuer name works without SQL column) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -3617,6 +3617,15 @@ class TireShopApp {
   }
 
   // الخصم للمدير فقط
+  // اسم محرر فاتورة محفوظة: من عمود created_by، أو من نسخته الاحتياطية داخل الأصناف
+  saleIssuer(sale) {
+    if (!sale) return '';
+    if (sale.createdBy) return sale.createdBy;
+    let items = sale.items;
+    if (typeof items === 'string') { try { items = JSON.parse(items); } catch (e) { items = null; } }
+    return (Array.isArray(items) && items[0] && items[0].issuer) || '';
+  }
+
   // اسم محرر الفاتورة: المدير من الإعدادات، والموظف من حسابه
   issuerName() {
     const u = this.currentUser;
@@ -5644,7 +5653,7 @@ class TireShopApp {
       invoiceNumber, date: original?.createdAt || new Date().toISOString(),
       customerName: w.customerName, items: w.cart, subtotal, discount,
       discountLabel: this.discountLabel(), total, warranty: w.warranty, paymentMethod: w.paymentMethod === 'split' ? encodeSplit(w.paySplit) : w.paymentMethod,
-      createdBy: original ? original.createdBy : this.issuerName(),
+      createdBy: original ? this.saleIssuer(original) : this.issuerName(),
     });
   }
 
@@ -5775,7 +5784,11 @@ class TireShopApp {
       created_at: createdAt,
       promo_code: w.promo && w.promo.id ? w.promo.code : null,
     };
-    if (!editingId) row.created_by = this.issuerName() || null;
+    // محرر الفاتورة: عمود created_by + نسخة احتياطية داخل أول صنف (تعمل حتى بدون العمود)
+    const original = editingId ? this.sales.find(x => x.id === editingId) : null;
+    const issuer = editingId ? this.saleIssuer(original) : this.issuerName();
+    if (!editingId) row.created_by = issuer || null;
+    if (issuer && Array.isArray(row.items) && row.items.length) row.items = row.items.map((it, i) => i === 0 ? { ...it, issuer } : it);
 
     try {
       // فرق كميات الإطارات: الجديد − الأصلي (عند الفاتورة الجديدة الأصلي = 0)
@@ -5852,10 +5865,7 @@ class TireShopApp {
 
       showToast(editingId ? 'تم تعديل الفاتورة' : `${t('invoiceCreated')} — ${invoiceNumber}${isBackdated ? ' (' + fmtDate(createdAt) + ')' : ''}`, 'success');
       this.lastSavedInvoiceNumber = invoiceNumber;
-      if (!editingId && (this.lastDropped || []).includes('created_by') && !this.warnedIssuerCol) {
-        this.warnedIssuerCol = true;
-        showToast('⚠️ اسم محرر الفاتورة لم يُحفظ — شغّل ملف v2_30_invoice_issuer.sql مرة واحدة في Supabase', 'warning');
-      }
+
       // زيادة عدد مرات استخدام الكود (فاتورة جديدة أو كود جديد في التعديل)
       if (w.promo && w.promo.id && (!editingId || w.promo.code !== w.originalPromo)) {
         const pc = this.promoCodes.find(p => p.id === w.promo.id);
@@ -6412,7 +6422,7 @@ class TireShopApp {
                   <td class="num">
                     <button class="profit-chip ${pr.profit >= 0 ? 'pos' : 'neg'}" data-profit-sale="${s.id}" title="تفاصيل الربح">${fmtMoney(pr.profit)}${pr.missingCost ? '*' : ''} <small>${pr.margin.toFixed(0)}%</small></button>
                   </td>
-                  <td>${fmtDate(s.createdAt)}${s.createdBy ? `<div class="text-xs" style="color: var(--text-muted);">✍️ ${esc(s.createdBy)}</div>` : ''}</td>
+                  <td>${fmtDate(s.createdAt)}${this.saleIssuer(s) ? `<div class="text-xs" style="color: var(--text-muted);">✍️ ${esc(this.saleIssuer(s))}</div>` : ''}</td>
                   <td>
                     <button class="btn btn-xs btn-amber" data-edit-sale="${s.id}">✏️ تعديل</button>
                     <button class="btn btn-xs btn-blue" data-print-invoice="${s.id}">🖨️ طباعة</button>
@@ -7585,7 +7595,7 @@ ${this.canDiscount() && !w.promo ? `
             </div>
           </div>
 
-          ${sale.createdBy ? `<div class="issuer">${sale.isQuote ? 'حرّر العرض' : 'حرّر الفاتورة'}: <b>${esc(sale.createdBy)}</b></div>` : ''}
+          ${this.saleIssuer(sale) ? `<div class="issuer">${sale.isQuote ? 'حرّر العرض' : 'حرّر الفاتورة'}: <b>${esc(this.saleIssuer(sale))}</b></div>` : ''}
 
           <div class="footer">
             <p>شكراً لتعاملك معنا</p>
@@ -7615,7 +7625,7 @@ ${this.canDiscount() && !w.promo ? `
       subtotal: parseFloat(sale.subtotal) || (parseFloat(sale.total) || 0) + discount,
       discount, discountLabel: `الخصم${sale.promoCode ? ' — كود ' + sale.promoCode : ''}${pct > 0 ? ` (${+pct.toFixed(2)}%)` : ''}`,
       total: parseFloat(sale.total) || 0, warranty: sale.warranty, paymentMethod: sale.paymentMethod, isQuote: sale.isQuote,
-      createdBy: sale.createdBy,
+      createdBy: this.saleIssuer(sale),
     });
 
     const encodedMessage = encodeURIComponent(message);
@@ -7825,8 +7835,8 @@ ${this.canDiscount() && !w.promo ? `
       ctx.beginPath(); ctx.moveTo(bx, y); ctx.lineTo(bx + boxW, y); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + stW, y); ctx.stroke();
       y += 34;
-      if (sale.createdBy) {
-        text(`${T(sale.isQuote ? 'حرّر العرض' : 'حرّر الفاتورة')}: ${sale.createdBy}`, W / 2, y, { size: 15, color: C.soft, align: 'center' });
+      if (this.saleIssuer(sale)) {
+        text(`${T(sale.isQuote ? 'حرّر العرض' : 'حرّر الفاتورة')}: ${this.saleIssuer(sale)}`, W / 2, y, { size: 15, color: C.soft, align: 'center' });
         y += 30;
       }
     }
