@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.29.0 (employee discount with cap + quick price increase) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.30.0 (invoice issuer name) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1686,10 +1686,11 @@ SHOP.stamp = '';         // صورة ختم المحل (تظهر بجانب ال
 SHOP.employeePhone = '';   // رقم الموظف (يظهر أسفل الفاتورة)
 SHOP.managerPhone = '';    // رقم المسؤول (يظهر أسفل الفاتورة)
 SHOP.invoiceStart = '1';   // رقم أول فاتورة في الترقيم المتسلسل
+SHOP.managerName = '';      // اسم المدير (يظهر كمحرر للفواتير التي يصدرها)
 SHOP.empMaxDiscount = '10'; // أقصى خصم يسمح به للموظف (% من المجموع) — 0 = بدون خصم
 // هذه المفاتيح يمكن تفريغها عمداً (لإخفائها من الفاتورة)
 const SHOP_CLEARABLE_KEYS = ['address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone'];
-const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone', 'invoiceStart', 'empMaxDiscount'];
+const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone', 'invoiceStart', 'empMaxDiscount', 'managerName'];
 
 // ===== ترقيم الفواتير المتسلسل: INV-0001, INV-0002 ... =====
 // الأرقام القديمة العشوائية (INV-1790670643117) لا تدخل في الحساب
@@ -2092,6 +2093,12 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "حرّر الفاتورة": "Issued by",
+  "حرّر العرض": "Prepared by",
+  "👔 اسم المدير": "👔 Manager name",
+  "مثال: محمد": "e.g. Mohammed",
+  "يظهر أسفل الفواتير التي تصدرها أنت: \"حرّر الفاتورة: محمد\". الموظفون يظهر اسمهم من حساباتهم في الموارد البشرية.": "Shown at the bottom of invoices you issue: \"Issued by: Mohammed\". Employees' names come from their HR accounts.",
+  "⚠️ اسم محرر الفاتورة لم يُحفظ — شغّل ملف v2_30_invoice_issuer.sql مرة واحدة في Supabase": "⚠️ The issuer name wasn't saved — run v2_30_invoice_issuer.sql once in Supabase",
   "✏️ السعر": "✏️ Price",
   "🏷️ أقصى خصم يسمح به للموظف (%)": "🏷️ Maximum employee discount (%)",
   "(الحد الأقصى": "(maximum",
@@ -3423,7 +3430,8 @@ const FIELD_MAP = {
     discount_amount: 'discountAmount',
     discount_percent: 'discountPercent',
     discount_total: 'discountTotal',
-    promo_code: 'promoCode'
+    promo_code: 'promoCode',
+    created_by: 'createdBy'
   },
   promo_codes: {
     discount_type: 'discountType',
@@ -3609,6 +3617,14 @@ class TireShopApp {
   }
 
   // الخصم للمدير فقط
+  // اسم محرر الفاتورة: المدير من الإعدادات، والموظف من حسابه
+  issuerName() {
+    const u = this.currentUser;
+    if (!u) return '';
+    if (u.role === 'manager') return (SHOP.managerName || '').trim() || u.name || 'المدير';
+    return u.name || 'الموظف';
+  }
+
   // المدير: خصم بلا حد. الموظف: حسب الحد الذي يحدده المدير في الإعدادات
   canDiscount() {
     return this.isManager() || this.discountCap() > 0;
@@ -5614,6 +5630,7 @@ class TireShopApp {
     if (d.paymentMethod) msg += `*طريقة الدفع:* ${paymentText(d.paymentMethod)}\n`;
     const end = warrantyEndDate(d.date, d.warranty);
     if (end) msg += `\n🛡️ *${t(d.warranty)}* — ساري حتى ${fmtDate(end)}\n`;
+    if (d.createdBy) msg += `\n✍️ ${d.isQuote ? 'حرّر العرض' : 'حرّر الفاتورة'}: ${d.createdBy}\n`;
     invoiceContacts().forEach(c => { msg += `\n${c.icon} ${c.label}: ${c.value}`; });
     if (instagramHandle()) msg += `\n📷 انستجرام: @${instagramHandle()}`;
     msg += `\n\nشكراً لتعاملك معنا 🙏`;
@@ -5628,6 +5645,7 @@ class TireShopApp {
       invoiceNumber, date: original?.createdAt || new Date().toISOString(),
       customerName: w.customerName, items: w.cart, subtotal, discount,
       discountLabel: this.discountLabel(), total, warranty: w.warranty, paymentMethod: w.paymentMethod === 'split' ? encodeSplit(w.paySplit) : w.paymentMethod,
+      createdBy: original ? original.createdBy : this.issuerName(),
     });
   }
 
@@ -5758,6 +5776,7 @@ class TireShopApp {
       created_at: createdAt,
       promo_code: w.promo && w.promo.id ? w.promo.code : null,
     };
+    if (!editingId) row.created_by = this.issuerName() || null;
 
     try {
       // فرق كميات الإطارات: الجديد − الأصلي (عند الفاتورة الجديدة الأصلي = 0)
@@ -5834,6 +5853,10 @@ class TireShopApp {
 
       showToast(editingId ? 'تم تعديل الفاتورة' : `${t('invoiceCreated')} — ${invoiceNumber}${isBackdated ? ' (' + fmtDate(createdAt) + ')' : ''}`, 'success');
       this.lastSavedInvoiceNumber = invoiceNumber;
+      if (!editingId && (this.lastDropped || []).includes('created_by') && !this.warnedIssuerCol) {
+        this.warnedIssuerCol = true;
+        showToast('⚠️ اسم محرر الفاتورة لم يُحفظ — شغّل ملف v2_30_invoice_issuer.sql مرة واحدة في Supabase', 'warning');
+      }
       // زيادة عدد مرات استخدام الكود (فاتورة جديدة أو كود جديد في التعديل)
       if (w.promo && w.promo.id && (!editingId || w.promo.code !== w.originalPromo)) {
         const pc = this.promoCodes.find(p => p.id === w.promo.id);
@@ -6390,7 +6413,7 @@ class TireShopApp {
                   <td class="num">
                     <button class="profit-chip ${pr.profit >= 0 ? 'pos' : 'neg'}" data-profit-sale="${s.id}" title="تفاصيل الربح">${fmtMoney(pr.profit)}${pr.missingCost ? '*' : ''} <small>${pr.margin.toFixed(0)}%</small></button>
                   </td>
-                  <td>${fmtDate(s.createdAt)}</td>
+                  <td>${fmtDate(s.createdAt)}${s.createdBy ? `<div class="text-xs" style="color: var(--text-muted);">✍️ ${esc(s.createdBy)}</div>` : ''}</td>
                   <td>
                     <button class="btn btn-xs btn-amber" data-edit-sale="${s.id}">✏️ تعديل</button>
                     <button class="btn btn-xs btn-blue" data-print-invoice="${s.id}">🖨️ طباعة</button>
@@ -6452,6 +6475,11 @@ class TireShopApp {
             <label>👔 رقم المسؤول</label>
             <input type="tel" id="settingMgrPhone" value="${esc(SHOP.managerPhone || '')}" placeholder="اختياري" dir="ltr" style="text-align: right;">
           </div>
+        </div>
+        <div class="form-group">
+          <label>👔 اسم المدير</label>
+          <input type="text" id="settingMgrName" value="${esc(SHOP.managerName || '')}" placeholder="مثال: محمد" style="max-width: 300px;">
+          <p class="text-xs">يظهر أسفل الفواتير التي تصدرها أنت: "حرّر الفاتورة: محمد". الموظفون يظهر اسمهم من حساباتهم في الموارد البشرية.</p>
         </div>
         <div class="form-group">
           <label>🏷️ أقصى خصم يسمح به للموظف (%)</label>
@@ -6721,6 +6749,7 @@ class TireShopApp {
       const employeePhone = document.getElementById('settingEmpPhone').value.trim();
       const managerPhone = document.getElementById('settingMgrPhone').value.trim();
       const invoiceStart = String(Math.max(1, parseInt(document.getElementById('settingInvoiceStart').value, 10) || 1));
+      const managerName = (document.getElementById('settingMgrName')?.value || '').trim();
       const empMaxDiscount = String(Math.max(0, Math.min(100, parseFloat(document.getElementById('settingEmpMaxDisc')?.value) || 0)));
       const badPhone = [employeePhone, managerPhone].find(p => p && !/^[+\d\s-]{6,20}$/.test(p));
       if (badPhone) {
@@ -6728,7 +6757,7 @@ class TireShopApp {
         return;
       }
       const warrantyPolicy = document.getElementById('settingPolicy').value.trim();
-      const where = await this.saveSettings({ phone, instagram, nameEn, address, warrantyPolicy, employeePhone, managerPhone, invoiceStart, empMaxDiscount });
+      const where = await this.saveSettings({ phone, instagram, nameEn, address, warrantyPolicy, employeePhone, managerPhone, invoiceStart, empMaxDiscount, managerName });
       SHOP.address = address;
       SHOP.employeePhone = employeePhone;
       SHOP.managerPhone = managerPhone;
@@ -7449,6 +7478,7 @@ ${this.canDiscount() && !w.promo ? `
           .policy li .mk { display: inline-block; width: 18px; font-weight: bold; color: #2e7d4f; }
           .policy li.x .mk { color: #c4483a; }
           .policy .pn { margin-top: 6px; color: #444; }
+          .issuer { margin-top: 14px; font-size: 14px; color: #444; text-align: center; }
           .sign-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 26px; gap: 30px; }
           .stamp-box { width: 170px; }
           .stamp-area { height: 120px; }
@@ -7556,6 +7586,8 @@ ${this.canDiscount() && !w.promo ? `
             </div>
           </div>
 
+          ${sale.createdBy ? `<div class="issuer">${sale.isQuote ? 'حرّر العرض' : 'حرّر الفاتورة'}: <b>${esc(sale.createdBy)}</b></div>` : ''}
+
           <div class="footer">
             <p>شكراً لتعاملك معنا</p>
             <div class="contact">
@@ -7584,6 +7616,7 @@ ${this.canDiscount() && !w.promo ? `
       subtotal: parseFloat(sale.subtotal) || (parseFloat(sale.total) || 0) + discount,
       discount, discountLabel: `الخصم${sale.promoCode ? ' — كود ' + sale.promoCode : ''}${pct > 0 ? ` (${+pct.toFixed(2)}%)` : ''}`,
       total: parseFloat(sale.total) || 0, warranty: sale.warranty, paymentMethod: sale.paymentMethod, isQuote: sale.isQuote,
+      createdBy: sale.createdBy,
     });
 
     const encodedMessage = encodeURIComponent(message);
@@ -7793,6 +7826,10 @@ ${this.canDiscount() && !w.promo ? `
       ctx.beginPath(); ctx.moveTo(bx, y); ctx.lineTo(bx + boxW, y); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(sx, y); ctx.lineTo(sx + stW, y); ctx.stroke();
       y += 34;
+      if (sale.createdBy) {
+        text(`${T(sale.isQuote ? 'حرّر العرض' : 'حرّر الفاتورة')}: ${sale.createdBy}`, W / 2, y, { size: 15, color: C.soft, align: 'center' });
+        y += 30;
+      }
     }
 
     // التذييل
@@ -9297,6 +9334,7 @@ ${this.canDiscount() && !w.promo ? `
       isQuote: true, invoiceNumber: q.quoteNumber, customerName: q.customerName, customerPhone: q.customerPhone,
       createdAt: q.createdAt, items: this.quoteItems(q), subtotal: q.subtotal, discountAmount: q.discountAmount,
       discountPercent: q.discountPercent, total: q.total, warranty: q.warranty, validUntil: q.validUntil, notes: q.notes,
+      createdBy: q.createdBy,
     };
   }
 
@@ -9321,7 +9359,7 @@ ${this.canDiscount() && !w.promo ? `
       ok = await this.updateRecord('quotations', editing.id, data);
     } else {
       number = this.nextQuoteNumber();
-      ok = await this.addRecord('quotations', { ...data, quote_number: number, status: 'open', created_by: this.currentUser?.name || null });
+      ok = await this.addRecord('quotations', { ...data, quote_number: number, status: 'open', created_by: this.issuerName() || null });
     }
     if (ok === false) {
       if (this.quotationsMissing || /quotations|relation|schema cache/i.test(this.lastAddError || '')) showToast('قسم عروض الأسعار يحتاج تجهيز قاعدة البيانات — افتح صفحة عروض الأسعار', 'error');
