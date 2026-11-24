@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSION: 2.28.2 (delete HR employee) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
+<!-- VERSION: 2.29.0 (employee discount with cap + quick price increase) - 2026-09-26 | CACHE BUSTER: v2-fixed-customers-bug -->
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
@@ -1636,6 +1636,11 @@ tr.orphan-row td { background: #FBEDEB !important; }
 
 .hr-login-del { border-top: 1px dashed var(--line, #E3DDD0); padding-top: 12px; margin-top: 4px; }
 .hr-login-del .text-xs { margin-top: 6px; }
+
+.price-lbl { color: var(--text-600, #5B564C); font-weight: 600; }
+.price-quick { display: inline-flex; gap: 4px; }
+.price-quick button { border: 1px solid var(--tread-green, #1E7B3A); color: var(--tread-green, #1E7B3A); background: #EEF8F1; border-radius: 6px; font-size: 12px; font-weight: 700; padding: 1px 7px; cursor: pointer; line-height: 20px; }
+.price-quick button:hover { background: var(--tread-green, #1E7B3A); color: #fff; }
 </style>
 </head>
 <body>
@@ -1681,9 +1686,10 @@ SHOP.stamp = '';         // صورة ختم المحل (تظهر بجانب ال
 SHOP.employeePhone = '';   // رقم الموظف (يظهر أسفل الفاتورة)
 SHOP.managerPhone = '';    // رقم المسؤول (يظهر أسفل الفاتورة)
 SHOP.invoiceStart = '1';   // رقم أول فاتورة في الترقيم المتسلسل
+SHOP.empMaxDiscount = '10'; // أقصى خصم يسمح به للموظف (% من المجموع) — 0 = بدون خصم
 // هذه المفاتيح يمكن تفريغها عمداً (لإخفائها من الفاتورة)
 const SHOP_CLEARABLE_KEYS = ['address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone'];
-const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone', 'invoiceStart'];
+const SHOP_EDITABLE_KEYS = ['phone', 'instagram', 'nameEn', 'logo', 'hrShifts', 'hrShiftsFri', 'address', 'warrantyPolicy', 'signature', 'stamp', 'employeePhone', 'managerPhone', 'invoiceStart', 'empMaxDiscount'];
 
 // ===== ترقيم الفواتير المتسلسل: INV-0001, INV-0002 ... =====
 // الأرقام القديمة العشوائية (INV-1790670643117) لا تدخل في الحساب
@@ -2086,6 +2092,10 @@ function t(key) {
 // =====================================================================
 const UI_DICT = {
   "→ رجوع": "← Back",
+  "✏️ السعر": "✏️ Price",
+  "🏷️ أقصى خصم يسمح به للموظف (%)": "🏷️ Maximum employee discount (%)",
+  "(الحد الأقصى": "(maximum",
+  "الموظف يقدر يعطي خصماً (مبلغ أو نسبة) حتى هذا الحد من مجموع الفاتورة. اكتب 0 لمنع الموظف من الخصم. المدير بدون حد.": "The employee can give a discount (amount or %) up to this share of the invoice total. Enter 0 to block employee discounts. The manager has no limit.",
   "حذف الموظف نهائياً": "Delete employee permanently",
   "الاسم غير مطابق — لم يُحذف شيء": "Name doesn't match — nothing was deleted",
   "وسجلاته": "and their records",
@@ -3599,8 +3609,15 @@ class TireShopApp {
   }
 
   // الخصم للمدير فقط
+  // المدير: خصم بلا حد. الموظف: حسب الحد الذي يحدده المدير في الإعدادات
   canDiscount() {
-    return this.isManager();
+    return this.isManager() || this.discountCap() > 0;
+  }
+
+  discountCap() {
+    if (this.isManager()) return 100;
+    const v = parseFloat(SHOP.empMaxDiscount);
+    return isNaN(v) ? 10 : Math.max(0, Math.min(100, v));
   }
 
   homeView() {
@@ -5540,10 +5557,11 @@ class TireShopApp {
     }
     const value = this.canDiscount() ? Math.max(parseFloat(w.discount) || 0, 0) : 0;
     const isPercent = w.discountType === 'percent';
-    const percent = isPercent ? Math.min(value, 100) : 0;
-    let discount = isPercent ? subtotal * percent / 100 : value;
+    const cap = this.discountCap();
+    const percent = isPercent ? Math.min(value, cap) : 0;
+    let discount = isPercent ? subtotal * percent / 100 : Math.min(value, subtotal * cap / 100);
     discount = Math.round(Math.min(discount, subtotal) * 1000) / 1000;
-    return { subtotal, discount, percent, total: subtotal - discount };
+    return { subtotal, discount, percent, total: subtotal - discount, capped: !this.isManager() && value > 0 && (isPercent ? value > cap : value > subtotal * cap / 100 + 0.0005) };
   }
 
   // عناصر الفاتورة للطباعة/الواتساب (تدعم الفواتير القديمة ذات الخدمة الواحدة)
@@ -6436,6 +6454,11 @@ class TireShopApp {
           </div>
         </div>
         <div class="form-group">
+          <label>🏷️ أقصى خصم يسمح به للموظف (%)</label>
+          <input type="number" id="settingEmpMaxDisc" min="0" max="100" step="1" value="${esc(String(isNaN(parseFloat(SHOP.empMaxDiscount)) ? 10 : parseFloat(SHOP.empMaxDiscount)))}" dir="ltr" style="text-align: right; max-width: 200px;">
+          <p class="text-xs">الموظف يقدر يعطي خصماً (مبلغ أو نسبة) حتى هذا الحد من مجموع الفاتورة. اكتب 0 لمنع الموظف من الخصم. المدير بدون حد.</p>
+        </div>
+        <div class="form-group">
           <label>🔢 رقم أول فاتورة</label>
           <input type="number" id="settingInvoiceStart" min="1" step="1" value="${esc(String(parseInt(SHOP.invoiceStart, 10) || 1))}" dir="ltr" style="text-align: right; max-width: 200px;">
           <p class="text-xs">الفواتير تُرقَّم بالتسلسل: INV-0001، INV-0002... إذا كان عندك دفتر فواتير ورقي، اكتب الرقم الذي تريد أن يبدأ منه النظام. الفاتورة التالية: <b class="num" dir="ltr">${esc(this.previewNextInvoice || '...')}</b></p>
@@ -6698,13 +6721,14 @@ class TireShopApp {
       const employeePhone = document.getElementById('settingEmpPhone').value.trim();
       const managerPhone = document.getElementById('settingMgrPhone').value.trim();
       const invoiceStart = String(Math.max(1, parseInt(document.getElementById('settingInvoiceStart').value, 10) || 1));
+      const empMaxDiscount = String(Math.max(0, Math.min(100, parseFloat(document.getElementById('settingEmpMaxDisc')?.value) || 0)));
       const badPhone = [employeePhone, managerPhone].find(p => p && !/^[+\d\s-]{6,20}$/.test(p));
       if (badPhone) {
         showToast('رقم الهاتف غير صحيح: ' + badPhone, 'error');
         return;
       }
       const warrantyPolicy = document.getElementById('settingPolicy').value.trim();
-      const where = await this.saveSettings({ phone, instagram, nameEn, address, warrantyPolicy, employeePhone, managerPhone, invoiceStart });
+      const where = await this.saveSettings({ phone, instagram, nameEn, address, warrantyPolicy, employeePhone, managerPhone, invoiceStart, empMaxDiscount });
       SHOP.address = address;
       SHOP.employeePhone = employeePhone;
       SHOP.managerPhone = managerPhone;
@@ -6796,8 +6820,10 @@ class TireShopApp {
             <div class="cart-name">${esc(l.description)}</div>
             ${editable ? `
               <div class="cart-price-edit">
+                <span class="text-xs price-lbl">✏️ السعر</span>
                 <input type="text" inputmode="decimal" class="cart-price-input" data-cart-price="${esc(l.key)}" value="${+(+l.unitPrice).toFixed(3)}" title="اكتب سعراً جديداً (مثال 35) أو زيادة (مثال +5) ثم Enter">
                 <span class="text-xs">× ${l.quantity}</span>
+                <span class="price-quick">${[1, 5].map(n => `<button type="button" data-cart-price-add="${esc(l.key)}" data-add="${n}" title="زيادة ${n} على السعر">+${n}</button>`).join('')}</span>
                 ${l.basePrice != null && l.unitPrice > l.basePrice ? `<span class="text-xs price-up">▲ ${fmtMoney(l.unitPrice - l.basePrice)}</span>` : ''}
                 ${l.basePrice != null && l.unitPrice < l.basePrice ? `<span class="text-xs price-down">▼ ${fmtMoney(l.basePrice - l.unitPrice)}</span>` : ''}
                 ${l.basePrice != null && l.unitPrice !== l.basePrice ? `<button type="button" class="price-reset" data-cart-price-reset="${esc(l.key)}" title="إرجاع السعر الأصلي (${fmtMoney(l.basePrice)})">↺</button>` : ''}
@@ -6943,7 +6969,7 @@ class TireShopApp {
 ${this.renderPromoBox()}
 ${this.canDiscount() && !w.promo ? `
               <div class="form-group">
-                <label>الخصم — اختياري</label>
+                <label>الخصم — اختياري${this.isManager() ? '' : ` <span class="text-xs">(الحد الأقصى ${+this.discountCap().toFixed(2)}%)</span>`}</label>
                 <div class="disc-row">
                   <div class="disc-toggle">
                     <button type="button" class="disc-type ${w.discountType !== 'percent' ? 'active' : ''}" data-disc-type="amount">ر.ع</button>
@@ -9010,6 +9036,7 @@ ${this.canDiscount() && !w.promo ? `
         el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
       });
       root.querySelectorAll('[data-cart-price-reset]').forEach(el => el.addEventListener('click', () => this.resetCartPrice(el.dataset.cartPriceReset)));
+      root.querySelectorAll('[data-cart-price-add]').forEach(el => el.addEventListener('click', () => this.setCartPrice(el.dataset.cartPriceAdd, '+' + el.dataset.add)));
 
       // تقسيم الدفع: تحديث المتبقي مباشرة
       const refreshSplit = () => {
@@ -9076,12 +9103,13 @@ ${this.canDiscount() && !w.promo ? `
         const box = document.getElementById('wzCartBox');
         if (box) box.innerHTML = this.renderCartPanel(false);
         const hint = document.getElementById('discountHint');
-        const { discount, percent, subtotal } = this.cartTotals();
+        const { discount, percent, subtotal, capped } = this.cartTotals();
         if (hint) {
-          hint.textContent = !discount ? ''
+          hint.innerHTML = (!discount ? ''
             : w.discountType === 'percent'
               ? `= ${fmtMoney(discount)} ر.ع`
-              : `= ${subtotal ? +(discount / subtotal * 100).toFixed(2) : 0}% من المجموع`;
+              : `= ${subtotal ? +(discount / subtotal * 100).toFixed(2) : 0}% من المجموع`)
+            + (capped ? ` <b style="color: var(--brake-red);">— تجاوزت الحد المسموح (${+this.discountCap().toFixed(2)}% = ${fmtMoney(subtotal * this.discountCap() / 100)} ر.ع)، طُبِّق الحد الأقصى فقط</b>` : '');
         }
         const raw = parseFloat(w.discount) || 0;
         if (w.discountType === 'percent' && raw > 100) showToast('أقصى نسبة خصم 100%', 'warning');
